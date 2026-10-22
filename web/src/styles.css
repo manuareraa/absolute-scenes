@@ -34,6 +34,8 @@ button { font: inherit; color: inherit; cursor: pointer; }
 .stage { flex: 1; display: flex; gap: 12px; padding: 12px 16px; min-height: 0; }
 .screen { position: relative; flex: 1; align-self: flex-start; }
 .pitch { display: block; width: 100%; height: auto; border-radius: 6px; }
+.view3d { width: 100%; aspect-ratio: 16 / 9; border-radius: 6px; overflow: hidden; }
+.view3d[hidden] { display: none; }
 .surface-player .screen { max-width: 900px; margin: 0 auto; }
 
 .grass { fill: var(--grass); }
