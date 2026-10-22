@@ -36,6 +36,7 @@ def all_calls(t):
         ("control_at", {"match_id": MID, "t": t, "team": "home", "x": 30, "y": 0}),
         ("shot_xg", {"match_id": MID, "t": t}),
         ("offside_line", {"match_id": MID, "t": t, "defending_team": "away"}),
+        ("var_offside", {"match_id": MID, "t": t, "player_id": "H09"}),
         ("pass_options", {"match_id": MID, "t": t}),
         ("formation", {"match_id": MID, "t": t, "team": "away"}),
         ("obso", {"match_id": MID, "t": t}),
@@ -143,3 +144,22 @@ def test_ghost_tool(store, owned_t):
     assert tools.verify(tc["name"], tc["args"], output_hash=tc["output_hash"])["verified"]
     with pytest.raises(ValueError):
         tools.ghost(MID, "A04", 0, 40_000)
+
+
+def test_var_offside_agrees_with_the_sim(store):
+    tools = Tools(store)
+    evs = store.get(MID).events()
+    check = next(e for e in evs if e["type"] == "var_check")
+    out = tools.var_offside(MID, check["t"])
+    # The director's VAR beat ends in "goal stands": the last pass to the scorer's side was onside.
+    assert out["details"]["decision"] == "onside" and out["value"] <= 0
+    assert out["details"]["attacking_team"] == check["team"]
+    assert out["evidence_window"]["end_t"] == check["t"]
+    validate("claim", claim_for(out))
+    for e in evs:
+        if e["type"] == "pass" and e["attrs"].get("outcome") == "offside":
+            o = tools.var_offside(MID, e["t"], e["attrs"]["receiver"])
+            assert o["details"]["pass_event"] == e["id"]
+            assert o["details"]["decision"] == "offside" and o["value"] > 0
+    with pytest.raises(ValueError):
+        tools.var_offside(MID, -1)  # no pass before kick-off and no player named

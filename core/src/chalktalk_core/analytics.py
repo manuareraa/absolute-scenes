@@ -435,6 +435,79 @@ def offside_line(frame: Frame | Snapshot, defending_team: str) -> Result:
     )
 
 
+def var_offside(frame: Frame | Snapshot, receiver_id: str, passer_id: str | None = None) -> Result:
+    """The VAR offside check at the moment the ball is played (``frame``): the receiver against
+    the defending team's offside line (second-last defender, or the ball if further forward,
+    never inside the attacker's own half). The value is the margin in metres: above 0 is
+    offside, 0 or below is onside (level is onside)."""
+    s = _snap(frame)
+    k = s.index(receiver_id)
+    attack = str(s.team[k])
+    defend = other_team(attack)
+    sign = s.sign(attack)
+    dfn = s.members(defend)
+    order = dfn[np.argsort(-s.xy[dfn, 0] * sign, kind="stable")]
+    second = order[1]
+    candidates = {
+        "defender": float(s.xy[second, 0]) * sign,
+        "ball": float(s.ball[0]) * sign,
+        "halfway": 0.0,
+    }
+    line_from = max(candidates, key=lambda c: candidates[c])
+    line_n = candidates[line_from]
+    line_x = line_n * sign
+    rx, ry = float(s.xy[k, 0]), float(s.xy[k, 1])
+    margin = round(rx * sign - line_n, 2)
+    decision = "offside" if margin > 0 else "onside"
+    geometry: list[dict[str, Any]] = [
+        {
+            "shape": "offside_line",
+            "geometry_m": {"points": [_pt((line_x, -HALF_WIDTH)), _pt((line_x, HALF_WIDTH))]},
+        },
+        {
+            "shape": "line",
+            "geometry_m": {"points": [_pt((rx, -HALF_WIDTH)), _pt((rx, HALF_WIDTH))]},
+            "style": {"color": "danger" if margin > 0 else "chalk", "dash": True},
+        },
+        {
+            "shape": "ring",
+            "geometry_m": {"points": [_pt((rx, ry))], "radius": 1.5, "player_id": receiver_id},
+        },
+        {
+            "shape": "label",
+            "geometry_m": {
+                "points": [_pt((rx, ry + 3.0))],
+                "text": f"{decision} {abs(margin):.2f} m",
+            },
+        },
+    ]
+    if passer_id is not None:
+        p = s.xy[s.index(passer_id)]
+        geometry.append(
+            {
+                "shape": "pass_lane",
+                "geometry_m": {"points": [_pt(p), _pt((rx, ry))], "player_id": passer_id},
+            }
+        )
+    return Result(
+        metric="var_offside",
+        value=margin,
+        unit="m",
+        evidence_window=_window(s.t),
+        geometry=geometry,
+        details={
+            "decision": decision,
+            "receiver": receiver_id,
+            "passer": passer_id,
+            "attacking_team": attack,
+            "second_last_defender": s.ids[second],
+            "line_x": round(line_x, 2),
+            "line_from": line_from,
+            "receiver_x": round(rx, 2),
+        },
+    )
+
+
 def pass_options(frame: Frame | Snapshot, max_len_m: float = 45.0) -> Result:
     """The carrier's teammates as pass options: interception risk of the lane, control at the
     receiver, xT gain and offside. The value is the number of safe options (risk < 0.35)."""
