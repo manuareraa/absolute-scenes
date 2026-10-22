@@ -1,6 +1,7 @@
 import { lazy, Suspense, useEffect, useMemo, useRef, useState } from "react";
 import type { Overlay } from "@chalktalk/contracts";
 import { OverlayLayer } from "./components/OverlayLayer";
+import { checkLabel, claimWords, slotLabel, evidenceFor, evidenceOverlay, eventsSoFar, frameBetween, replayMatchT, type EvidenceEntry } from "./evidence";
 import { PitchView } from "./components/PitchView";
 import { LENSES, SIDES, SURFACES, type Fixture } from "./fixture/synthetic";
 import { applyHubMessage, liveFrame, LiveDirector, liveMatchT, newLiveState } from "./live";
@@ -12,6 +13,7 @@ import { connectMatch, matchWsUrl, type SourceMode } from "./ws";
 type Surface = Overlay["surface"];
 type Lens = Overlay["lens"];
 type Side = Overlay["side"];
+type Claim = Overlay["claims"][number];
 
 const params = new URLSearchParams(location.search);
 /** The hub's match (a `chalktalk_sim` package); the local fixture plays when the hub is down. */
@@ -78,6 +80,26 @@ export function App() {
   const [hubReady, setHubReady] = useState(false);
   const isLive = mode.mode === "live" && hubReady;
   const { elapsed, seek, seekGen } = usePlayClock(playing || isLive);
+  // Evidence replay: a tapped number pauses the show and loops the window it came from.
+  const [replay, setReplay] = useState<{ claim: Claim; entry: EvidenceEntry; resume: boolean } | null>(null);
+  const rc = usePlayClock(replay !== null);
+  const openEvidence = (claim: Claim) => {
+    const entry = evidenceFor(showFx?.evidence, claim);
+    if (!entry) return;
+    setReplay({ claim, entry, resume: replay?.resume ?? playing });
+    setPlaying(false);
+    rc.seek(0);
+  };
+  const closeEvidence = () => {
+    if (replay?.resume) setPlaying(true);
+    setReplay(null);
+  };
+  useEffect(() => {
+    if (!replay) return;
+    const onKey = (e: KeyboardEvent) => e.key === "Escape" && closeEvidence();
+    addEventListener("keydown", onKey);
+    return () => removeEventListener("keydown", onKey);
+  });
 
   useEffect(() => {
     fetch(`/fixtures/${FIXTURE_ID}.json`)
@@ -140,7 +162,12 @@ export function App() {
   }
 
   // Strokes and captions run on the overlay audio's clock, not on wall time.
-  const audio = useOverlayAudio(state.overlay, state.audioMs, playing || isLive, seekGen);
+  const audio = useOverlayAudio(state.overlay, state.audioMs, (playing || isLive) && !replay, seekGen);
+  const replaying = showMode && replay !== null;
+  const replayT = replaying ? replayMatchT(replay.entry, rc.elapsed) : 0;
+  if (replaying) frame = frameBetween(showFx.frames, replayT);
+  const drawn = replaying ? evidenceOverlay(replay.entry, replay.claim.id) : state.overlay;
+  const tappable = (c: Claim) => showMode && evidenceFor(showFx.evidence, c) !== undefined;
   const audioMs = audio.audioMs;
   // Breakdowns cut to the 2D chalkboard, as a broadcast cuts to the telestrator; play stays in 3D.
   const show3d = view === "3d" && !state.overlay;
@@ -168,6 +195,16 @@ export function App() {
                 <b>{i + 1}.</b> {c.title}
               </button>
             ))}
+            {state.overlay && state.overlay.claims.some(tappable) && (
+              <div className="claims" aria-label="Numbers in this chapter">
+                <h2>Tap a number to see its evidence</h2>
+                {state.overlay.claims.filter(tappable).map((c) => (
+                  <button key={c.id} className={replay?.claim === c ? "on" : ""} onClick={() => openEvidence(c)}>
+                    {slotLabel(c.text_slot)} <b>{String(c.value)}</b> {c.unit ?? ""}
+                  </button>
+                ))}
+              </div>
+            )}
           </nav>
         )}
         {surface === "show" && !isLive && !showMode && (
@@ -189,11 +226,15 @@ export function App() {
           )}
           {!show3d && (
             <PitchView frame={frame}>
-              <OverlayLayer overlay={state.overlay} frame={frame} audioMs={audioMs} />
+              <OverlayLayer overlay={drawn} frame={frame} audioMs={replaying ? Infinity : audioMs} />
             </PitchView>
           )}
           {surface === "broadcast" && <div className="scorebug">HOME 0 – 0 AWAY · {clock(state.matchT)}</div>}
-          {state.overlay && <Caption overlay={state.overlay} audioMs={audioMs} />}
+          {replaying ? (
+            <EvidencePanel claim={replay.claim} entry={replay.entry} t={replayT} onClose={closeEvidence} />
+          ) : (
+            state.overlay && <Caption overlay={state.overlay} audioMs={audioMs} onClaim={showMode ? openEvidence : undefined} tappable={tappable} />
+          )}
           {audio.blocked && state.overlay && (
             <button className="sound-on" onClick={audio.unblock}>
               Sound on
@@ -225,17 +266,60 @@ function clock(ms: number): string {
   return `${String(Math.floor(s / 60)).padStart(2, "0")}:${String(s % 60).padStart(2, "0")}`;
 }
 
-function Caption({ overlay, audioMs }: { overlay: Overlay; audioMs: number }) {
+function Caption(props: { overlay: Overlay; audioMs: number; onClaim?: (c: Claim) => void; tappable?: (c: Claim) => boolean }) {
+  const { overlay, audioMs, onClaim, tappable } = props;
   const words = overlay.script.words ?? [];
   const at = wordIndexAt(overlay, audioMs);
+  const spoken = useMemo(() => claimWords(overlay), [overlay]);
   return (
     <p className="caption" aria-live="polite">
-      {words.map((w, i) => (
-        <span key={i} className={i === at ? "now" : i < at ? "said" : ""}>
-          {w.text}{" "}
-        </span>
-      ))}
+      {words.map((w, i) => {
+        const cls = i === at ? "now" : i < at ? "said" : "";
+        const c = onClaim ? spoken.get(i) : undefined;
+        if (c && tappable?.(c))
+          return (
+            <span key={i} className={cls}>
+              <button className="num" title="Replay the evidence" onClick={() => onClaim!(c)}>
+                {w.text}
+              </button>{" "}
+            </span>
+          );
+        return (
+          <span key={i} className={cls}>
+            {w.text}{" "}
+          </span>
+        );
+      })}
     </p>
+  );
+}
+
+function EvidencePanel({ claim, entry, t, onClose }: { claim: Claim; entry: EvidenceEntry; t: number; onClose(): void }) {
+  const seen = eventsSoFar(entry, t);
+  return (
+    <section className="evidence" aria-label="Evidence">
+      <header>
+        <b>
+          {slotLabel(claim.text_slot)} = {String(claim.value)} {claim.unit ?? ""}
+        </b>
+        <span className={`check ${entry.check}`}>{checkLabel(entry)}</span>
+        <button onClick={onClose}>Back to the show</button>
+      </header>
+      <p className="call">
+        <code>
+          {entry.tool}({Object.entries(entry.args).filter(([k]) => k !== "match_id").map(([k, v]) => `${k}=${JSON.stringify(v)}`).join(", ")})
+        </code>{" "}
+        · replay {clock(entry.replay.start_t)}–{clock(entry.replay.end_t)} · now {clock(t)}
+      </p>
+      <ol className="events">
+        {seen.slice(-4).map((e) => (
+          <li key={`${e.t}-${e.type}`}>
+            {clock(e.t)} {e.type.replaceAll("_", " ")} {e.team ?? ""}
+          </li>
+        ))}
+        {!seen.length && <li className="muted">no events yet</li>}
+      </ol>
+    </section>
   );
 }
 
