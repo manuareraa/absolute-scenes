@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { lazy, Suspense, useEffect, useMemo, useRef, useState } from "react";
 import type { Overlay } from "@chalktalk/contracts";
 import { OverlayLayer } from "./components/OverlayLayer";
 import { PitchView } from "./components/PitchView";
@@ -15,6 +15,13 @@ const params = new URLSearchParams(location.search);
 /** The hub's match (a `chalktalk_sim` package); the local fixture plays when the hub is down. */
 const MATCH_ID = params.get("match") ?? "sim-7";
 const FIXTURE_ID = params.get("fixture") ?? "demo-001";
+/** The 2D board is the GPU-light default; `?view=3d` opens the broadcast view, `?quality=high` adds AA and shadows. */
+const VIEWS = ["2d", "3d"] as const;
+type View = (typeof VIEWS)[number];
+const START_VIEW: View = params.get("view") === "3d" ? "3d" : "2d";
+const QUALITY = params.get("quality") === "high" ? "high" : "light";
+// three.js only loads when the 3D view is first opened.
+const Broadcast3D = lazy(() => import("./figures/Broadcast3D"));
 
 /**
  * Wall clock in ms that re-renders on every animation frame while playing, so a stroke shows on
@@ -52,6 +59,7 @@ export function App() {
   const [mode, setMode] = useState<{ mode: SourceMode; detail?: string }>({ mode: "connecting" });
   const [live, setLive] = useState<Overlay[]>([]);
   const [playing, setPlaying] = useState(true);
+  const [view, setView] = useState<View>(START_VIEW);
   // Hub state lives in a ref: frame batches land every second, renders tick at the frame rate.
   const hub = useRef(newLiveState());
   const director = useRef(new LiveDirector());
@@ -103,6 +111,8 @@ export function App() {
   // Strokes and captions run on the overlay audio's clock, not on wall time.
   const audio = useOverlayAudio(state.overlay, state.audioMs, playing || isLive, seekGen);
   const audioMs = audio.audioMs;
+  // Breakdowns cut to the 2D chalkboard, as a broadcast cuts to the telestrator; play stays in 3D.
+  const show3d = view === "3d" && !state.overlay;
 
   if (error && !isLive) return <main className="app error">Could not load the match fixture: {error}</main>;
 
@@ -112,6 +122,7 @@ export function App() {
         <h1>ChalkTalk</h1>
         <Segmented label="Surface" value={surface} options={SURFACES} onChange={setSurface} />
         <Segmented label="Lens" value={lens} options={LENSES} onChange={setLens} />
+        <Segmented label="View" value={view} options={VIEWS} onChange={setView} />
         <span className={`badge ${mode.mode}`} title={mode.detail}>
           {isLive ? (hub.current.ended ? "full time" : "live hub") : mode.mode === "fixture" ? "fixture playback" : "connecting…"}
         </span>
@@ -128,9 +139,18 @@ export function App() {
           </nav>
         )}
         <div className="screen">
-          <PitchView frame={frame}>
-            <OverlayLayer overlay={state.overlay} frame={frame} audioMs={audioMs} />
-          </PitchView>
+          {view === "3d" && (
+            <Suspense fallback={show3d ? <PitchView frame={frame} /> : null}>
+              <div className="view3d" hidden={!show3d}>
+                <Broadcast3D frame={frame} active={show3d} quality={QUALITY} />
+              </div>
+            </Suspense>
+          )}
+          {!show3d && (
+            <PitchView frame={frame}>
+              <OverlayLayer overlay={state.overlay} frame={frame} audioMs={audioMs} />
+            </PitchView>
+          )}
           {surface === "broadcast" && <div className="scorebug">HOME 0 – 0 AWAY · {clock(state.matchT)}</div>}
           {state.overlay && <Caption overlay={state.overlay} audioMs={audioMs} />}
           {audio.blocked && state.overlay && (
