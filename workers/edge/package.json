@@ -4,10 +4,12 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "dev": "wrangler dev",
-    "check": "wrangler deploy --dry-run --outdir dist",
+    "dev": "node scripts/assemble.mjs && wrangler dev",
+    "check": "node scripts/assemble.mjs && wrangler deploy --dry-run --outdir dist",
     "typecheck": "tsc --noEmit -p .",
-    "test": "vitest run"
+    "test": "vitest run",
+    "assemble": "node scripts/assemble.mjs",
+    "deploy": "wrangler deploy"
   },
   "dependencies": {
     "@chalktalk/contracts": "0.0.0"
