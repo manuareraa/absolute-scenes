@@ -1,9 +1,10 @@
 """Kinematic and behavioural parameters for the match director.
 
 The defaults are set from published elite-football ranges (top speeds 8-10 m/s, peak
-accelerations 3-5 m/s^2, ground passes 10-20 m/s). ``scripts`` in this package refit them
-from IDSSE (Bassek et al. 2025, CC-BY 4.0, data by DFL) for calibration and the realism
-benchmark only; no real tracking data is shipped.
+accelerations 3-5 m/s^2, ground passes 10-20 m/s), checked against the fit that
+``chalktalk_sim.calibrate`` makes from IDSSE (Bassek et al. 2025, CC BY 4.0, data by DFL).
+Real tracking data is used for calibration and the realism benchmark only; only quantile
+summaries (``data/reference_profile.json``) are committed.
 """
 
 from __future__ import annotations
