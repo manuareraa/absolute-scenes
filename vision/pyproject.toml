@@ -2,10 +2,20 @@
 name = "chalktalk-vision"
 version = "0.0.0"
 requires-python = ">=3.12"
-dependencies = ["chalktalk-contracts"]
+# CPU-only parts (renderer, calibration, scoring, events). The GPU detector stack lives in
+# a separate venv, see vision/gpu/requirements.txt, so CI never installs torch.
+dependencies = [
+  "chalktalk-contracts",
+  "chalktalk-core",
+  "chalktalk-sim",
+  "numpy>=2",
+  "opencv-python-headless==5.0.0.93",
+]
 
 [tool.uv.sources]
 chalktalk-contracts = { workspace = true }
+chalktalk-core = { workspace = true }
+chalktalk-sim = { workspace = true }
 
 [build-system]
 requires = ["hatchling"]
