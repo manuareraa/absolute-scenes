@@ -1,21 +1,147 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
+import type { Overlay } from "@chalktalk/contracts";
+import { OverlayLayer } from "./components/OverlayLayer";
+import { PitchView } from "./components/PitchView";
+import { FRAME_MS, LENSES, SURFACES, type Fixture } from "./fixture/synthetic";
+import { frameAt, playStateAt, selectOverlays, timeline, wordIndexAt } from "./playback";
+import { connectMatch, matchWsUrl, type SourceMode } from "./ws";
 
-// M0 placeholder. Stream A replaces this with the 3D pitch and players.
-export function App() {
-  const [health, setHealth] = useState("checking");
+type Surface = Overlay["surface"];
+type Lens = Overlay["lens"];
+
+const params = new URLSearchParams(location.search);
+const MATCH_ID = params.get("match") ?? "demo-001";
+
+/** Wall clock in ms that ticks at the frame rate while playing. */
+function usePlayClock(playing: boolean) {
+  const [elapsed, setElapsed] = useState(0);
+  const base = useRef({ wall: performance.now(), elapsed: 0 });
   useEffect(() => {
-    fetch("/api/health")
-      .then((r) => (r.ok ? "edge ok" : `edge ${r.status}`))
-      .catch(() => "edge offline")
-      .then(setHealth);
+    if (!playing) return;
+    base.current = { wall: performance.now(), elapsed };
+    const id = setInterval(() => setElapsed(base.current.elapsed + performance.now() - base.current.wall), FRAME_MS);
+    return () => clearInterval(id);
+    // Restart only when play state flips; `elapsed` is captured as the new base.
+  }, [playing]);
+  const seek = (ms: number) => {
+    base.current = { wall: performance.now(), elapsed: ms };
+    setElapsed(ms);
+  };
+  return { elapsed, seek };
+}
+
+export function App() {
+  const [fixture, setFixture] = useState<Fixture | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [surface, setSurface] = useState<Surface>("broadcast");
+  const [lens, setLens] = useState<Lens>("casual");
+  const [mode, setMode] = useState<{ mode: SourceMode; detail?: string }>({ mode: "connecting" });
+  const [live, setLive] = useState<Overlay[]>([]);
+  const [playing, setPlaying] = useState(true);
+  const { elapsed, seek } = usePlayClock(playing);
+
+  useEffect(() => {
+    fetch(`/fixtures/${MATCH_ID}.json`)
+      .then((r) => (r.ok ? r.json() : Promise.reject(new Error(`fixture ${r.status}`))))
+      .then(setFixture)
+      .catch((e: Error) => setError(e.message));
   }, []);
+
+  useEffect(
+    () =>
+      connectMatch(matchWsUrl(MATCH_ID, location), {
+        onMode: (m, detail) => setMode({ mode: m, detail }),
+        onOverlay: (o) => setLive((prev) => [...prev.filter((p) => p.id !== o.id), o]),
+      }),
+    [],
+  );
+
+  const frames = fixture?.frames ?? [];
+  const matchEnd = frames.length ? frames[frames.length - 1].t : 0;
+  const source = mode.mode === "live" && live.length ? live : (fixture?.overlays ?? []);
+  const overlays = useMemo(() => selectOverlays(source, surface, lens), [source, surface, lens]);
+  const tl = useMemo(() => timeline(matchEnd, overlays), [matchEnd, overlays]);
+  const state = playStateAt(elapsed, matchEnd, overlays);
+  const frame = frameAt(frames, state.matchT);
+  const loopPos = tl.loopMs ? ((elapsed % tl.loopMs) + tl.loopMs) % tl.loopMs : 0;
+
+  if (error) return <main className="app error">Could not load the match fixture: {error}</main>;
+
   return (
-    <main style={{ fontFamily: "system-ui", padding: 24 }}>
-      <h1>ChalkTalk</h1>
-      <p>Every stroke lands on the word that names it.</p>
-      <p>
-        <small>{health}</small>
-      </p>
+    <main className={`app surface-${surface}`}>
+      <header className="bar">
+        <h1>ChalkTalk</h1>
+        <Segmented label="Surface" value={surface} options={SURFACES} onChange={setSurface} />
+        <Segmented label="Lens" value={lens} options={LENSES} onChange={setLens} />
+        <span className={`badge ${mode.mode}`} title={mode.detail}>
+          {mode.mode === "live" ? "live hub" : mode.mode === "connecting" ? "connecting…" : "fixture playback"}
+        </span>
+      </header>
+
+      <div className="stage">
+        {surface === "show" && (
+          <nav className="chapters" aria-label="Chapters">
+            {tl.starts.map(({ overlay, at }, i) => (
+              <button key={overlay.id} className={state.overlay?.id === overlay.id ? "on" : ""} onClick={() => seek(at)}>
+                <b>{i + 1}.</b> {overlay.script.text.split(" ").slice(0, 6).join(" ")}…
+              </button>
+            ))}
+          </nav>
+        )}
+        <div className="screen">
+          <PitchView frame={frame}>
+            <OverlayLayer overlay={state.overlay} frame={frame} audioMs={state.audioMs} />
+          </PitchView>
+          {surface === "broadcast" && <div className="scorebug">HOME 0 – 0 AWAY · {clock(state.matchT)}</div>}
+          {state.overlay && <Caption overlay={state.overlay} audioMs={state.audioMs} />}
+        </div>
+      </div>
+
+      {surface !== "broadcast" && (
+        <footer className="transport">
+          <button onClick={() => setPlaying((p) => !p)}>{playing ? "Pause" : "Play"}</button>
+          <input
+            type="range"
+            aria-label="Scrub"
+            min={0}
+            max={Math.max(1, Math.round(tl.loopMs))}
+            value={Math.round(loopPos)}
+            onChange={(e) => seek(Number(e.target.value))}
+          />
+          <span className="tc">{clock(state.matchT)}</span>
+        </footer>
+      )}
     </main>
+  );
+}
+
+function clock(ms: number): string {
+  const s = Math.floor(ms / 1000);
+  return `${String(Math.floor(s / 60)).padStart(2, "0")}:${String(s % 60).padStart(2, "0")}`;
+}
+
+function Caption({ overlay, audioMs }: { overlay: Overlay; audioMs: number }) {
+  const words = overlay.script.words ?? [];
+  const at = wordIndexAt(overlay, audioMs);
+  return (
+    <p className="caption" aria-live="polite">
+      {words.map((w, i) => (
+        <span key={i} className={i === at ? "now" : i < at ? "said" : ""}>
+          {w.text}{" "}
+        </span>
+      ))}
+    </p>
+  );
+}
+
+function Segmented<T extends string>(props: { label: string; value: T; options: readonly T[]; onChange(v: NoInfer<T>): void }) {
+  return (
+    <div className="seg" role="radiogroup" aria-label={props.label}>
+      {props.options.map((o) => (
+        <button key={o} role="radio" aria-checked={o === props.value} className={o === props.value ? "on" : ""} onClick={() => props.onChange(o)}>
+          {o}
+        </button>
+      ))}
+    </div>
   );
 }
