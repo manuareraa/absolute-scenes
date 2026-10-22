@@ -252,15 +252,17 @@ def pressure_on_ball(frame: Frame | Snapshot) -> Result:
 def pressing_intensity(frames: Iterable[Frame], team: str) -> Result:
     """Mean pressure ``team`` puts on the opposing ball carrier over a window."""
     values, ts, peak = [], [], (0.0, None)
+    peak_geometry: list[dict[str, Any]] = []
     for fr in frames:
         s = _snap(fr)
         ts.append(s.t)
         if s.owner_team() != other_team(team):
             continue
-        v = float(pressure_on_ball(s).value)
+        r = pressure_on_ball(s)
+        v = float(r.value)
         values.append(v)
         if v > peak[0]:
-            peak = (v, s.t)
+            peak, peak_geometry = (v, s.t), r.geometry
     if not ts:
         raise ValueError("empty window")
     mean = float(np.mean(values)) if values else 0.0
@@ -269,6 +271,8 @@ def pressing_intensity(frames: Iterable[Frame], team: str) -> Result:
         value=round(mean, 3),
         unit="prob",
         evidence_window=_window(min(ts), max(ts)),
+        # The peak moment: the carrier and the pressers closing them down.
+        geometry=peak_geometry,
         details={
             "team": team,
             "frames": len(ts),
@@ -490,24 +494,26 @@ def pass_options(frame: Frame | Snapshot, max_len_m: float = 45.0) -> Result:
 # --------------------------------------------------------------------------- speed
 def ball_speed(frames: Iterable[Frame]) -> Result:
     """Top ball speed in the window, e.g. a shot."""
-    best = (-1.0, 0, (0.0, 0.0))
-    ts = []
-    for fr in frames:
-        ts.append(fr["t"])
-        b = fr["ball"]
-        if b["v"] > best[0]:
-            best = (float(b["v"]), fr["t"], (b["x"], b["y"]))
-    if not ts:
+    track = [(fr["t"], fr["ball"]["x"], fr["ball"]["y"], float(fr["ball"]["v"])) for fr in frames]
+    if not track:
         raise ValueError("empty window")
-    v, t, at = best
+    k = max(range(len(track)), key=lambda i: track[i][3])
+    t, v, at = track[k][0], track[k][3], track[k][1:3]
+    # The ball's flight from the peak over the next second (or to the end of the window).
+    end = next((p for p in track[k:] if p[0] >= t + 1000), track[-1])[1:3]
+    geometry: list[dict[str, Any]] = []
+    if math.dist(at, end) > 0.5:
+        geometry.append({"shape": "arrow", "geometry_m": {"points": [_pt(at), _pt(end)]}})
+    geometry.append(
+        {"shape": "label", "geometry_m": {"points": [_pt(at)], "text": f"{v * 3.6:.0f} km/h"}}
+    )
+    ts = [p[0] for p in track]
     return Result(
         metric="ball_speed",
         value=round(v, 2),
         unit="m/s",
         evidence_window=_window(min(ts), max(ts)),
-        geometry=[
-            {"shape": "label", "geometry_m": {"points": [_pt(at)], "text": f"{v * 3.6:.0f} km/h"}}
-        ],
+        geometry=geometry,
         details={"t": t, "kmh": round(v * 3.6, 1)},
     )
 

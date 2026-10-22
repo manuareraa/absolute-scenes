@@ -53,6 +53,7 @@ Every tool except `list_matches` and `verify` returns:
 | player_run | match_id, start_t, end_t, player_id | top speed in m/s; path, distance |
 | ghost | match_id, player_id, start_t, end_t (≤ 30 s), baseline_s?=60 | gap (m) between the real player and the ghost at the end. Geometry: `ghost_path` (last point = expected position, `player_id` = real player), the real `run`, a `ring` at the ghost. Details: `deltas` of pitch control, net OBSO and pressing (ghost − real, from the player's team's view) |
 | verify | name, args, output_hash?, value?, tolerance? | `{verified, hash_match, value_ok, value, diff}` |
+| evidence | name, args, output_hash?, pad_ms=2000 | M9 tap-a-number: re-runs the call; its value, strokes and window, plus a replay window (padded, max 60 s), the events in it, the ball path (dashed `run`) and `hash_match` |
 
 Errors (unknown match, t outside the match, unknown player, bad zone) come back as MCP tool errors with a plain message.
 

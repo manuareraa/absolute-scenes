@@ -21,6 +21,9 @@ from chalktalk_core.provenance import canonical_json, normalise, output_hash
 from .store import Store
 
 MAX_EVENTS = 200
+MAX_PAD_MS = 10_000
+MAX_REPLAY_MS = 60_000
+NOT_EVIDENCE = ("list_matches", "verify", "evidence")
 EVENT_FIELDS = ("id", "t", "type", "actors", "team", "attrs")
 
 ToolFn = Callable[..., dict[str, Any]]
@@ -304,7 +307,7 @@ class Tools:
         tolerance: float | None = None,
     ) -> dict[str, Any]:
         """Re-run a tool call and check it: the hash matches, or the value is within tolerance."""
-        if name not in TOOL_NAMES or name == "verify":
+        if name not in TOOL_NAMES or name in ("verify", "evidence"):
             raise ValueError(f"unknown tool {name!r}")
         out = getattr(self, name)(**args)
         fresh = out["tool_call"]["output_hash"]
@@ -329,9 +332,58 @@ class Tools:
             "evidence_window": out["evidence_window"],
         }
 
+    def evidence(
+        self, name: str, args: dict[str, Any], output_hash: str | None = None, pad_ms: int = 2000
+    ) -> dict[str, Any]:
+        """Everything a tapped number needs to replay and draw its evidence: re-runs the tool
+        call (checking output_hash when given), and returns its value, strokes and evidence
+        window, a replay window padded by pad_ms each side, the events in it and the ball's
+        path through it. The audit trail for one claim."""
+        if name not in TOOL_NAMES or name in NOT_EVIDENCE:
+            raise ValueError(f"no evidence for tool {name!r}")
+        if not 0 <= pad_ms <= MAX_PAD_MS:
+            raise ValueError(f"pad_ms must be 0..{MAX_PAD_MS}")
+        out = getattr(self, name)(**args)
+        match_id = out["match_id"]
+        src = self.store.get(match_id)
+        w = out["evidence_window"]
+        a = max(0, w["start_t"] - pad_ms)
+        b = min(src.duration_ms, w["end_t"] + pad_ms)
+        if b - a > MAX_REPLAY_MS:  # long windows replay as their last stretch
+            a = b - MAX_REPLAY_MS
+        hits = [e for e in src.events() if a <= e["t"] <= b]
+        trail = [an._pt((f["ball"]["x"], f["ball"]["y"])) for f in src.window(a, b, 40)]
+        geometry = list(out.get("geometry", []))
+        if len(trail) > 1:
+            geometry.append({"shape": "run", "geometry_m": {"points": trail}, "style": {
+                "color": "chalk", "dash": True}})  # fmt: skip
+        body = {
+            "match_id": match_id,
+            "metric": "evidence",
+            "value": out["value"],
+            "unit": out.get("unit"),
+            "evidence_window": w,
+            "geometry": geometry,
+            "details": {
+                "claim_tool_call": out["tool_call"],
+                "hash_match": None
+                if output_hash is None
+                else out["tool_call"]["output_hash"] == output_hash,
+                "metric": out.get("metric"),
+                "replay": {"start_t": a, "end_t": b},
+                "events": [{k: e[k] for k in EVENT_FIELDS if k in e} for e in hits[:MAX_EVENTS]],
+                "events_total": len(hits),
+                "ball_path": trail,
+                "details": out.get("details", {}),
+            },
+        }
+        call = {"name": name, "args": args, "output_hash": output_hash, "pad_ms": pad_ms}
+        return _seal("evidence", call, body)
+
 
 TOOL_NAMES = (
     "list_matches",
+    "evidence",
     "match_info",
     "frame",
     "events",

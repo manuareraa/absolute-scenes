@@ -61,7 +61,7 @@ def test_every_tool_returns_a_valid_claim_binding(store, owned_t):
             validate("claim", claim_for(out))
             for g in out.get("geometry", []):
                 assert g["geometry_m"]["points"]
-    assert names | {"list_matches", "verify"} == set(TOOL_NAMES)
+    assert names | {"list_matches", "verify", "evidence"} == set(TOOL_NAMES)
 
 
 def test_outputs_are_deterministic_and_verifiable(store, owned_t):
