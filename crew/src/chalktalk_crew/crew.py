@@ -10,6 +10,7 @@ from chalktalk_contracts import validate
 from .analyst import Analyst
 from .config import CrewConfig
 from .director import Director, Moment
+from .lang import voice_for
 from .llm import FakeLLMClient, LLMClient
 from .pundit import Pundit
 from .script import render
@@ -64,7 +65,8 @@ class Crew:
         if not results:
             raise NoEvidence(f"no tool could explain moment {moment.id} for lens {lens}")
         draft = self.pundit.write(moment, results, lens=lens, side=side, lang=lang)
-        rendered = render(draft.template, draft.values, lang=lang, voice=self.config.speech_voice)
+        voice = voice_for(lang, self.config.speech_voice)
+        rendered = render(draft.template, draft.values, lang=lang, voice=voice)
         speech = self.speech.synthesize(rendered.ssml)
 
         cues = [{"cue_id": c, "offset_ms": speech.bookmarks[c]} for c in rendered.cue_order]

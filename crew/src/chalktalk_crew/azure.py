@@ -163,7 +163,8 @@ def snap_bookmarks(
 
 
 TRANSIENT = re.compile(r"429|TooManyRequests|throttl|ServiceTimeout", re.IGNORECASE)
-LANG_ATTR = re.compile(r"xml:lang='([a-z]{2})'")
+LANG_ATTR = re.compile(r"xml:lang='([a-z]{2})(?:-[A-Za-z]{2})?'")
+VOICE_ATTR = re.compile(r"<voice name='([a-z]{2}-[A-Z]{2}-\w+Neural)'")
 
 
 class AzureSpeechClient:
@@ -183,9 +184,14 @@ class AzureSpeechClient:
     def __repr__(self) -> str:
         return f"AzureSpeechClient(region={self.region!r}, voice={self.voice!r})"
 
+    def _voice(self, ssml: str) -> str:
+        """The voice the script asks for (one per language), else the configured one."""
+        m = VOICE_ATTR.search(ssml)
+        return m.group(1) if m else self.voice
+
     def _locale(self, ssml: str) -> str:
         # Azure wants a full locale in xml:lang; take it from the voice name (en-GB-RyanNeural).
-        locale = "-".join(self.voice.split("-")[:2])
+        locale = "-".join(self._voice(ssml).split("-")[:2])
         return LANG_ATTR.sub(f"xml:lang='{locale}'", ssml)
 
     def synthesize(self, ssml: str) -> SpeechResult:
@@ -211,7 +217,7 @@ class AzureSpeechClient:
             cfg = sdk.SpeechConfig(subscription=self._key, endpoint=self.endpoint)
         else:
             cfg = sdk.SpeechConfig(subscription=self._key, region=self.region)
-        cfg.speech_synthesis_voice_name = self.voice
+        cfg.speech_synthesis_voice_name = self._voice(ssml)
         cfg.set_speech_synthesis_output_format(
             sdk.SpeechSynthesisOutputFormat.Audio24Khz48KBitRateMonoMp3
         )

@@ -11,19 +11,23 @@ import re
 from dataclasses import dataclass
 from xml.sax.saxutils import escape
 
+from .lang import get_lang
+
 TOKEN = re.compile(r"\[\[([A-Za-z0-9_-]+)\]\]|\{([A-Za-z0-9_]+)\}")
-NUMBER = re.compile(r"(?<![A-Za-z])\d+(?:\.\d+)?")
+NUMBER = re.compile(r"(?<![A-Za-z])\d+(?:[.,]\d+)?")  # 0.42, or 0,42 in Spanish
 
 
-def format_value(value: float | int | str | bool, unit: str | None) -> str:
+def format_value(value: float | int | str | bool, unit: str | None, lang: str | None = None) -> str:
     """The one spoken form of a claim value; the verifier and evals match against it."""
     if isinstance(value, bool) or isinstance(value, str):
         return str(value)
     if unit == "xG":
-        return f"{value:.2f}"
-    if unit in ("m",):
-        return f"{value:.1f}"
-    return str(round(value))
+        text = f"{value:.2f}"
+    elif unit in ("m",):
+        text = f"{value:.1f}"
+    else:
+        return str(round(value))
+    return text.replace(".", get_lang(lang).decimal)
 
 
 IDENTIFIER = re.compile(r"\b[A-Za-z]+_[A-Za-z_]+\b")  # tool or slot names like line_gap

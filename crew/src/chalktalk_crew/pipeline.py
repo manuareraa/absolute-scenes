@@ -1,10 +1,11 @@
 """End to end: seeded sim match -> Director -> real analytics -> crew -> Verifier -> cache.
 
-Each (moment, lens, side, lang) is generated once. Verified overlays, their MP3 and cue sheet
-land under ``<cache>/<match_id>-<digest8>/``; a moment already in ``overlays/`` (or in
-``rejected/``, unless retried) is never sent to Foundry or Speech again. Every run writes a log
-with token counts and an estimated cost to ``runs/``. With a poster (``--post``), every verified
-overlay of the run, fresh or cached, is also POSTed to the edge Worker (``live.py``).
+Each (moment, lens, side, lang) is generated once. Verified overlays, their MP3, cue sheet and
+WebVTT captions land under ``<cache>/<match_id>-<digest8>/``; a moment already in
+``overlays/`` (or in ``rejected/``, unless retried) is never sent to Foundry or Speech again.
+Every run writes a log with token counts and an estimated cost to ``runs/``. With a poster
+(``--post``), every verified overlay of the run, fresh or cached, is also POSTed to the edge
+Worker (``live.py``).
 """
 
 from __future__ import annotations
@@ -12,12 +13,14 @@ from __future__ import annotations
 import json
 import time
 from dataclasses import dataclass, field
+from itertools import product
 from pathlib import Path
 from typing import Any
 
 from chalktalk_contracts import validate
 
 from .azure import AzureCallError
+from .captions import webvtt
 from .config import CrewConfig
 from .core_tools import CoreToolClient
 from .crew import Crew, NoEvidence, crew_from_env
@@ -30,7 +33,7 @@ class RunOptions:
     max_moments: int = 6
     lenses: tuple[str, ...] = ("casual",)
     sides: tuple[str, ...] = ("home",)
-    lang: str = "en-GB"
+    lang: str = "en-GB"  # comma list for several languages: "en-GB,es-ES"
     cache: Path = Path(".chalktalk-cache")
     budget_usd: float = 0.25
     retry_rejected: bool = False
@@ -140,8 +143,8 @@ def run(
     moments = crew.director.moments(match.events)[: opts.max_moments]
     for moment in moments:
         for lens in opts.lenses:
-            for side in opts.sides:
-                oid = overlay_id(moment.id, lens, side, opts.lang)
+            for side, lang in product(opts.sides, opts.lang.split(",")):
+                oid = overlay_id(moment.id, lens, side, lang)
                 done = root / "overlays" / f"{oid}.json"
                 bad = root / "rejected" / f"{oid}.json"
                 if done.exists() or (bad.exists() and not opts.retry_rejected):
@@ -156,7 +159,7 @@ def run(
                     continue
                 tap.audio = None
                 try:
-                    overlay = crew.breakdown(moment, lens=lens, side=side, lang=opts.lang)
+                    overlay = crew.breakdown(moment, lens=lens, side=side, lang=lang)
                 except NoEvidence:
                     log.skipped.append(oid)
                     continue
@@ -174,6 +177,8 @@ def run(
                     overlay["script"]["audio_url"] = f"audio/{oid}.mp3"
                     validate("overlay", overlay)
                 _write_json(root / "cues" / f"{oid}.json", cue_sheet(overlay))
+                (root / "captions").mkdir(exist_ok=True)
+                (root / "captions" / f"{oid}.vtt").write_text(webvtt(overlay))
                 _write_json(done, overlay)
                 bad.unlink(missing_ok=True)
                 log.generated.append(oid)

@@ -11,15 +11,10 @@ from typing import Any
 
 from .analyst import TOOL_SPECS
 from .director import Moment
+from .lang import team_ref
 from .llm import Beat, DraftRequest, FakeLLMClient, LLMClient
 from .script import TemplateError, check_template, fix_slot_names, format_value
 from .tools import ToolResult
-
-
-def team_ref(side: str, team: str) -> str:
-    if side == "neutral":
-        return f"the {team} side's"
-    return "our" if side == team else "their"
 
 
 @dataclass(frozen=True)
@@ -71,9 +66,11 @@ class Pundit:
                 }
             )
             beats.append(
-                Beat(res.name, spec.slot, cue_id, res.output.get("unit"), team_ref(side, team))
+                Beat(
+                    res.name, spec.slot, cue_id, res.output.get("unit"), team_ref(side, team, lang)
+                )
             )
-            values[spec.slot] = format_value(res.output["value"], res.output.get("unit"))
+            values[spec.slot] = format_value(res.output["value"], res.output.get("unit"), lang)
 
         request = DraftRequest(lens=lens, side=side, lang=lang, trigger=moment.trigger, beats=beats)
         slots = {b.slot for b in beats}
