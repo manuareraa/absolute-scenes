@@ -1,9 +1,11 @@
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
 import { strokeStartMs } from "@chalktalk/contracts";
+import { ghostPose } from "../src/components/Ghost";
 import { OverlayLayer, StrokeShape } from "../src/components/OverlayLayer";
 import { PitchView } from "../src/components/PitchView";
 import { makeFixture } from "../src/fixture/synthetic";
+import { dist, toVec } from "../src/pitch";
 import { frameAt } from "../src/playback";
 
 const fx = makeFixture();
@@ -42,5 +44,30 @@ describe("overlay renderer", () => {
     const html = renderToStaticMarkup(<PitchView frame={fx.frames[0]} />);
     expect((html.match(/class="player /g) ?? []).length).toBe(23);
     expect(html).toContain('class="ball"');
+  });
+});
+
+describe("ghost figure", () => {
+  const o = all.find((ov) => ov.strokes.some((s) => s.shape === "ghost_path"))!;
+  const ghost = o.strokes.find((s) => s.shape === "ghost_path")!;
+  const frame = frameAt(fx.frames, o.match_tc);
+  const pts = ghost.geometry_m.points!.map(toVec);
+
+  it("walks along the path and stands at its end, tethered to the real player", () => {
+    expect(ghostPose(ghost, frame, pts.slice(0, 2), 0.5)).toMatchObject({ at: pts[1], expected: pts[2], gapM: null });
+    const done = ghostPose(ghost, frame, pts, 1)!;
+    const p = frame!.players.find((q) => q.id === ghost.geometry_m.player_id)!;
+    expect(done.actual).toMatchObject({ at: [p.x, p.y], team: p.team });
+    expect(done.gapM).toBeCloseTo(dist([p.x, p.y], pts[2]), 6);
+    const html = renderToStaticMarkup(<svg><StrokeShape stroke={ghost} frame={frame} k={1} /></svg>);
+    expect(html).toContain(`data-ghost="${p.team}"`);
+    expect(html).toContain(`${done.gapM!.toFixed(1)} m`);
+  });
+
+  it("draws an untethered ghost when the stroke names no player", () => {
+    const bare = { ...ghost, geometry_m: { points: ghost.geometry_m.points } };
+    expect(ghostPose(bare, frame, pts, 1)).toMatchObject({ actual: null, gapM: null });
+    expect(renderToStaticMarkup(<svg><StrokeShape stroke={bare} frame={frame} k={1} /></svg>)).toContain('data-ghost="ghost"');
+    expect(ghostPose(bare, frame, [], 0)).toBeNull();
   });
 });
