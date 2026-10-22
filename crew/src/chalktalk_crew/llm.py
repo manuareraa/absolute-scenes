@@ -67,7 +67,8 @@ _PHRASES: dict[str, dict[str, str]] = {
     "pass_options": {
         "casual": "And the [[{cue}]]pass is on, one of {{{slot}}} options.",
         "analyst": "The carrier has {{{slot}}} forward options; the [[{cue}]]lane through is open.",
-        "newcomer": "The player on the ball could pick {{{slot}}} passes; this [[{cue}]]pass is the "
+        "newcomer": "The player on the ball could pick {{{slot}}} passes; "
+        "this [[{cue}]]pass is the "
         "dangerous one.",
     },
     "pitch_control": {
@@ -79,7 +80,8 @@ _PHRASES: dict[str, dict[str, str]] = {
     "pressing_intensity": {
         "casual": "Then the [[{cue}]]press arrives, with {{{slot}}} closing in.",
         "analyst": "The [[{cue}]]press: {{{slot}}} within tackling range.",
-        "newcomer": "Watch the [[{cue}]]pressure: the number rushing in to win it back is {{{slot}}}.",
+        "newcomer": "Watch the [[{cue}]]pressure: the number rushing in to win it back is "
+        "{{{slot}}}.",
     },
     "offside_line": {
         "casual": "The [[{cue}]]line was {{{slot}}} metres from halfway.",

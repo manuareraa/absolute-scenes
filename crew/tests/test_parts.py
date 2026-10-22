@@ -74,7 +74,10 @@ def test_render_escapes_and_bookmarks():
 
 
 def test_fake_speech_bookmarks_land_on_next_word():
-    ssml = "<speak><voice name='v'>One, <bookmark mark='a'/>two &amp; three<bookmark mark='z'/></voice></speak>"
+    ssml = (
+        "<speak><voice name='v'>One, <bookmark mark='a'/>two &amp; three"
+        "<bookmark mark='z'/></voice></speak>"
+    )
     res = FakeSpeechClient().synthesize(ssml)
     words = {w.text: w.offset_ms for w in res.words}
     assert res.bookmarks["a"] == words["two"]
