@@ -1,0 +1,53 @@
+{
+  "id": "m02-shot-corner",
+  "description": "Away shot is saved and goes behind for a corner. Synthetic, fictional players.",
+  "expect_tools": [
+    "xg"
+  ],
+  "events": [
+    {
+      "id": "e1",
+      "t": 1830000,
+      "type": "pass",
+      "actors": [
+        "a3"
+      ],
+      "source": "sim",
+      "confidence": 1.0,
+      "team": "away"
+    },
+    {
+      "id": "e2",
+      "t": 1832200,
+      "type": "shot",
+      "actors": [
+        "a9"
+      ],
+      "source": "sim",
+      "confidence": 1.0,
+      "team": "away"
+    },
+    {
+      "id": "e3",
+      "t": 1832900,
+      "type": "save",
+      "actors": [
+        "h1"
+      ],
+      "source": "sim",
+      "confidence": 1.0,
+      "team": "home"
+    },
+    {
+      "id": "e4",
+      "t": 1833500,
+      "type": "corner",
+      "actors": [
+        "a7"
+      ],
+      "source": "sim",
+      "confidence": 1.0,
+      "team": "away"
+    }
+  ]
+}

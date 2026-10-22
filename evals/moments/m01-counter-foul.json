@@ -1,0 +1,65 @@
+{
+  "id": "m01-counter-foul",
+  "description": "Home side breaks through the middle; the away side fouls to stop it. Synthetic, fictional players.",
+  "expect_tools": [
+    "line_gap"
+  ],
+  "events": [
+    {
+      "id": "e1",
+      "t": 600000,
+      "type": "pass",
+      "actors": [
+        "h4"
+      ],
+      "source": "sim",
+      "confidence": 1.0,
+      "team": "home"
+    },
+    {
+      "id": "e2",
+      "t": 602400,
+      "type": "carry",
+      "actors": [
+        "h8"
+      ],
+      "source": "sim",
+      "confidence": 1.0,
+      "team": "home"
+    },
+    {
+      "id": "e3",
+      "t": 604100,
+      "type": "pass",
+      "actors": [
+        "h8"
+      ],
+      "source": "sim",
+      "confidence": 1.0,
+      "team": "home"
+    },
+    {
+      "id": "e4",
+      "t": 605000,
+      "type": "press",
+      "actors": [
+        "a6"
+      ],
+      "source": "sim",
+      "confidence": 1.0,
+      "team": "away"
+    },
+    {
+      "id": "e5",
+      "t": 605600,
+      "type": "foul",
+      "actors": [
+        "a6",
+        "h10"
+      ],
+      "source": "sim",
+      "confidence": 1.0,
+      "team": "away"
+    }
+  ]
+}

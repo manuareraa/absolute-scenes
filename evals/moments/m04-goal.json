@@ -1,0 +1,53 @@
+{
+  "id": "m04-goal",
+  "description": "Away move ends in a goal. Synthetic, fictional players.",
+  "expect_tools": [
+    "xg"
+  ],
+  "events": [
+    {
+      "id": "e1",
+      "t": 3500000,
+      "type": "pass",
+      "actors": [
+        "a5"
+      ],
+      "source": "sim",
+      "confidence": 1.0,
+      "team": "away"
+    },
+    {
+      "id": "e2",
+      "t": 3502000,
+      "type": "dribble",
+      "actors": [
+        "a10"
+      ],
+      "source": "sim",
+      "confidence": 1.0,
+      "team": "away"
+    },
+    {
+      "id": "e3",
+      "t": 3503500,
+      "type": "shot",
+      "actors": [
+        "a10"
+      ],
+      "source": "sim",
+      "confidence": 1.0,
+      "team": "away"
+    },
+    {
+      "id": "e4",
+      "t": 3504000,
+      "type": "goal",
+      "actors": [
+        "a10"
+      ],
+      "source": "sim",
+      "confidence": 1.0,
+      "team": "away"
+    }
+  ]
+}
