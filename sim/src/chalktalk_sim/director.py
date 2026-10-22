@@ -21,6 +21,7 @@ from dataclasses import dataclass, field
 from typing import Any, Literal
 
 import numpy as np
+from chalktalk_core.analytics import xg as xg_of
 from chalktalk_core.geometry import (
     FRAME_MS,
     GOAL_HEIGHT,
@@ -60,17 +61,6 @@ class MatchConfig:
 
 def simulate(config: MatchConfig) -> Match:
     return _Director(config).run()
-
-
-def xg_of(x: float, y: float, sign: int) -> float:
-    """Simple distance-and-angle xG for a shot from (x, y) at the goal at ``sign`` * 52.5."""
-    gx = sign * HALF_LENGTH
-    dist = math.hypot(gx - x, y)
-    a = math.atan2(GOAL_WIDTH * abs(gx - x), (gx - x) ** 2 + y**2 - (GOAL_WIDTH / 2) ** 2)
-    if a < 0:
-        a += math.pi
-    z = -1.1 - 0.105 * dist + 1.6 * a
-    return float(1 / (1 + math.exp(-z)))
 
 
 class _Director:
