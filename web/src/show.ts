@@ -65,7 +65,16 @@ export function showStateAt(chapters: Chapter[], totalMs: number, elapsedMs: num
   return { chapter: i, matchT: ch.overlay.match_tc, overlay: ch.overlay, audioMs: into - ch.preRollMs };
 }
 
-/** The show for this lens and side, else the same lens on any side, else the first. */
-export function pickShow(shows: Show[], lens: Show["lens"], side: Show["side"]): Show | undefined {
-  return shows.find((s) => s.lens === lens && s.side === side) ?? shows.find((s) => s.lens === lens) ?? shows[0];
+/** The show for this lens, side and caption language; a language with no shows falls back to
+ * en-GB, then to any. Within it: the same lens on any side, else the first. */
+export function pickShow(shows: Show[], lens: Show["lens"], side: Show["side"], lang = "en-GB"): Show | undefined {
+  const inLang = (l: string) => shows.filter((s) => s.lang === l);
+  const pool = [inLang(lang), inLang("en-GB"), shows].find((p) => p.length) ?? shows;
+  return pool.find((s) => s.lens === lens && s.side === side) ?? pool.find((s) => s.lens === lens) ?? pool[0];
+}
+
+/** Caption languages in these overlays, en-GB first. */
+export function langsOf(overlays: { lang: string }[]): string[] {
+  const all = new Set(["en-GB", ...overlays.map((o) => o.lang)]);
+  return [...all].sort((a, b) => (a === "en-GB" ? -1 : b === "en-GB" ? 1 : a.localeCompare(b)));
 }

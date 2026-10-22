@@ -26,12 +26,13 @@ export type EvidenceMap = Record<string, EvidenceEntry>;
 export const evidenceFor = (map: EvidenceMap | undefined, c: Claim) => map?.[c.tool_call.output_hash];
 
 /** How far a caption word's number is from a claim's value, if it could be speaking it: the same
- * value to the word's precision, or within the claim's tolerance. */
+ * value to the word's precision, or within the claim's tolerance. The decimal may be a comma
+ * (es-ES says "14,4"); a trailing comma is punctuation. */
 function wordDistance(c: Claim, word: string): number | null {
-  const m = word.match(/-?\d+(?:\.(\d+))?/);
+  const m = word.match(/-?\d+(?:[.,](\d+))?/);
   const v = Number(c.value);
   if (!m || !Number.isFinite(v)) return null;
-  const d = Math.abs(v - Number(m[0]));
+  const d = Math.abs(v - Number(m[0].replace(",", ".")));
   const half = 0.5 * 10 ** -(m[1]?.length ?? 0) + 1e-9;
   return d <= half || d <= (c.tolerance ?? 0) ? d : null;
 }

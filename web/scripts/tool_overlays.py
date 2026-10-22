@@ -15,7 +15,7 @@ from chalktalk_crew.speech import FakeSpeechClient
 from chalktalk_mcp.store import Store
 from chalktalk_mcp.tools import Tools
 
-VOICE = {"en-GB": "en-GB-RyanNeural"}
+VOICE = {"en-GB": "en-GB-RyanNeural", "es-ES": "es-ES-AlvaroNeural"}
 GATE = {
     "passed": True,
     "scores": {"geometry_from_tools": 1.0, "hash_match_rate": 1.0, "template_fallback": 1.0},
@@ -106,11 +106,32 @@ def overlay(
 # ------------------------------------------------------------------------------------- ghost
 GHOST_WINDOW_MS = 6000
 GHOST_MIN_GAP_M = 3.0
-GHOST_TEMPLATE = (
-    "Where should number {shirt} have been? The [[g1]]ghost holds their slot in the team shape, "
-    "{gap_m} metres from where they really were. Their [[g2]]real run pulled them out of it; "
-    "with the ghost there, pitch control swings by {pc_pts} {points} {way}."
-)
+GHOST_TEMPLATES = {
+    "en-GB": (
+        "Where should number {shirt} have been? The [[g1]]ghost holds their slot in the team "
+        "shape, {gap_m} metres from where they really were. Their [[g2]]real run pulled them out "
+        "of it; with the ghost there, pitch control swings by {pc_pts} {points} {way}."
+    ),
+    "es-ES": (
+        "¿Dónde debía estar el número {shirt}? El [[g1]]fantasma ocupa su sitio en el dibujo del "
+        "equipo, a {gap_m} metros de donde estaba de verdad. Su [[g2]]carrera real le sacó de "
+        "ahí; con el fantasma en su sitio, el control del campo cambia {pc_pts} {points} {way}."
+    ),
+}
+GHOST_WORDS = {
+    "en-GB": {
+        "point": "point",
+        "points": "points",
+        "ours": "their way",
+        "theirs": "the other way, so the run was the right call",
+    },
+    "es-ES": {
+        "point": "punto",
+        "points": "puntos",
+        "ours": "a su favor",
+        "theirs": "en contra, así que la carrera fue acertada",
+    },
+}
 
 
 def _roster(t: Tools) -> dict[str, dict[str, Any]]:
@@ -119,7 +140,9 @@ def _roster(t: Tools) -> dict[str, dict[str, Any]]:
     return {p["id"]: p for side in ("home", "away") for p in teams[side]["players"]}
 
 
-def ghost_overlay(t: Tools, moment_t: int, side: str = "neutral") -> dict[str, Any]:
+def ghost_overlay(
+    t: Tools, moment_t: int, side: str = "neutral", lang: str = "en-GB"
+) -> dict[str, Any]:
     """The off-ball player whose drift from their slot cost (or won) the most pitch control
     as the moment built, and their ghost."""
     end = t.store.get("sim-7").clamp(moment_t)
@@ -145,18 +168,19 @@ def ghost_overlay(t: Tools, moment_t: int, side: str = "neutral") -> dict[str, A
         claim("c1", "gap_m", best, best["value"], "m", 0.5),
         claim("c2", "pc_pts", best, pc_pts, "points", 1.0),
     ]
+    w = GHOST_WORDS[lang]
     values = {
         "shirt": str(roster[pid]["number"]),
-        "gap_m": format_value(best["value"], "m"),
-        "points": "point" if pc_pts == 1 else "points",
-        "way": "their way" if delta >= 0 else "the other way, so the run was the right call",
-        "pc_pts": format_value(pc_pts, "points"),
+        "gap_m": format_value(best["value"], "m", lang),
+        "points": w["point"] if pc_pts == 1 else w["points"],
+        "way": w["ours"] if delta >= 0 else w["theirs"],
+        "pc_pts": format_value(pc_pts, "points", lang),
     }
     end_ghost = best["details"]["ghost_end"]
     return overlay(
-        f"ov-ghost-m{moment_t}-{pid}-{side}",
+        f"ov-ghost-m{moment_t}-{pid}-{lang}-{side}",
         end,
-        GHOST_TEMPLATE,
+        GHOST_TEMPLATES[lang],
         values,
         [
             (geo["ghost_path"], "g1", ["c1"]),
@@ -165,6 +189,7 @@ def ghost_overlay(t: Tools, moment_t: int, side: str = "neutral") -> dict[str, A
         ],
         claims,
         side=side,
+        lang=lang,
         camera={"preset": "tactical", "target": end_ghost},
     )
 
@@ -235,15 +260,37 @@ def evidence_map(t: Tools, overlays: list[dict[str, Any]]) -> dict[str, dict[str
 
 
 # --------------------------------------------------------------------------------------- VAR
-VAR_TEMPLATE = (
-    "VAR is checking the goal for [[v1]]offside. The line is the second-last defender at the "
-    "moment of the shot, and [[v2]]number {shirt} is {margin_m} metres {way}. "
-    "[[v3]]Check complete: {decision}."
-)
-VAR_DECISIONS = {"goal_stands": "the goal stands", "goal_disallowed": "no goal"}
+VAR_TEMPLATES = {
+    "en-GB": (
+        "VAR is checking the goal for [[v1]]offside. The line is the second-last defender at the "
+        "moment of the shot, and [[v2]]number {shirt} is {margin_m} metres {way}. "
+        "[[v3]]Check complete: {decision}."
+    ),
+    "es-ES": (
+        "El VAR revisa el gol por [[v1]]fuera de juego. La línea es el penúltimo defensor en el "
+        "momento del disparo, y el [[v2]]número {shirt} está a {margin_m} metros {way}. "
+        "[[v3]]Revisión terminada: {decision}."
+    ),
+}
+VAR_WORDS = {
+    "en-GB": {
+        "offside": "beyond it",
+        "onside": "behind it",
+        "goal_stands": "the goal stands",
+        "goal_disallowed": "no goal",
+    },
+    "es-ES": {
+        "offside": "por delante",
+        "onside": "por detrás",
+        "goal_stands": "el gol sube al marcador",
+        "goal_disallowed": "gol anulado",
+    },
+}
 
 
-def var_overlay(t: Tools, goal: dict[str, Any]) -> tuple[dict[str, Any], dict[str, Any]]:
+def var_overlay(
+    t: Tools, goal: dict[str, Any], lang: str = "en-GB"
+) -> tuple[dict[str, Any], dict[str, Any]]:
     """The VAR check on ``goal``: B's ``var_offside`` at the play that made it, and the check's
     own timing (``var_check`` and ``var_decision`` events) for the provisional graphics.
 
@@ -269,20 +316,22 @@ def var_overlay(t: Tools, goal: dict[str, Any]) -> tuple[dict[str, Any], dict[st
     if "pass_lane" in geo:
         strokes.append((geo["pass_lane"], "v2", ["c1"]))
     strokes.append((geo["label"], "v3", ["c1"]))
-    decision = VAR_DECISIONS.get(decided["attrs"]["decision"], decided["attrs"]["decision"])
+    w = VAR_WORDS[lang]
+    decision = w.get(decided["attrs"]["decision"], decided["attrs"]["decision"])
     values = {
         "shirt": str(_roster(t)[scorer]["number"]),
-        "margin_m": format_value(margin, "m"),
-        "way": "beyond it" if d["decision"] == "offside" else "behind it",
+        "margin_m": format_value(margin, "m", lang),
+        "way": w[d["decision"]],
         "decision": decision,
     }
     ov = overlay(
-        f"ov-var-m{goal['t']}-{scorer}",
+        f"ov-var-m{goal['t']}-{scorer}-{lang}",
         shot["t"],
-        VAR_TEMPLATE,
+        VAR_TEMPLATES[lang],
         values,
         strokes,
         [claim("c1", "margin_m", r, margin, "m", 0.05)],
+        lang=lang,
         camera={"preset": "tactical", "target": geo["ring"]["geometry_m"]["points"][0]},
     )
     meta = {

@@ -31,17 +31,20 @@ STEP = 2  # every other frame: 12.5 fps is plenty for the pre-roll
 REPLAY_STEP = 5  # evidence replays: 5 fps, the web eases between frames
 
 
-GHOST_TITLE = "Where they should have been"
-VAR_TITLE = "VAR check: offside?"
+GHOST_TITLE = {"en-GB": "Where they should have been", "es-ES": "Dónde debía estar"}
+VAR_TITLE = {"en-GB": "VAR check: offside?", "es-ES": "Revisión del VAR: ¿fuera de juego?"}
 CATCH_UP_T = 600_000  # "you joined late": the catch-up as of 10:00 of the 12-minute demo match
 
 
-def add_chapter(shows: list[dict], best: dict, title: str) -> None:
-    """``best`` as a chapter of every show (its lens, side and language), in match order."""
+def add_chapter(shows: list[dict], build, titles: dict[str, str]) -> None:
+    """``build(lang)`` as a chapter of every show (its lens, side and language), in match order."""
+    by_lang: dict[str, dict] = {}
     for show in shows:
-        g = {**best, "lens": show["lens"], "side": show["side"], "lang": show["lang"]}
+        lang = show["lang"]
+        best = by_lang.get(lang) or by_lang.setdefault(lang, build(lang))
+        g = {**best, "lens": show["lens"], "side": show["side"]}
         g["id"] = f"{best['id'].rsplit('-', 1)[0]}-{show['lens']}-{show['side']}"
-        seg = {"chapter_title": title, "overlay": g}
+        seg = {"chapter_title": titles[lang], "overlay": g}
         segs = show["segments"]
         at = next((i for i, x in enumerate(segs) if x["overlay"]["match_tc"] > g["match_tc"]), None)
         segs.insert(len(segs) if at is None else at, seg)
@@ -53,7 +56,8 @@ def add_ghost_chapters(shows: list[dict], t, overlays: list[dict]) -> None:
     moments = sorted({o["match_tc"] for o in overlays})
     ghosts = [ghost_overlay(t, m) for m in moments]
     best = max(ghosts, key=lambda g: abs(g["claims"][1]["value"]) * 100 + g["claims"][0]["value"])
-    add_chapter(shows, best, GHOST_TITLE)
+    at = moments[ghosts.index(best)]
+    add_chapter(shows, lambda lang: ghost_overlay(t, at, lang=lang), GHOST_TITLE)
 
 
 def add_var_chapters(shows: list[dict], t) -> dict[str, dict]:
@@ -65,7 +69,7 @@ def add_var_chapters(shows: list[dict], t) -> dict[str, dict]:
         if not any(c["type"] == "var_check" and 0 <= c["t"] - goal["t"] <= 10_000 for c in evs):
             continue
         ov, meta = var_overlay(t, goal)
-        add_chapter(shows, ov, VAR_TITLE)
+        add_chapter(shows, lambda lang, goal=goal: var_overlay(t, goal, lang)[0], VAR_TITLE)
         out[ov["claims"][0]["tool_call"]["output_hash"]] = meta
     return out
 

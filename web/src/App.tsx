@@ -6,7 +6,7 @@ import { PitchView } from "./components/PitchView";
 import { LENSES, SIDES, SURFACES, type Fixture } from "./fixture/synthetic";
 import { applyHubMessage, liveFrame, LiveDirector, liveMatchT, newLiveState } from "./live";
 import { frameAt, playStateAt, selectOverlays, timeline, wordIndexAt } from "./playback";
-import { chaptersOf, pickShow, showStateAt, type ShowFixture } from "./show";
+import { chaptersOf, langsOf, pickShow, showStateAt, type ShowFixture } from "./show";
 import { decidingMoments, pct, summaryTitle, type Moment, type Summary } from "./summary";
 import { useOverlayAudio } from "./useOverlayAudio";
 import { isProvisional, varBanner, varFor, varGraphics } from "./var";
@@ -72,6 +72,8 @@ export function App() {
   const [surface, setSurface] = useState<Surface>("broadcast");
   const [lens, setLens] = useState<Lens>(pick("lens", LENSES, "casual"));
   const [side, setSide] = useState<Side>(pick("side", SIDES, "neutral"));
+  /** Caption language (`?lang=es-ES`); the UI stays English. */
+  const [lang, setLang] = useState(params.get("lang") ?? "en-GB");
   const [mode, setMode] = useState<{ mode: SourceMode; detail?: string }>({ mode: "connecting" });
   const [live, setLive] = useState<Overlay[]>([]);
   const [playing, setPlaying] = useState(true);
@@ -153,9 +155,10 @@ export function App() {
   const frames = fixture?.frames ?? [];
   const matchEnd = frames.length ? frames[frames.length - 1].t : 0;
   const source = isLive ? live : (fixture?.overlays ?? []);
-  const overlays = useMemo(() => selectOverlays(source, surface, lens, side), [source, surface, lens, side]);
+  const overlays = useMemo(() => selectOverlays(source, surface, lens, side, lang), [source, surface, lens, side, lang]);
+  const langs = useMemo(() => langsOf([...source, ...(showFx?.shows ?? [])]), [source, showFx]);
   const tl = useMemo(() => timeline(matchEnd, overlays), [matchEnd, overlays]);
-  const show = useMemo(() => (showFx ? pickShow(showFx.shows, lens, side) : undefined), [showFx, lens, side]);
+  const show = useMemo(() => (showFx ? pickShow(showFx.shows, lens, side, lang) : undefined), [showFx, lens, side, lang]);
   const book = useMemo(() => (show ? chaptersOf(show, SHOW_BASE) : null), [show]);
   const showMode = wantShow && !isLive && book !== null && showFx !== null;
   const loopMs = showMode ? book.totalMs : tl.loopMs;
@@ -211,6 +214,7 @@ export function App() {
         <Segmented label="Surface" value={surface} options={SURFACES} onChange={setSurface} />
         <Segmented label="Lens" value={lens} options={LENSES} onChange={setLens} />
         <Segmented label="Side" value={side} options={SIDES} onChange={setSide} />
+        {langs.length > 1 && <Segmented label="Captions" value={langs.includes(lang) ? lang : "en-GB"} options={langs} onChange={setLang} />}
         <Segmented label="View" value={view} options={VIEWS} onChange={setView} />
         <span className={`badge ${mode.mode}`} title={mode.detail}>
           {isLive ? (hub.current.ended ? "full time" : "live hub") : mode.mode === "fixture" ? "fixture playback" : "connecting…"}
@@ -315,7 +319,7 @@ function Caption(props: { overlay: Overlay; audioMs: number; onClaim?: (c: Claim
   const at = wordIndexAt(overlay, audioMs);
   const spoken = useMemo(() => claimWords(overlay), [overlay]);
   return (
-    <p className="caption" aria-live="polite">
+    <p className="caption" aria-live="polite" lang={overlay.lang}>
       {words.map((w, i) => {
         const cls = i === at ? "now" : i < at ? "said" : "";
         const c = onClaim ? spoken.get(i) : undefined;
