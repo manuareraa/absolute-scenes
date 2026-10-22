@@ -2,7 +2,7 @@ import { lazy, Suspense, useEffect, useMemo, useRef, useState } from "react";
 import type { Overlay } from "@chalktalk/contracts";
 import { OverlayLayer } from "./components/OverlayLayer";
 import { PitchView } from "./components/PitchView";
-import { LENSES, SURFACES, type Fixture } from "./fixture/synthetic";
+import { LENSES, SIDES, SURFACES, type Fixture } from "./fixture/synthetic";
 import { applyHubMessage, liveFrame, LiveDirector, liveMatchT, newLiveState } from "./live";
 import { frameAt, playStateAt, selectOverlays, timeline, wordIndexAt } from "./playback";
 import { chaptersOf, pickShow, showStateAt, type ShowFixture } from "./show";
@@ -11,6 +11,7 @@ import { connectMatch, matchWsUrl, type SourceMode } from "./ws";
 
 type Surface = Overlay["surface"];
 type Lens = Overlay["lens"];
+type Side = Overlay["side"];
 
 const params = new URLSearchParams(location.search);
 /** The hub's match (a `chalktalk_sim` package); the local fixture plays when the hub is down. */
@@ -24,6 +25,11 @@ const VIEWS = ["2d", "3d"] as const;
 type View = (typeof VIEWS)[number];
 const START_VIEW: View = params.get("view") === "3d" ? "3d" : "2d";
 const QUALITY = params.get("quality") === "high" ? "high" : "light";
+/** Deep links: `?lens=analyst&side=away`. */
+const pick = <T extends string>(key: string, options: readonly T[], fallback: T): T => {
+  const v = params.get(key);
+  return options.includes(v as T) ? (v as T) : fallback;
+};
 // three.js only loads when the 3D view is first opened.
 const Broadcast3D = lazy(() => import("./figures/Broadcast3D"));
 
@@ -60,7 +66,8 @@ export function App() {
   const [showFx, setShowFx] = useState<ShowFixture | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [surface, setSurface] = useState<Surface>("broadcast");
-  const [lens, setLens] = useState<Lens>("casual");
+  const [lens, setLens] = useState<Lens>(pick("lens", LENSES, "casual"));
+  const [side, setSide] = useState<Side>(pick("side", SIDES, "neutral"));
   const [mode, setMode] = useState<{ mode: SourceMode; detail?: string }>({ mode: "connecting" });
   const [live, setLive] = useState<Overlay[]>([]);
   const [playing, setPlaying] = useState(true);
@@ -105,9 +112,9 @@ export function App() {
   const frames = fixture?.frames ?? [];
   const matchEnd = frames.length ? frames[frames.length - 1].t : 0;
   const source = isLive ? live : (fixture?.overlays ?? []);
-  const overlays = useMemo(() => selectOverlays(source, surface, lens), [source, surface, lens]);
+  const overlays = useMemo(() => selectOverlays(source, surface, lens, side), [source, surface, lens, side]);
   const tl = useMemo(() => timeline(matchEnd, overlays), [matchEnd, overlays]);
-  const show = useMemo(() => (showFx ? pickShow(showFx.shows, lens, "home") : undefined), [showFx, lens]);
+  const show = useMemo(() => (showFx ? pickShow(showFx.shows, lens, side) : undefined), [showFx, lens, side]);
   const book = useMemo(() => (show ? chaptersOf(show, SHOW_BASE) : null), [show]);
   const showMode = wantShow && !isLive && book !== null && showFx !== null;
   const loopMs = showMode ? book.totalMs : tl.loopMs;
@@ -146,6 +153,7 @@ export function App() {
         <h1>ChalkTalk</h1>
         <Segmented label="Surface" value={surface} options={SURFACES} onChange={setSurface} />
         <Segmented label="Lens" value={lens} options={LENSES} onChange={setLens} />
+        <Segmented label="Side" value={side} options={SIDES} onChange={setSide} />
         <Segmented label="View" value={view} options={VIEWS} onChange={setView} />
         <span className={`badge ${mode.mode}`} title={mode.detail}>
           {isLive ? (hub.current.ended ? "full time" : "live hub") : mode.mode === "fixture" ? "fixture playback" : "connecting…"}

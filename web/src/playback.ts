@@ -80,13 +80,22 @@ export function playStateAt(elapsedMs: number, matchEndMs: number, overlays: Ove
   return { matchT: Math.min(matchEndMs, cursor + e), overlay: null, audioMs: 0 };
 }
 
-/** One overlay per moment for the chosen surface and lens (falling back to any surface). */
-export function selectOverlays(all: Overlay[], surface: Overlay["surface"], lens: Overlay["lens"]): Overlay[] {
+/** How well an overlay fits the viewer's side: their own side, then neutral, then the other side. */
+function sideRank(o: Overlay, side: Overlay["side"]): number {
+  return o.side === side ? 2 : o.side === "neutral" ? 1 : 0;
+}
+
+/**
+ * One overlay per moment for the chosen lens. Side matters more than surface: a home viewer gets
+ * the home telling on any surface before a neutral one on the right surface.
+ */
+export function selectOverlays(all: Overlay[], surface: Overlay["surface"], lens: Overlay["lens"], side: Overlay["side"] = "neutral"): Overlay[] {
+  const rank = (o: Overlay) => sideRank(o, side) * 2 + (o.surface === surface ? 1 : 0);
   const byMoment = new Map<number, Overlay>();
   for (const o of all) {
     if (o.lens !== lens || o.approval.state === "rejected" || o.approval.state === "pending") continue;
     const cur = byMoment.get(o.match_tc);
-    if (!cur || (cur.surface !== surface && o.surface === surface)) byMoment.set(o.match_tc, o);
+    if (!cur || rank(o) > rank(cur)) byMoment.set(o.match_tc, o);
   }
   return [...byMoment.values()];
 }

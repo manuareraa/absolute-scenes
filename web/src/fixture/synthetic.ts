@@ -192,6 +192,7 @@ const MOMENTS = [
 
 export const LENSES: Lens[] = ["casual", "analyst", "newcomer"];
 export const SURFACES: Surface[] = ["broadcast", "player", "show"];
+export const SIDES: Overlay["side"][] = ["home", "away", "neutral"];
 
 export function makeOverlays(frames: Frame[]): Overlay[] {
   const out: Overlay[] = [];
