@@ -48,7 +48,10 @@ class Verifier:
             hash_ok += output_hash(out) == call["output_hash"]
             fresh_geometry[claim["id"]] = canonical_json(out.get("geometry"))
 
-        spoken = {format_value(c["value"], c.get("unit")) for c in ov["claims"] if c["verified"]}
+        lang = ov.get("lang")
+        spoken = {
+            format_value(c["value"], c.get("unit"), lang) for c in ov["claims"] if c["verified"]
+        }
         numbers = NUMBER.findall(ov["script"]["text"])
         grounded = sum(n in spoken for n in numbers)
 

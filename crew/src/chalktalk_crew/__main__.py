@@ -21,7 +21,7 @@ def _common(p: argparse.ArgumentParser) -> None:
     p.add_argument("--max-moments", type=int, default=6)
     p.add_argument("--lenses", default="casual", help="comma list: casual,analyst,newcomer")
     p.add_argument("--sides", default="home", help="comma list: home,away,neutral")
-    p.add_argument("--lang", default="en-GB")
+    p.add_argument("--lang", default="en-GB", help="comma list: en-GB,es-ES")
     p.add_argument("--cache", type=Path, default=Path(".chalktalk-cache"))
     p.add_argument("--budget-usd", type=float, default=0.25, help="stop generating past this")
     p.add_argument("--retry-rejected", action="store_true")

@@ -117,6 +117,58 @@ _PHRASES: dict[str, dict[str, str]] = {
 }
 
 
+# Spanish: {team} is the subject ("nuestro equipo", "el rival", "el equipo local").
+_PHRASES_ES: dict[str, dict[str, str]] = {
+    "line_gap": {
+        "casual": "{Team} deja un [[{cue}]]hueco entre líneas de {{{slot}}} metros.",
+        "analyst": "{Team} parte el bloque: el [[{cue}]]hueco entre mediocampo y defensa "
+        "es de {{{slot}}} metros.",
+        "newcomer": "{Team} deja este [[{cue}]]espacio entre sus dos líneas de jugadores, "
+        "de {{{slot}}} metros; ahí un atacante puede recibir.",
+    },
+    "pass_options": {
+        "casual": "{Team} tiene el [[{cue}]]pase, una de {{{slot}}} opciones.",
+        "analyst": "{Team} suma {{{slot}}} opciones hacia delante; la [[{cue}]]línea de pase "
+        "está abierta.",
+        "newcomer": "{Team} podía elegir entre {{{slot}}} pases; este [[{cue}]]pase es el "
+        "más peligroso.",
+    },
+    "pitch_control": {
+        "casual": "{Team} manda en esa [[{cue}]]zona, el {{{slot}}} por ciento.",
+        "analyst": "{Team} controla esa [[{cue}]]zona en un {{{slot}}} por ciento.",
+        "newcomer": "En esta [[{cue}]]zona, {team} llegaría antes al balón el {{{slot}}} "
+        "por ciento de las veces.",
+    },
+    "pressing_intensity": {
+        "casual": "{Team} llega con la [[{cue}]]presión, al {{{slot}}} por ciento.",
+        "analyst": "{Team} aprieta: la [[{cue}]]presión sobre el poseedor está al {{{slot}}} "
+        "por ciento.",
+        "newcomer": "Mira la [[{cue}]]presión: {team} persigue el balón al {{{slot}}} por ciento "
+        "de su máximo.",
+    },
+    "offside_line": {
+        "casual": "{Team} fija la [[{cue}]]línea a {{{slot}}} metros del centro del campo.",
+        "analyst": "{Team} adelanta la [[{cue}]]línea del último defensor a {{{slot}}} metros "
+        "del medio campo.",
+        "newcomer": "Esta [[{cue}]]línea marca al último defensor, a {{{slot}}} metros del "
+        "centro; si la pasas, estás en fuera de juego.",
+    },
+    "shape_compactness": {
+        "casual": "{Team} cierra un [[{cue}]]bloque de {{{slot}}} metros cuadrados.",
+        "analyst": "{Team} defiende con un [[{cue}]]bloque de {{{slot}}} metros cuadrados.",
+        "newcomer": "La [[{cue}]]forma que hacen los defensores ocupa {{{slot}}} metros "
+        "cuadrados; cuanto más pequeña, más difícil es atravesarla.",
+    },
+    "xg": {
+        "casual": "{Team} tuvo una [[{cue}]]ocasión de {{{slot}}} goles esperados.",
+        "analyst": "El [[{cue}]]disparo valía {{{slot}}} xG.",
+        "newcomer": "Desde ese [[{cue}]]punto, la ocasión valía {{{slot}}} goles esperados; "
+        "un gol seguro valdría un gol entero.",
+    },
+}
+PHRASES_BY_LANG = {"en": _PHRASES, "es": _PHRASES_ES}
+
+
 class FakeLLMClient:
     """Template writer that follows the system prompt's rules exactly. Deterministic."""
 
@@ -126,8 +178,9 @@ class FakeLLMClient:
     def draft(self, request: DraftRequest) -> str:
         self.requests.append(request)
         parts = []
+        phrases = PHRASES_BY_LANG[request.lang.split("-")[0]]
         for beat in request.beats:
-            phrase = _PHRASES[beat.tool][request.lens]
+            phrase = phrases[beat.tool][request.lens]
             parts.append(
                 phrase.format(
                     cue=beat.cue_id,
