@@ -6,6 +6,17 @@ ChalkTalk is an AI pundit that draws on a synthetic broadcast pitch. Every strok
 
 Both paths are relative to the main checkout `repo/`; the concept and plan sit in its parent folder.
 
+## HARD RULE: Azure budget ($100 credit total, no exceptions)
+The Azure subscription has **$100 of credit for the whole project**. Overspending ends the project.
+- **Only the coordinator creates Azure resources.** Stream sessions never run `az ... create`, `azd up` or `azd provision`. If you need a resource, ask for it in `docs/notes/`, with its SKU and its monthly cost.
+- **What exists now** (resource group `chalktalk-rg`, region `koreacentral`, the only allowed regions are koreacentral, polandcentral, malaysiawest, eastasia, indiasouthcentral):
+  - `chalktalk-foundry`: AIServices S0, no base fee. It has project `chalktalk` and deployment `gpt-4.1-mini`, GlobalStandard at 20K TPM, billed per token.
+  - `chalktalk-speech`: Speech **F0 (free)**.
+- **Never:** ACR (use GHCR), GPU or dedicated workload profiles, provisioned (PTU) deployments, premium SKUs, always-on replicas (`minReplicas` must be 0), or Log Analytics/App Insights beyond the free ingest.
+- **Spend tokens carefully:** tests and CI use the fake clients, never live Azure. Live calls only in manual smoke tests and demos. Cap `max_tokens` and cache outputs (overlays, audio) so a moment is generated once.
+- A $60/month budget (`chalktalk-cap`) emails at 10/25/50/80% and at forecast 100%.
+- **Keys** live in `~/.config/chalktalk/azure.env`, outside the repo (mode 600). Load them with `set -a; . ~/.config/chalktalk/azure.env; set +a`. Never commit them, print them or paste them into notes.
+
 ## Worktrees (enforced)
 - **Never edit the main checkout** (`repo/`). Make your worktree from the latest `main`:
   `scripts/new-worktree.sh stream/<letter>-<slug>`
