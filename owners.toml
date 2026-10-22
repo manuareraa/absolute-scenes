@@ -1,0 +1,29 @@
+# Path ownership per build stream. Read by scripts/check_paths.py (pre-commit and CI).
+# A branch may only change paths owned by its stream, plus the shared paths.
+# Branch names: stream/<letter>-<slug>, e.g. stream/a-pitch-render. Coordinator: coord/<slug>.
+
+shared = ["uv.lock", "package-lock.json", "docs/notes/"]
+
+[streams.a]
+name = "Web and 3D"
+paths = ["web/"]
+
+[streams.b]
+name = "Data, analytics and MCP"
+paths = ["core/", "sim/", "mcp/"]
+
+[streams.c]
+name = "Crew, speech and evals"
+paths = ["crew/", "evals/", "postmatch/"]
+
+[streams.d]
+name = "Platform"
+paths = ["workers/", "infra/", ".github/", "scripts/hls/", "azure.yaml"]
+
+[streams.e]
+name = "Vision"
+paths = ["vision/", "scripts/render/"]
+
+[coord]
+name = "Coordinator"
+paths = ["*"]

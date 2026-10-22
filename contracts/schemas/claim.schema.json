@@ -1,0 +1,41 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "claim.schema.json",
+  "title": "Claim",
+  "description": "One factual statement the Pundit makes, bound to the tool call that produced its value. The Verifier re-runs the tool and checks the value within tolerance.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["id", "text_slot", "value", "tool_call", "evidence_window", "verified"],
+  "properties": {
+    "id": { "type": "string", "minLength": 1 },
+    "text_slot": { "type": "string", "description": "Placeholder name in the script text, e.g. 'gap_m'." },
+    "value": { "type": ["number", "string", "boolean"] },
+    "unit": { "type": ["string", "null"] },
+    "tool_call": { "$ref": "#/$defs/ToolCall" },
+    "evidence_window": { "$ref": "#/$defs/EvidenceWindow" },
+    "tolerance": { "type": ["number", "null"], "minimum": 0, "description": "Allowed absolute difference on re-run; null for qualitative claims (checked by CoVe)." },
+    "verified": { "type": ["boolean", "null"], "description": "null until the Verifier has run." }
+  },
+  "$defs": {
+    "ToolCall": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "name", "args", "output_hash"],
+      "properties": {
+        "id": { "type": "string", "minLength": 1 },
+        "name": { "type": "string", "minLength": 1 },
+        "args": { "type": "object" },
+        "output_hash": { "type": "string", "description": "sha256 of the canonical JSON output." }
+      }
+    },
+    "EvidenceWindow": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["start_t", "end_t"],
+      "properties": {
+        "start_t": { "type": "integer", "minimum": 0 },
+        "end_t": { "type": "integer", "minimum": 0 }
+      }
+    }
+  }
+}

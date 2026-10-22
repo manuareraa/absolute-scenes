@@ -1,0 +1,12 @@
+{
+  "id": "c1",
+  "text_slot": "gap_m",
+  "value": 11.4,
+  "unit": "m",
+  "evidence_window": {
+    "start_t": 1832000,
+    "end_t": 1836000
+  },
+  "tolerance": 0.5,
+  "verified": true
+}
