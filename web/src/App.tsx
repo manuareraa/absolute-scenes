@@ -5,6 +5,7 @@ import { PitchView } from "./components/PitchView";
 import { LENSES, SURFACES, type Fixture } from "./fixture/synthetic";
 import { applyHubMessage, liveFrame, LiveDirector, liveMatchT, newLiveState } from "./live";
 import { frameAt, playStateAt, selectOverlays, timeline, wordIndexAt } from "./playback";
+import { chaptersOf, pickShow, showStateAt, type ShowFixture } from "./show";
 import { useOverlayAudio } from "./useOverlayAudio";
 import { connectMatch, matchWsUrl, type SourceMode } from "./ws";
 
@@ -15,6 +16,9 @@ const params = new URLSearchParams(location.search);
 /** The hub's match (a `chalktalk_sim` package); the local fixture plays when the hub is down. */
 const MATCH_ID = params.get("match") ?? "sim-7";
 const FIXTURE_ID = params.get("fixture") ?? "demo-001";
+/** The post-match show surface plays `postmatch` shows; a crew cache's `audio/` goes in `/fixtures/<id>/`. */
+const SHOW_ID = params.get("show") ?? "show-sim-7";
+const SHOW_BASE = new URL(`/fixtures/${SHOW_ID}/`, location.href).href;
 /** The 2D board is the GPU-light default; `?view=3d` opens the broadcast view, `?quality=high` adds AA and shadows. */
 const VIEWS = ["2d", "3d"] as const;
 type View = (typeof VIEWS)[number];
@@ -53,6 +57,7 @@ function usePlayClock(playing: boolean) {
 
 export function App() {
   const [fixture, setFixture] = useState<Fixture | null>(null);
+  const [showFx, setShowFx] = useState<ShowFixture | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [surface, setSurface] = useState<Surface>("broadcast");
   const [lens, setLens] = useState<Lens>("casual");
@@ -74,6 +79,16 @@ export function App() {
       .catch((e: Error) => setError(e.message));
   }, []);
 
+  const wantShow = surface === "show";
+  useEffect(() => {
+    if (!wantShow || showFx) return;
+    // Without a show fixture the show surface keeps playing the demo fixture's show overlays.
+    fetch(`/fixtures/${SHOW_ID}.json`)
+      .then((r) => (r.ok ? r.json() : Promise.reject(new Error(`show ${r.status}`))))
+      .then(setShowFx)
+      .catch(() => {});
+  }, [wantShow, showFx]);
+
   useEffect(
     () =>
       connectMatch(matchWsUrl(MATCH_ID, location), {
@@ -92,10 +107,19 @@ export function App() {
   const source = isLive ? live : (fixture?.overlays ?? []);
   const overlays = useMemo(() => selectOverlays(source, surface, lens), [source, surface, lens]);
   const tl = useMemo(() => timeline(matchEnd, overlays), [matchEnd, overlays]);
-  const loopPos = tl.loopMs ? ((elapsed % tl.loopMs) + tl.loopMs) % tl.loopMs : 0;
+  const show = useMemo(() => (showFx ? pickShow(showFx.shows, lens, "home") : undefined), [showFx, lens]);
+  const book = useMemo(() => (show ? chaptersOf(show, SHOW_BASE) : null), [show]);
+  const showMode = wantShow && !isLive && book !== null && showFx !== null;
+  const loopMs = showMode ? book.totalMs : tl.loopMs;
+  const loopPos = loopMs ? ((elapsed % loopMs) + loopMs) % loopMs : 0;
 
   let state, frame;
-  if (isLive) {
+  let chapter = -1;
+  if (showMode) {
+    state = showStateAt(book.chapters, book.totalMs, elapsed);
+    chapter = state.chapter;
+    frame = frameAt(showFx.frames, state.matchT);
+  } else if (isLive) {
     // Play on the hub's clock; hold on a moment while its breakdown runs, then rejoin live.
     const now = performance.now();
     const liveT = liveMatchT(hub.current, now);
@@ -129,7 +153,16 @@ export function App() {
       </header>
 
       <div className="stage">
-        {surface === "show" && !isLive && (
+        {showMode && (
+          <nav className="chapters" aria-label="Chapters">
+            {book.chapters.map((c, i) => (
+              <button key={c.overlay.id} className={chapter === i ? "on" : ""} aria-current={chapter === i} onClick={() => seek(c.at)}>
+                <b>{i + 1}.</b> {c.title}
+              </button>
+            ))}
+          </nav>
+        )}
+        {surface === "show" && !isLive && !showMode && (
           <nav className="chapters" aria-label="Chapters">
             {tl.starts.map(({ overlay, at }, i) => (
               <button key={overlay.id} className={state.overlay?.id === overlay.id ? "on" : ""} onClick={() => seek(at)}>
@@ -168,7 +201,7 @@ export function App() {
             type="range"
             aria-label="Scrub"
             min={0}
-            max={Math.max(1, Math.round(tl.loopMs))}
+            max={Math.max(1, Math.round(loopMs))}
             value={Math.round(loopPos)}
             onChange={(e) => seek(Number(e.target.value))}
           />
