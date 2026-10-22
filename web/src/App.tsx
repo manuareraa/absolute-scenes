@@ -2,9 +2,10 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import type { Overlay } from "@chalktalk/contracts";
 import { OverlayLayer } from "./components/OverlayLayer";
 import { PitchView } from "./components/PitchView";
-import { FRAME_MS, LENSES, SURFACES, type Fixture } from "./fixture/synthetic";
+import { LENSES, SURFACES, type Fixture } from "./fixture/synthetic";
 import { applyHubMessage, liveFrame, LiveDirector, liveMatchT, newLiveState } from "./live";
 import { frameAt, playStateAt, selectOverlays, timeline, wordIndexAt } from "./playback";
+import { useOverlayAudio } from "./useOverlayAudio";
 import { connectMatch, matchWsUrl, type SourceMode } from "./ws";
 
 type Surface = Overlay["surface"];
@@ -15,22 +16,32 @@ const params = new URLSearchParams(location.search);
 const MATCH_ID = params.get("match") ?? "sim-7";
 const FIXTURE_ID = params.get("fixture") ?? "demo-001";
 
-/** Wall clock in ms that ticks at the frame rate while playing. */
+/**
+ * Wall clock in ms that re-renders on every animation frame while playing, so a stroke shows on
+ * the first frame its audio time is reached. `seekGen` counts user seeks.
+ */
 function usePlayClock(playing: boolean) {
   const [elapsed, setElapsed] = useState(0);
+  const [seekGen, setSeekGen] = useState(0);
   const base = useRef({ wall: performance.now(), elapsed: 0 });
   useEffect(() => {
     if (!playing) return;
     base.current = { wall: performance.now(), elapsed };
-    const id = setInterval(() => setElapsed(base.current.elapsed + performance.now() - base.current.wall), FRAME_MS);
-    return () => clearInterval(id);
+    let id = 0;
+    const tick = () => {
+      setElapsed(base.current.elapsed + performance.now() - base.current.wall);
+      id = requestAnimationFrame(tick);
+    };
+    id = requestAnimationFrame(tick);
+    return () => cancelAnimationFrame(id);
     // Restart only when play state flips; `elapsed` is captured as the new base.
   }, [playing]);
   const seek = (ms: number) => {
     base.current = { wall: performance.now(), elapsed: ms };
     setElapsed(ms);
+    setSeekGen((g) => g + 1);
   };
-  return { elapsed, seek };
+  return { elapsed, seek, seekGen };
 }
 
 export function App() {
@@ -46,7 +57,7 @@ export function App() {
   const director = useRef(new LiveDirector());
   const [hubReady, setHubReady] = useState(false);
   const isLive = mode.mode === "live" && hubReady;
-  const { elapsed, seek } = usePlayClock(playing || isLive);
+  const { elapsed, seek, seekGen } = usePlayClock(playing || isLive);
 
   useEffect(() => {
     fetch(`/fixtures/${FIXTURE_ID}.json`)
@@ -89,6 +100,10 @@ export function App() {
     frame = frameAt(frames, state.matchT);
   }
 
+  // Strokes and captions run on the overlay audio's clock, not on wall time.
+  const audio = useOverlayAudio(state.overlay, state.audioMs, playing || isLive, seekGen);
+  const audioMs = audio.audioMs;
+
   if (error && !isLive) return <main className="app error">Could not load the match fixture: {error}</main>;
 
   return (
@@ -114,10 +129,15 @@ export function App() {
         )}
         <div className="screen">
           <PitchView frame={frame}>
-            <OverlayLayer overlay={state.overlay} frame={frame} audioMs={state.audioMs} />
+            <OverlayLayer overlay={state.overlay} frame={frame} audioMs={audioMs} />
           </PitchView>
           {surface === "broadcast" && <div className="scorebug">HOME 0 – 0 AWAY · {clock(state.matchT)}</div>}
-          {state.overlay && <Caption overlay={state.overlay} audioMs={state.audioMs} />}
+          {state.overlay && <Caption overlay={state.overlay} audioMs={audioMs} />}
+          {audio.blocked && state.overlay && (
+            <button className="sound-on" onClick={audio.unblock}>
+              Sound on
+            </button>
+          )}
         </div>
       </div>
 

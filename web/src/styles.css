@@ -58,6 +58,7 @@ button { font: inherit; color: inherit; cursor: pointer; }
 .caption { position: absolute; left: 50%; bottom: 12px; transform: translateX(-50%); max-width: 90%; margin: 0; background: #000c; padding: 8px 14px; border-radius: 6px; font-size: 16px; }
 .caption span { color: #fff8; }
 .caption .said { color: #fff; }
+.sound-on { position: absolute; right: 12px; top: 12px; background: var(--accent, #2dd4bf); color: #001; border: 0; border-radius: 6px; padding: 6px 12px; font-weight: 600; cursor: pointer; }
 .caption .now { color: var(--stroke-danger); }
 
 .chapters { display: flex; flex-direction: column; gap: 6px; width: 240px; }

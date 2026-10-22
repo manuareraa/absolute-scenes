@@ -93,7 +93,7 @@ export function StrokeShape({ stroke, frame, k }: { stroke: Stroke; frame: Frame
 export function OverlayLayer({ overlay, frame, audioMs }: { overlay: Overlay | null; frame: Frame | undefined; audioMs: number }) {
   if (!overlay) return null;
   return (
-    <g className="overlay">
+    <g className="overlay" data-overlay={overlay.id}>
       {overlay.strokes.map((s) => {
         const k = strokeProgress(overlay, s, audioMs);
         return k === null ? null : <StrokeShape key={s.id} stroke={s} frame={frame} k={k} />;
