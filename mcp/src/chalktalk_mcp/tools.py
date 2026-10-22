@@ -14,6 +14,7 @@ from collections.abc import Callable
 from typing import Any
 
 from chalktalk_core import analytics as an
+from chalktalk_core import ghost as gh
 from chalktalk_core.geometry import attack_sign
 from chalktalk_core.provenance import canonical_json, normalise, output_hash
 
@@ -270,6 +271,29 @@ class Tools:
         args = {"match_id": match_id, "start_t": start_t, "end_t": end_t, "player_id": player_id}
         return _result("player_run", args, match_id, an.player_run(frames, player_id))
 
+    def ghost(
+        self, match_id: str, player_id: str, start_t: int, end_t: int, baseline_s: float = 60.0
+    ) -> dict[str, Any]:
+        """Where the player should have been (window max 30 s): a ghost steers to the player's
+        slot in the team shape (learned over the baseline_s seconds before start_t) under speed
+        and acceleration limits. Returns the ghost path and the real run, the end gap in
+        metres, and the change in pitch control, net OBSO and pressing had the player been
+        the ghost."""
+        if end_t - start_t > 30_000:
+            raise ValueError("ghost window is at most 30 s")
+        src = self.store.get(match_id)
+        frames = src.window(start_t, end_t, max_frames=max(2, (end_t - start_t) // 100 + 1))
+        b0 = max(0, start_t - int(baseline_s * 1000))
+        baseline = src.window(b0, start_t, max_frames=60) if start_t - b0 >= 1000 else None
+        args = {
+            "match_id": match_id,
+            "player_id": player_id,
+            "start_t": start_t,
+            "end_t": end_t,
+            "baseline_s": baseline_s,
+        }
+        return _result("ghost", args, match_id, gh.ghost(frames, player_id, baseline))
+
     # ----------------------------------------------------------------- verifier
     def verify(
         self,
@@ -327,5 +351,6 @@ TOOL_NAMES = (
     "pressing_intensity",
     "ball_speed",
     "player_run",
+    "ghost",
     "verify",
 )
