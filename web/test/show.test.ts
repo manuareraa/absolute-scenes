@@ -2,6 +2,8 @@ import { describe, expect, it } from "vitest";
 import { validate, type Show } from "@chalktalk/contracts";
 import raw from "../public/fixtures/show-sim-7.json?raw";
 import { breakdownDurationMs, frameAt } from "../src/playback";
+import { ghostPose } from "../src/components/Ghost";
+import { toVec } from "../src/pitch";
 import { PRE_ROLL_MS, chaptersOf, pickShow, showStateAt, type ShowFixture } from "../src/show";
 
 const fx: ShowFixture = JSON.parse(raw);
@@ -21,6 +23,27 @@ describe("show fixture", () => {
         expect(t - frameAt(fx.frames, t)!.t).toBeLessThan(80);
       }
     }
+  });
+});
+
+describe("ghost chapters", () => {
+  const ghosts = fx.shows.map((s) => s.segments.find((g) => g.overlay.strokes.some((k) => k.shape === "ghost_path"))?.overlay);
+
+  it("every show has one, matching its lens and side", () => {
+    fx.shows.forEach((s, i) => expect(ghosts[i]).toMatchObject({ lens: s.lens, side: s.side, lang: s.lang }));
+  });
+
+  it("draws B's ghost tool output, with every number bound to that call", () => {
+    const o = ghosts[0]!;
+    expect(o.claims.map((c) => c.tool_call.name)).toEqual(["ghost", "ghost"]);
+    expect(o.strokes.map((s) => s.shape)).toEqual(["ghost_path", "ring", "run"]);
+    const ghost = o.strokes[0];
+    const pts = ghost.geometry_m.points!.map(toVec);
+    const pose = ghostPose(ghost, frameAt(fx.frames, o.match_tc), pts, 1)!;
+    // The tether the viewer sees is the gap the pundit says, within the claim's tolerance.
+    const gap = o.claims.find((c) => c.text_slot === "gap_m")!;
+    expect(Math.abs(pose.gapM! - Number(gap.value))).toBeLessThanOrEqual(gap.tolerance!);
+    expect(o.script.text).toContain(`${Number(gap.value).toFixed(1)} metres`);
   });
 });
 
