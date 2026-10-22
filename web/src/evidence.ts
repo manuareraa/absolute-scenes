@@ -69,14 +69,17 @@ export function replayMatchT(e: EvidenceEntry, ms: number): number {
 }
 
 /** The evidence as an overlay whose strokes are all drawn at once (no script to wait for). */
-export function evidenceOverlay(e: EvidenceEntry, id: string): Overlay {
+export const evidenceOverlay = (e: EvidenceEntry, id: string) => geometryOverlay(e.geometry, e.replay.end_t, `evidence-${id}`);
+
+/** Tool geometry as an overlay at match time `t`, every stroke drawn at once. */
+export function geometryOverlay(geometry: EvidenceEntry["geometry"], t: number, id: string): Overlay {
   return {
-    id: `evidence-${id}`,
+    id,
     stream_tc: null,
-    match_tc: e.replay.end_t,
+    match_tc: t,
     surface: "show",
     claims: [],
-    strokes: e.geometry.map((g, i) => ({ ...g, id: `e${i + 1}`, cue_id: "ev", lead_ms: 0, duration_ms: 0, claim_ids: [] })),
+    strokes: geometry.map((g, i) => ({ ...g, id: `e${i + 1}`, cue_id: "ev", lead_ms: 0, duration_ms: 0, claim_ids: [] })),
     script: { text: "", ssml: "", cues: [{ cue_id: "ev", offset_ms: 0 }], words: [] },
     lens: "analyst",
     side: "neutral",
