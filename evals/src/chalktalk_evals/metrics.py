@@ -14,22 +14,26 @@ import re
 from statistics import median
 from typing import Any, Protocol
 
-NUMBER = re.compile(r"(?<![A-Za-z])\d+(?:\.\d+)?")
+NUMBER = re.compile(r"(?<![A-Za-z])\d+(?:[.,]\d+)?")  # 0.42, or 0,42 in Spanish
+DECIMAL_COMMA = {"es", "fr", "de", "it", "pt"}  # languages that speak 0,42
 
 
 class Tools(Protocol):
     def call(self, name: str, args: dict[str, Any]) -> dict[str, Any]: ...
 
 
-def spoken_form(value: Any, unit: str | None) -> str:
+def spoken_form(value: Any, unit: str | None, lang: str | None = None) -> str:
     # Mirrors the crew's spoken format; kept here so evals do not trust crew code.
     if isinstance(value, bool | str):
         return str(value)
     if unit == "xG":
-        return f"{value:.2f}"
-    if unit == "m":
-        return f"{value:.1f}"
-    return str(round(value))
+        text = f"{value:.2f}"
+    elif unit == "m":
+        text = f"{value:.1f}"
+    else:
+        return str(round(value))
+    comma = (lang or "en").split("-")[0].lower() in DECIMAL_COMMA
+    return text.replace(".", ",") if comma else text
 
 
 def p95(values: list[float]) -> float:
@@ -47,7 +51,7 @@ def claim_grounding(overlay: dict[str, Any]) -> dict[str, float]:
     bound = [
         c for c in overlay["claims"] if c.get("tool_call", {}).get("name") and c["tool_call"]["id"]
     ]
-    forms = {spoken_form(c["value"], c.get("unit")) for c in bound}
+    forms = {spoken_form(c["value"], c.get("unit"), overlay.get("lang")) for c in bound}
     numbers = NUMBER.findall(overlay["script"]["text"])
     grounded = sum(n in forms for n in numbers)
     return {
