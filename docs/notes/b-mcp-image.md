@@ -21,7 +21,7 @@
 - Set env `CHALKTALK_MAX_MATCHES=2`. Optionally set `CHALKTALK_PACKAGES`; without it, matches are regenerated on first use, about 25 s for a full match.
 - **The server has no auth.** Use internal ingress so the crew calls it inside the environment, or put Easy Auth or an API key at the ingress.
 
-## Smoke test (local, verified on this branch's main)
+## Smoke test
 ```bash
 docker run --rm -p 8000:8000 -e CHALKTALK_SIM_HALF_MINUTES=1 ghcr.io/manuareraa/chalktalk-mcp:latest
 curl -s localhost:8000/healthz
