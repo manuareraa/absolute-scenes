@@ -64,6 +64,32 @@ export async function postDecision(
   return { ok: r.ok, status: r.status };
 }
 
+/** Every open telling (lens, side, language) of the overlay's moment, so a viewer on any
+ * setting sees it once the moment is approved. */
+export const momentTellings = (all: Overlay[], o: Overlay) => all.filter((x) => x.match_tc === o.match_tc && isOpen(x));
+
+/** Overlays the hub has that the queue fixture lacks (the crew's live posts), added to the queue. */
+export function mergeQueue(fixture: Overlay[], live: Overlay[]): Overlay[] {
+  const ids = new Set(fixture.map((o) => o.id));
+  return [...fixture, ...live.filter((o) => !ids.has(o.id))];
+}
+
+/** The overlay back in the queue, so the hub stops airing it (re-posting an id replaces it). */
+export const withdrawn = (o: Overlay): Overlay => ({ ...o, approval: { state: "pending", by: null, at: null } });
+
+/** Restart the match on the hub (`reset` puts the clock at 0, paused; `play` starts it). */
+export async function restartMatch(fetcher: typeof fetch, matchId: string, secret: string): Promise<{ ok: boolean; status: number }> {
+  for (const action of ["reset", "play"]) {
+    const r = await fetcher(`/api/match/${encodeURIComponent(matchId)}/control`, {
+      method: "POST",
+      headers: { "content-type": "application/json", [SECRET_HEADER]: secret },
+      body: JSON.stringify({ action }),
+    });
+    if (!r.ok) return { ok: false, status: r.status };
+  }
+  return { ok: true, status: 200 };
+}
+
 const KEY = (matchId: string) => `chalktalk.producer.${matchId}`;
 
 /** Decisions survive a reload in this browser; storage can be missing or blocked. */

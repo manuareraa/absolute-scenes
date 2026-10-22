@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { makeFixture } from "../src/fixture/synthetic";
-import { connectMatch, matchWsUrl, parseHubMessage, type SourceMode } from "../src/ws";
+import { RECONNECT_MS, connectMatch, keepConnected, matchWsUrl, parseHubMessage, type SourceMode } from "../src/ws";
 
 class FakeSocket {
   static last: FakeSocket;
@@ -71,5 +71,50 @@ describe("match socket", () => {
     vi.advanceTimersByTime(1001);
     expect(modes).toEqual(["connecting", "fixture"]);
     expect(sock.closed).toBe(true);
+  });
+});
+
+describe("reconnecting", () => {
+  function keep() {
+    vi.useFakeTimers();
+    const modes: SourceMode[] = [];
+    const stop = keepConnected("ws://x/ws/match/sim-7", { onMode: (m) => modes.push(m), onMessage: () => {} }, { WebSocketImpl: Impl });
+    return { modes, stop };
+  }
+
+  it("reconnects with a back-off after a live hub drops, and goes live again", () => {
+    const { modes, stop } = keep();
+    const first = FakeSocket.last;
+    first.onopen!();
+    first.onclose!();
+    expect(modes).toEqual(["connecting", "live", "connecting"]);
+    vi.advanceTimersByTime(RECONNECT_MS[0] - 1);
+    expect(FakeSocket.last).toBe(first);
+    vi.advanceTimersByTime(1);
+    expect(FakeSocket.last).not.toBe(first);
+    FakeSocket.last.onopen!();
+    expect(modes.at(-1)).toBe("live");
+    stop();
+    expect(FakeSocket.last.closed).toBe(true);
+  });
+
+  it("falls back to the fixture, without retrying, when the hub never opened", () => {
+    const { modes, stop } = keep();
+    const first = FakeSocket.last;
+    first.onerror!();
+    vi.advanceTimersByTime(60_000);
+    expect(modes).toEqual(["connecting", "fixture"]);
+    expect(FakeSocket.last).toBe(first);
+    stop();
+  });
+
+  it("stops retrying once closed", () => {
+    const { stop } = keep();
+    const first = FakeSocket.last;
+    first.onopen!();
+    first.onclose!();
+    stop();
+    vi.advanceTimersByTime(60_000);
+    expect(FakeSocket.last).toBe(first);
   });
 });

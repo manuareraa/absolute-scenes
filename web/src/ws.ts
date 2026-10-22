@@ -99,3 +99,47 @@ export function connectMatch(
     ws.close();
   };
 }
+
+/** Back-off between reconnects after a live hub drops; the last delay repeats. */
+export const RECONNECT_MS = [2000, 5000, 10_000, 30_000];
+const MAX_RECONNECTS = 12;
+
+/**
+ * `connectMatch` that reconnects after a live hub drops (a Worker deploy or a Durable Object
+ * restart), with a back-off and a cap. A hub that never opened falls back to the fixture as before.
+ */
+export function keepConnected(
+  url: string,
+  handlers: MatchSocketHandlers,
+  opts: { openTimeoutMs?: number; WebSocketImpl?: WsCtor } = {},
+): () => void {
+  let wasLive = false;
+  let tries = 0;
+  let stopped = false;
+  let retry: ReturnType<typeof setTimeout> | undefined;
+  let close = () => {};
+  const open = () => {
+    close = connectMatch(
+      url,
+      {
+        onMessage: handlers.onMessage,
+        onMode: (mode, detail) => {
+          if (mode === "live") [wasLive, tries] = [true, 0];
+          if (mode !== "fixture" || !wasLive || stopped || tries >= MAX_RECONNECTS) {
+            if (mode !== "connecting" || !wasLive) handlers.onMode(mode, detail);
+            return;
+          }
+          handlers.onMode("connecting", `reconnecting (${detail ?? "hub closed"})`);
+          retry = setTimeout(open, RECONNECT_MS[Math.min(tries++, RECONNECT_MS.length - 1)]);
+        },
+      },
+      opts,
+    );
+  };
+  open();
+  return () => {
+    stopped = true;
+    clearTimeout(retry);
+    close();
+  };
+}
