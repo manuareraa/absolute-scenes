@@ -103,10 +103,22 @@ def test_clean_template():
     assert clean_template('"The [[k1]]gap."') == "The [[k1]]gap."
 
 
-def test_snap_bookmarks_to_next_word_start():
-    words = [WordTiming("The", 100, 120), WordTiming("gap", 300, 200), WordTiming("is", 560, 90)]
-    snapped = snap_bookmarks({"k1": 240, "k2": 330, "k3": 900}, words)
+def test_snap_bookmarks_by_time_never_reaches_back():
+    words = [WordTiming("the", 200, 80), WordTiming("gap", 300, 200), WordTiming("is", 560, 90)]
+    # S1: bookmarks fire ~12 ms before their word, or at the start of a pause before it.
+    snapped = snap_bookmarks({"k1": 288, "k2": 240, "k3": 900}, words)
     assert snapped == {"k1": 300, "k2": 300, "k3": 900}
+
+
+def test_snap_bookmarks_by_text_position():
+    ssml = (
+        "<speak><voice>Look, <bookmark mark='k1'/>the gap <bookmark mark='k2'/>is</voice></speak>"
+    )
+    words = [WordTiming("Look", 50, 200), WordTiming("the", 400, 80), WordTiming("gap", 490, 200)]
+    words.append(WordTiming("is", 760, 90))
+    offsets = [ssml.index(w.text) for w in words]
+    snapped = snap_bookmarks({"k1": 260, "k2": 745}, words, ssml=ssml, text_offsets=offsets)
+    assert snapped == {"k1": 400, "k2": 760}
 
 
 def test_speech_locale_from_voice():

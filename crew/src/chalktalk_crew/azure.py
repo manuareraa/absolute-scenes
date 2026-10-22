@@ -135,16 +135,29 @@ TICKS_PER_MS = 10_000  # the Speech SDK reports offsets in 100 ns ticks
 
 
 def snap_bookmarks(
-    raw: dict[str, int], words: list[WordTiming], *, slack_ms: int = 100
+    raw: dict[str, int],
+    words: list[WordTiming],
+    *,
+    ssml: str | None = None,
+    text_offsets: list[int] | None = None,
 ) -> dict[str, int]:
-    """Cue offset = start of the first word at or after the bookmark (within ``slack_ms`` early).
+    """Cue offset = start of the word the bookmark precedes.
 
-    A bookmark sits right before the word that names the stroke, so its raw audio offset can
-    land in the silence before that word. Trailing bookmarks keep their raw offset.
+    Exact when ``ssml`` and the words' SSML ``text_offsets`` are given: the first word after the
+    bookmark tag. Otherwise the first word starting at or after the bookmark. Spike S1 found
+    bookmarks fire 12 ms before their word, or at the start of a pause before it, never after;
+    a wider early slack picks the previous short word (docs/notes/c-s1-word-timing.md).
+    Bookmarks with no word after them keep their raw offset.
     """
     out: dict[str, int] = {}
     for mark, offset in raw.items():
-        nxt = next((w.offset_ms for w in words if w.offset_ms >= offset - slack_ms), None)
+        nxt: int | None = None
+        pos = ssml.find(f"mark='{mark}'") if ssml is not None else -1
+        if pos >= 0 and text_offsets is not None:
+            after = [(t, w.offset_ms) for t, w in zip(text_offsets, words, strict=True) if t > pos]
+            nxt = min(after)[1] if after else None
+        else:
+            nxt = next((w.offset_ms for w in words if w.offset_ms >= offset), None)
         out[mark] = offset if nxt is None else nxt
     return out
 
@@ -190,31 +203,36 @@ class AzureSpeechClient:
             sdk.SpeechSynthesisOutputFormat.Audio24Khz48KBitRateMonoMp3
         )
         synth = sdk.SpeechSynthesizer(speech_config=cfg, audio_config=None)
-        words: list[WordTiming] = []
+        timed: list[tuple[WordTiming, int]] = []  # (word, its SSML text offset)
         raw: dict[str, int] = {}
 
         def on_word(evt: Any) -> None:
             if evt.boundary_type == sdk.SpeechSynthesisBoundaryType.Word:
-                words.append(
-                    WordTiming(
-                        evt.text,
-                        round(evt.audio_offset / TICKS_PER_MS),
-                        round(evt.duration.total_seconds() * 1000),
-                    )
+                word = WordTiming(
+                    evt.text,
+                    round(evt.audio_offset / TICKS_PER_MS),
+                    round(evt.duration.total_seconds() * 1000),
                 )
+                timed.append((word, evt.text_offset))
 
         def on_mark(evt: Any) -> None:
             raw[evt.text] = round(evt.audio_offset / TICKS_PER_MS)
 
         synth.synthesis_word_boundary.connect(on_word)
         synth.bookmark_reached.connect(on_mark)
-        result = synth.speak_ssml_async(self._locale(ssml)).get()
+        ssml = self._locale(ssml)
+        result = synth.speak_ssml_async(ssml).get()
         if result.reason != sdk.ResultReason.SynthesizingAudioCompleted:
             details = result.cancellation_details
             raise AzureCallError(f"speech failed: {details.reason} {details.error_details}")
         self.characters += len(re.sub(r"<[^>]+>", "", ssml))
-        words.sort(key=lambda w: w.offset_ms)
-        bookmarks = snap_bookmarks(raw, words) if self.snap else dict(raw)
+        timed.sort(key=lambda wt: wt[0].offset_ms)
+        words = [w for w, _ in timed]
+        bookmarks = (
+            snap_bookmarks(raw, words, ssml=ssml, text_offsets=[t for _, t in timed])
+            if self.snap
+            else dict(raw)
+        )
         return SpeechResult(
             words=words,
             bookmarks=bookmarks,
