@@ -10,7 +10,7 @@ import { chaptersOf, langsOf, pickShow, showStateAt, type ShowFixture } from "./
 import { decidingMoments, pct, summaryTitle, type Moment, type Summary } from "./summary";
 import { useOverlayAudio } from "./useOverlayAudio";
 import { isProvisional, varBanner, varFor, varGraphics } from "./var";
-import { connectMatch, matchWsUrl, type SourceMode } from "./ws";
+import { keepConnected, matchWsUrl, type SourceMode } from "./ws";
 
 type Surface = Overlay["surface"];
 type Lens = Overlay["lens"];
@@ -29,7 +29,7 @@ const VIEWS = ["2d", "3d"] as const;
 type View = (typeof VIEWS)[number];
 const START_VIEW: View = params.get("view") === "3d" ? "3d" : "2d";
 const QUALITY = params.get("quality") === "high" ? "high" : "light";
-/** Deep links: `?lens=analyst&side=away`. */
+/** Deep links: `?surface=show&lens=analyst&side=away&lang=es-ES`. */
 const pick = <T extends string>(key: string, options: readonly T[], fallback: T): T => {
   const v = params.get(key);
   return options.includes(v as T) ? (v as T) : fallback;
@@ -69,7 +69,7 @@ export function App() {
   const [fixture, setFixture] = useState<Fixture | null>(null);
   const [showFx, setShowFx] = useState<ShowFixture | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [surface, setSurface] = useState<Surface>("broadcast");
+  const [surface, setSurface] = useState<Surface>(pick("surface", SURFACES, "broadcast"));
   const [lens, setLens] = useState<Lens>(pick("lens", LENSES, "casual"));
   const [side, setSide] = useState<Side>(pick("side", SIDES, "neutral"));
   /** Caption language (`?lang=es-ES`); the UI stays English. */
@@ -83,7 +83,11 @@ export function App() {
   const director = useRef(new LiveDirector());
   const [hubReady, setHubReady] = useState(false);
   const isLive = mode.mode === "live" && hubReady;
-  const { elapsed, seek, seekGen } = usePlayClock(playing || isLive);
+  // The show is a recorded studio programme: it plays its own fixture on its own clock, live hub
+  // or not, so its chapters, ghost, VAR, summaries and evidence work on the live Worker too.
+  const onShow = surface === "show" && showFx !== null;
+  const running = onShow ? playing : playing || isLive;
+  const { elapsed, seek, seekGen } = usePlayClock(running);
   // Evidence replay: a tapped number (or summary moment) pauses the show and loops the window it
   // came from. `key` marks what was tapped; `resume` is whether the show was playing.
   const [replay, setReplay] = useState<{ key: string; title: string; entry: EvidenceEntry; resume: boolean } | null>(null);
@@ -141,7 +145,7 @@ export function App() {
 
   useEffect(
     () =>
-      connectMatch(matchWsUrl(MATCH_ID, location), {
+      keepConnected(matchWsUrl(MATCH_ID, location), {
         onMode: (m, detail) => setMode({ mode: m, detail }),
         onMessage: (m) => {
           if (m.type === "overlay") return setLive((prev) => [...prev.filter((p) => p.id !== m.overlay.id), m.overlay]);
@@ -160,7 +164,7 @@ export function App() {
   const tl = useMemo(() => timeline(matchEnd, overlays), [matchEnd, overlays]);
   const show = useMemo(() => (showFx ? pickShow(showFx.shows, lens, side, lang) : undefined), [showFx, lens, side, lang]);
   const book = useMemo(() => (show ? chaptersOf(show, SHOW_BASE) : null), [show]);
-  const showMode = wantShow && !isLive && book !== null && showFx !== null;
+  const showMode = wantShow && book !== null && showFx !== null;
   const loopMs = showMode ? book.totalMs : tl.loopMs;
   const loopPos = loopMs ? ((elapsed % loopMs) + loopMs) % loopMs : 0;
 
@@ -184,7 +188,7 @@ export function App() {
   }
 
   // Strokes and captions run on the overlay audio's clock, not on wall time.
-  const audio = useOverlayAudio(state.overlay, state.audioMs, (playing || isLive) && !replay && !summary, seekGen);
+  const audio = useOverlayAudio(state.overlay, state.audioMs, running && !replay && !summary, seekGen);
   const replaying = showMode && replay !== null;
   const summing = showMode && summary !== null && !replaying;
   const replayT = replaying ? replayMatchT(replay.entry, rc.elapsed) : 0;
@@ -290,7 +294,7 @@ export function App() {
         </div>
       </div>
 
-      {surface !== "broadcast" && !isLive && (
+      {surface !== "broadcast" && (!isLive || showMode) && (
         <footer className="transport">
           <button onClick={() => setPlaying((p) => !p)}>{playing ? "Pause" : "Play"}</button>
           <input

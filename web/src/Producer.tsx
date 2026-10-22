@@ -1,7 +1,8 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import type { Overlay } from "@chalktalk/contracts";
 import { OverlayLayer } from "./components/OverlayLayer";
 import { PitchView } from "./components/PitchView";
+import { applyHubMessage, liveMatchT, newLiveState } from "./live";
 import { breakdownDurationMs, frameAt } from "./playback";
 import {
   applyDecisions,
@@ -11,13 +12,18 @@ import {
   gateRows,
   isOpen,
   loadDecisions,
+  mergeQueue,
+  momentTellings,
   postDecision,
+  restartMatch,
+  withdrawn,
   queueOrder,
   saveDecisions,
   type Approval,
   type Decision,
   type QueueFixture,
 } from "./producer";
+import { keepConnected, matchWsUrl } from "./ws";
 
 /** `/producer?queue=queue-sim-7`; the page sits behind Cloudflare Access once deployed. */
 const QUEUE_ID = new URLSearchParams(location.search).get("queue") ?? "queue-sim-7";
@@ -32,6 +38,12 @@ export function Producer() {
   // The hub secret stays in memory only: never stored, never in the URL.
   const [secret, setSecret] = useState("");
   const [sent, setSent] = useState<Record<string, string>>({});
+  // The live match on the hub: its clock (to see what is about to air) and the crew's posts.
+  const hub = useRef(newLiveState());
+  const [hubUp, setHubUp] = useState(false);
+  const [posted, setPosted] = useState<Overlay[]>([]);
+  const [liveT, setLiveT] = useState<number | null>(null);
+  const [restart, setRestart] = useState("");
 
   useEffect(() => {
     fetch(`/fixtures/${QUEUE_ID}.json`)
@@ -43,23 +55,66 @@ export function Producer() {
       .catch((e: Error) => setError(e.message));
   }, []);
 
-  const all = useMemo(() => (fx ? applyDecisions(fx.overlays, decisions) : []), [fx, decisions]);
+  useEffect(() => {
+    if (!fx) return;
+    const close = keepConnected(matchWsUrl(fx.match_id, location), {
+      onMode: (m) => setHubUp(m === "live"),
+      onMessage: (m) => {
+        if (m.type === "overlay") return setPosted((p) => [...p.filter((x) => x.id !== m.overlay.id), m.overlay]);
+        hub.current = applyHubMessage(hub.current, m, performance.now());
+      },
+    });
+    const tick = setInterval(() => setLiveT(hub.current.durationMs ? liveMatchT(hub.current, performance.now()) : null), 500);
+    return () => {
+      clearInterval(tick);
+      close();
+    };
+  }, [fx]);
+
+  const all = useMemo(
+    () => (fx ? applyDecisions(mergeQueue(fx.overlays, posted.filter(isOpen)), decisions) : []),
+    [fx, posted, decisions],
+  );
   const queue = useMemo(() => queueOrder(all, openOnly), [all, openOnly]);
   const current = all.find((o) => o.id === selected) ?? queue[0] ?? null;
   const tally = counts(all);
 
-  async function decide(o: Overlay, d: Decision) {
+  async function decide(o: Overlay, d: Decision, whole = false) {
     if (!fx) return;
-    const approval = approvalFor(o, d, by, new Date());
-    const next = { ...decisions, [o.id]: approval };
+    const at = new Date();
+    const batch = whole ? momentTellings(all, o) : [o];
+    const next = { ...decisions };
+    for (const x of batch) next[x.id] = approvalFor(x, d, by, at);
     setDecisions(next);
     saveDecisions(fx.match_id, next);
     // Move on to the next open overlay.
-    setSelected(queueOrder(applyDecisions(fx.overlays, next), true).find((q) => q.id !== o.id)?.id ?? null);
+    const ids = new Set(batch.map((x) => x.id));
+    setSelected(queueOrder(applyDecisions(all, next), true).find((q) => !ids.has(q.id))?.id ?? null);
     if (!secret) return;
-    setSent((s) => ({ ...s, [o.id]: "sending…" }));
-    const r = await postDecision(fetch, fx.match_id, { ...o, approval }, secret).catch(() => ({ ok: false, status: 0 }));
-    setSent((s) => ({ ...s, [o.id]: r.ok ? "sent to hub" : `hub said ${r.status || "unreachable"}` }));
+    for (const x of batch) setSent((s) => ({ ...s, [x.id]: "sending…" }));
+    const results = await Promise.all(
+      batch.map((x) => postDecision(fetch, fx.match_id, { ...x, approval: next[x.id] }, secret).catch(() => ({ ok: false, status: 0 }))),
+    );
+    const bad = results.find((r) => !r.ok);
+    const msg = bad ? `hub said ${bad.status || "unreachable"}` : batch.length > 1 ? `${batch.length} tellings sent to hub` : "sent to hub";
+    for (const x of batch) setSent((s) => ({ ...s, [x.id]: msg }));
+  }
+
+  /** A new take: withdraw this console's approvals from the hub, clear them, and restart the
+   * match from kick-off, so nothing airs until it is approved again. */
+  async function onRestart() {
+    if (!fx || !secret) return;
+    setRestart("restarting…");
+    const aired = all.filter((o) => decisions[o.id]?.state === "approved" || decisions[o.id]?.state === "overridden");
+    const fail = { ok: false, status: 0 };
+    const pulled = await Promise.all(aired.map((o) => postDecision(fetch, fx.match_id, withdrawn(o), secret).catch(() => fail)));
+    const bad = pulled.find((r) => !r.ok);
+    if (bad) return setRestart(`hub said ${bad.status || "unreachable"}`);
+    setDecisions({});
+    saveDecisions(fx.match_id, {});
+    setSent({});
+    const r = await restartMatch(fetch, fx.match_id, secret).catch(() => fail);
+    setRestart(r.ok ? "" : `hub said ${r.status || "unreachable"}`);
   }
 
   function undo(o: Overlay) {
@@ -75,6 +130,7 @@ export function Producer() {
     const onKey = (e: KeyboardEvent) => {
       if (!current || !isOpen(current) || e.target instanceof HTMLInputElement) return;
       if (e.key === "a") void decide(current, "approve");
+      if (e.key === "m") void decide(current, "approve", true);
       if (e.key === "r") void decide(current, "reject");
     };
     addEventListener("keydown", onKey);
@@ -100,6 +156,15 @@ export function Producer() {
         <label className="field" title="Optional: decisions are also posted to the match hub">
           Hub secret <input type="password" value={secret} onChange={(e) => setSecret(e.target.value)} size={10} autoComplete="off" />
         </label>
+        <span className={`badge ${hubUp ? "live" : "fixture"}`} title="The match clock on the hub">
+          {hubUp && liveT !== null ? `live ${clock(liveT)}` : "hub offline"}
+        </span>
+        {hubUp && (
+          <button disabled={!secret} title={secret ? "New take: withdraw approvals, back to kick-off, playing" : "Enter the hub secret first"} onClick={() => void onRestart()}>
+            Restart match
+          </button>
+        )}
+        {restart && <span className="sent">{restart}</span>}
       </header>
 
       <div className="stage">
@@ -107,6 +172,7 @@ export function Producer() {
           {queue.map((o) => (
             <button key={o.id} className={o.id === current?.id ? "on" : ""} onClick={() => setSelected(o.id)}>
               <b>{minute(o.match_tc)}</b> {o.lens} · {o.side} · {o.lang}
+              {liveT !== null && isOpen(o) && <span className="state">{airing(o.match_tc, liveT)}</span>}
               <span className={`state ${o.approval.state}`}>{o.approval.state}</span>
               {!gatePassed(o) && <span className="state rejected">gate failed</span>}
             </button>
@@ -155,6 +221,11 @@ export function Producer() {
                   <button className="approve" onClick={() => void decide(current, "approve")}>
                     {gatePassed(current) ? "Approve" : "Override and approve"} <kbd>a</kbd>
                   </button>
+                  {momentTellings(all, current).length > 1 && (
+                    <button className="approve" title="Every lens, side and language of this moment" onClick={() => void decide(current, "approve", true)}>
+                      Approve the moment ({momentTellings(all, current).length}) <kbd>m</kbd>
+                    </button>
+                  )}
                   <button className="reject" onClick={() => void decide(current, "reject")}>
                     Reject <kbd>r</kbd>
                   </button>
@@ -174,6 +245,13 @@ export function Producer() {
       </div>
     </main>
   );
+}
+
+const clock = (ms: number) => `${String(Math.floor(ms / 60_000)).padStart(2, "0")}:${String(Math.floor(ms / 1000) % 60).padStart(2, "0")}`;
+
+/** "airs in 12 s" while the moment is ahead of the live clock, "aired" after. */
+function airing(t: number, liveT: number): string {
+  return t > liveT ? `airs in ${Math.ceil((t - liveT) / 1000)} s` : "aired";
 }
 
 function minute(ms: number): string {
