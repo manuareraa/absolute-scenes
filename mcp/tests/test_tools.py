@@ -28,6 +28,8 @@ def all_calls(t):
         ("match_info", {"match_id": MID}),
         ("frame", {"match_id": MID, "t": t}),
         ("events", {"match_id": MID, "types": ["pass"], "team": "home"}),
+        ("half_time", {"match_id": MID}),
+        ("catch_up", {"match_id": MID, "t": t}),
         ("team_shape", {"match_id": MID, "t": t, "team": "away"}),
         ("line_gap", {"match_id": MID, "t": t, "team": "away"}),
         ("distance_between", {"match_id": MID, "t": t, "a": "H09", "b": "A04"}),

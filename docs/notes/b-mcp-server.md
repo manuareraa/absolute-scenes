@@ -35,6 +35,8 @@ Every tool except `list_matches` and `verify` returns:
 | match_info | match_id | teams, players, score, duration |
 | frame | match_id, t | the contract frame |
 | events | match_id, start_t?, end_t?, types?, team? | count (max 200 listed) |
+| half_time | match_id, n=3 | score; the n moments that decided the first half (window, geometry, evidence tool calls) and per-team stats |
+| catch_up | match_id, t, since_t=0, n=3 | score at t; the n moments since since_t and per-team stats |
 | team_shape | match_id, t, team | outfield hull m², plus width, length, lines, gaps |
 | line_gap | match_id, t, team, between=defence_midfield\|midfield_attack | m |
 | distance_between | match_id, t, a, b | m |
