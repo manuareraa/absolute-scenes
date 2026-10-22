@@ -1,12 +1,13 @@
 // One Worker on the Cloudflare free plan: serves the web build, the small JSON API,
 // and the per-match MatchHub Durable Object (SQLite-backed, as the free plan requires).
+// Static assets are assembled into ./public by scripts/assemble.mjs (web build + match packages).
 {
   "$schema": "../../node_modules/wrangler/config-schema.json",
   "name": "chalktalk",
   "main": "src/index.ts",
   "compatibility_date": "2026-09-01",
   "assets": {
-    "directory": "../../web/dist",
+    "directory": "./public",
     "binding": "ASSETS",
     "not_found_handling": "single-page-application",
     "run_worker_first": ["/api/*", "/ws/*"]
@@ -15,5 +16,7 @@
     "bindings": [{ "name": "MATCH_HUB", "class_name": "MatchHub" }]
   },
   "migrations": [{ "tag": "v1", "new_sqlite_classes": ["MatchHub"] }],
-  "observability": { "enabled": true }
+  "observability": { "enabled": true },
+  // Batch length of the frames broadcast (ms). OVERLAY_SECRET is a Worker secret, never a var.
+  "vars": { "BATCH_MS": "1000" }
 }
