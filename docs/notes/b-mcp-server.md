@@ -51,6 +51,7 @@ Every tool except `list_matches` and `verify` returns:
 | pressing_intensity | match_id, start_t, end_t, team | mean pressure on the opponent's carrier (window ≤ 180 s) |
 | ball_speed | match_id, start_t, end_t | top speed in m/s (km/h in details) |
 | player_run | match_id, start_t, end_t, player_id | top speed in m/s; path, distance |
+| ghost | match_id, player_id, start_t, end_t (≤ 30 s), baseline_s?=60 | gap (m) between the real player and the ghost at the end. Geometry: `ghost_path` (last point = expected position, `player_id` = real player), the real `run`, a `ring` at the ghost. Details: `deltas` of pitch control, net OBSO and pressing (ghost − real, from the player's team's view) |
 | verify | name, args, output_hash?, value?, tolerance? | `{verified, hash_match, value_ok, value, diff}` |
 
 Errors (unknown match, t outside the match, unknown player, bad zone) come back as MCP tool errors with a plain message.

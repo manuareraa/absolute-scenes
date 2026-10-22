@@ -44,6 +44,7 @@ def all_calls(t):
         ("pressing_intensity", {"match_id": MID, "start_t": 0, "end_t": 60_000, "team": "away"}),
         ("ball_speed", {"match_id": MID, "start_t": 0, "end_t": 60_000}),
         ("player_run", {"match_id": MID, "start_t": t, "end_t": t + 4000, "player_id": "H09"}),
+        ("ghost", {"match_id": MID, "player_id": "H04", "start_t": t, "end_t": t + 6000}),
     ]
 
 
@@ -130,3 +131,15 @@ def test_new_analyst_tools(store, owned_t):
     assert o["details"]["team"] == "home" and 0 <= o["value"] < 1
     tc = o["tool_call"]
     assert tools.verify(tc["name"], tc["args"], output_hash=tc["output_hash"])["verified"]
+
+
+def test_ghost_tool(store, owned_t):
+    tools = Tools(store)
+    out = tools.ghost(MID, "A04", owned_t, owned_t + 8000)
+    assert out["unit"] == "m" and out["value"] >= 0
+    assert out["geometry"][0]["shape"] == "ghost_path"
+    assert set(out["details"]["deltas"]) == {"pitch_control", "obso", "pressing"}
+    tc = out["tool_call"]
+    assert tools.verify(tc["name"], tc["args"], output_hash=tc["output_hash"])["verified"]
+    with pytest.raises(ValueError):
+        tools.ghost(MID, "A04", 0, 40_000)

@@ -1,5 +1,6 @@
 import json
 
+import numpy as np
 import pytest
 from chalktalk_core import analytics as an
 from chalktalk_core.provenance import output_hash
@@ -194,3 +195,33 @@ def test_obso_grows_near_goal():
     assert len(far["geometry"]) == 3
     with pytest.raises(ValueError):
         an.obso(frame(owner=None))
+
+
+def test_ghost_returns_player_to_slot():
+    from chalktalk_core import ghost as gh
+
+    # Away attacks with the ball 28 m from goal; home's centre-back H04 is 24 m too high.
+    base = [frame(t=t, owner="A10", ball=(-4.4, -3)) for t in range(0, 2000, 400)]
+    moves = {"A10": (-24, -3), "A11": (-26, 10), "H04": (-8, 8)}
+    window = [
+        frame(t=10_000 + k * 200, owner="A10", ball=(-24.4, -3), moves=moves) for k in range(26)
+    ]
+    off = gh.slot_offset(base, "H04")
+    real, slot, track, vels = gh.ghost_track(window, "H04", off)
+    assert np.allclose(real[-1], (-8, 8)) and np.allclose(slot[-1], (-32, 8))
+    speeds = np.linalg.norm(vels, axis=1)
+    assert speeds.max() <= gh.GHOST_VMAX + 1e-9
+    assert np.all(np.diff(speeds) <= gh.GHOST_ACCEL * 0.2 + 1e-9)
+    # The ghost heads back toward the slot, never past it.
+    assert track[-1][0] < real[-1][0] and track[-1][0] > slot[-1][0] - 1
+
+    d = check(gh.ghost(window, "H04", baseline=base))
+    assert d["value"] == round(float(np.linalg.norm(track[-1] - real[-1])), 2) > 1
+    assert [g["shape"] for g in d["geometry"]][:2] == ["ghost_path", "run"]
+    assert d["evidence_window"] == {"start_t": 10_000, "end_t": 15_000}
+    deltas = d["details"]["deltas"]
+    assert set(deltas) == {"pitch_control", "obso", "pressing"}
+    # Back in the slot: more pressure on the carrier, less chance for the opponent.
+    assert deltas["obso"] > 0 and deltas["pressing"] > 0
+    with pytest.raises(ValueError):
+        gh.ghost(window[:1], "H04")
