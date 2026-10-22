@@ -15,6 +15,7 @@ from typing import Any
 
 from chalktalk_core import analytics as an
 from chalktalk_core import ghost as gh
+from chalktalk_core import summary
 from chalktalk_core.geometry import attack_sign
 from chalktalk_core.provenance import canonical_json, normalise, output_hash
 
@@ -25,6 +26,7 @@ MAX_PAD_MS = 10_000
 MAX_REPLAY_MS = 60_000
 NOT_EVIDENCE = ("list_matches", "verify", "evidence")
 VAR_LOOKBACK_MS = 15_000
+MAX_MOMENTS = 10
 EVENT_FIELDS = ("id", "t", "type", "actors", "team", "attrs")
 
 ToolFn = Callable[..., dict[str, Any]]
@@ -126,6 +128,47 @@ class Tools:
             "team": team,
         }
         return _seal("events", args, body)
+
+    # ----------------------------------------------------------------- summaries
+    def half_time(self, match_id: str, n: int = 3) -> dict[str, Any]:
+        """Half-time summary: the n moments that decided the first half (goals, red cards,
+        big chances, offsides near goal) in match order, the score and per-team stats."""
+        src = self.store.get(match_id)
+        end = next(
+            (
+                e["t"]
+                for e in src.events()
+                if e["type"] == "period_end" and e.get("attrs", {}).get("period") == 1
+            ),
+            src.duration_ms // 2,
+        )
+        args = {"match_id": match_id, "n": n}
+        return self._summary("half_time", args, match_id, 0, end, n)
+
+    def catch_up(self, match_id: str, t: int, since_t: int = 0, n: int = 3) -> dict[str, Any]:
+        """Catch-up for a viewer joining at t: the n moments that decided since_t..t, the
+        score at t and per-team stats over the window."""
+        src = self.store.get(match_id)
+        end = src.clamp(t)
+        start = min(src.clamp(since_t), end)
+        args = {"match_id": match_id, "t": t, "since_t": since_t, "n": n}
+        return self._summary("catch_up", args, match_id, start, end, n)
+
+    def _summary(
+        self, name: str, args: dict[str, Any], match_id: str, start: int, end: int, n: int
+    ) -> dict[str, Any]:
+        if not 1 <= n <= MAX_MOMENTS:
+            raise ValueError(f"n must be 1..{MAX_MOMENTS}")
+        r = summary.summary(self.store.get(match_id).events(), start, end, n, metric=name)
+        # Evidence links: every moment carries the tool calls that back it (its events, and
+        # the shot's xG where there was one), each re-runnable by the Verifier.
+        for m in r.details["moments"]:
+            w = m["evidence_window"]
+            links = [self.events(match_id, start_t=w["start_t"], end_t=w["end_t"])["tool_call"]]
+            if m.get("shot_t") is not None:
+                links.append(self.shot_xg(match_id, m["shot_t"], m["shooter"])["tool_call"])
+            m["evidence"] = links
+        return _result(name, args, match_id, r)
 
     # ----------------------------------------------------------------- one frame
     def team_shape(self, match_id: str, t: int, team: str) -> dict[str, Any]:
@@ -430,6 +473,8 @@ TOOL_NAMES = (
     "match_info",
     "frame",
     "events",
+    "half_time",
+    "catch_up",
     "team_shape",
     "line_gap",
     "distance_between",
