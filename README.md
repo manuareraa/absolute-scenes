@@ -12,8 +12,8 @@ The pundit crew runs on Azure AI Foundry Agent Service (`gpt-4.1-mini`) with Azu
 ```bash
 uv run python -m chalktalk_sim generate --seed 7 --half-minutes 5 --demo --out ./packages
 uv run python -m chalktalk_crew run --half-minutes 3      # fake LLM and speech, cached overlays
-npm run build --workspace web && node workers/edge/scripts/assemble.mjs --packages ./packages
-npm run dev --workspace workers/edge                      # http://localhost:8787
+npm run build --workspace web
+CHALKTALK_PACKAGES=$PWD/packages npm run dev --workspace workers/edge   # http://localhost:8787
 ```
 
 ## Layout
