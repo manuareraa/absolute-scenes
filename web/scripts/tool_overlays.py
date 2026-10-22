@@ -232,3 +232,127 @@ def evidence_map(t: Tools, overlays: list[dict[str, Any]]) -> dict[str, dict[str
             if h not in out:
                 out[h] = evidence_entry(t, o, c)
     return out
+
+
+# --------------------------------------------------------------------------------------- VAR
+VAR_TEMPLATE = (
+    "VAR is checking the goal for [[v1]]offside. The line is the second-last defender at the "
+    "moment of the shot, and [[v2]]number {shirt} is {margin_m} metres {way}. "
+    "[[v3]]Check complete: {decision}."
+)
+VAR_DECISIONS = {"goal_stands": "the goal stands", "goal_disallowed": "no goal"}
+
+
+def var_overlay(t: Tools, goal: dict[str, Any]) -> tuple[dict[str, Any], dict[str, Any]]:
+    """The VAR check on ``goal``: B's ``var_offside`` at the play that made it, and the check's
+    own timing (``var_check`` and ``var_decision`` events) for the provisional graphics.
+
+    Returns the overlay and its VAR meta: everything before the ``v3`` cue is provisional."""
+    src = t.store.get("sim-7")
+    evs = src.events()
+    check = next(e for e in evs if e["type"] == "var_check" and e["t"] >= goal["t"])
+    decided = next(e for e in evs if e["type"] == "var_decision" and e["t"] >= check["t"])
+    scorer = goal["actors"][0]
+    shot = max(
+        (e for e in evs if e["type"] == "shot" and e["t"] <= goal["t"] and scorer in e["actors"]),
+        key=lambda e: e["t"],
+    )
+    r = t.var_offside("sim-7", shot["t"], scorer)
+    d = r["details"]
+    margin = round(abs(r["value"]), 2)
+    geo = {g["shape"]: g for g in r["geometry"]}
+    strokes = [
+        (geo["offside_line"], "v1", ["c1"]),
+        (geo["line"], "v2", ["c1"]),
+        (geo["ring"], "v2", ["c1"]),
+    ]
+    if "pass_lane" in geo:
+        strokes.append((geo["pass_lane"], "v2", ["c1"]))
+    strokes.append((geo["label"], "v3", ["c1"]))
+    decision = VAR_DECISIONS.get(decided["attrs"]["decision"], decided["attrs"]["decision"])
+    values = {
+        "shirt": str(_roster(t)[scorer]["number"]),
+        "margin_m": format_value(margin, "m"),
+        "way": "beyond it" if d["decision"] == "offside" else "behind it",
+        "decision": decision,
+    }
+    ov = overlay(
+        f"ov-var-m{goal['t']}-{scorer}",
+        shot["t"],
+        VAR_TEMPLATE,
+        values,
+        strokes,
+        [claim("c1", "margin_m", r, margin, "m", 0.05)],
+        camera={"preset": "tactical", "target": geo["ring"]["geometry_m"]["points"][0]},
+    )
+    meta = {
+        "check_t": check["t"],
+        "decision_t": decided["t"],
+        "reason": check["attrs"].get("reason"),
+        "decision": decided["attrs"]["decision"],
+        "offside": d["decision"],
+        "decision_cue": "v3",
+    }
+    return ov, meta
+
+
+# ---------------------------------------------------------------------------------- summaries
+MOMENT_PRE_MS = 6000
+MOMENT_POST_MS = 2000
+
+
+def moment_entry(t: Tools, m: dict[str, Any]) -> dict[str, Any]:
+    """What tapping a summary moment replays: the play into it (inside its evidence window) with
+    its own geometry, checked by re-running its ``shot_xg`` call through B's ``evidence`` tool
+    when it has one."""
+    src = t.store.get("sim-7")
+    ew = m["evidence_window"]
+    w = {
+        "start_t": max(ew["start_t"], m["t"] - MOMENT_PRE_MS),
+        "end_t": min(ew["end_t"], m["t"] + MOMENT_POST_MS),
+    }
+    hits = [x for x in src.events() if w["start_t"] <= x["t"] <= w["end_t"]]
+    xg = next((c for c in m["evidence"] if c["name"] == "shot_xg"), None)
+    entry = {
+        "tool": "events",
+        "args": {"start_t": w["start_t"], "end_t": w["end_t"]},
+        "claim_value": m["headline"],
+        "unit": None,
+        "check": "window",
+        "rerun_value": None,
+        "hash_match": None,
+        "replay": dict(w),
+        "geometry": m["geometry"],
+        "events": [{k: x[k] for k in EVENT_KEEP if k in x} for x in hits],
+    }
+    if xg is not None:
+        e = t.evidence("shot_xg", xg["args"], xg["output_hash"], pad_ms=EVIDENCE_PAD_MS)
+        ok = e["details"]["hash_match"] or abs(e["value"] - (m["xg"] or 0)) <= 0.005
+        entry |= {
+            "tool": "shot_xg",
+            "args": xg["args"],
+            "claim_value": m["xg"],
+            "unit": "xG",
+            "check": "match" if ok else "differs",
+            "rerun_value": e["value"],
+            "hash_match": e["details"]["hash_match"],
+        }
+    return entry
+
+
+def summary(t: Tools, kind: str, at_t: int | None = None) -> dict[str, Any]:
+    """B's ``half_time`` or ``catch_up`` output, with each moment's replay entry."""
+    r = t.half_time("sim-7") if kind == "half_time" else t.catch_up("sim-7", at_t)
+    moments = sorted(r["details"]["moments"], key=lambda m: m["rank"])
+    for m in moments:
+        m["replay"] = moment_entry(t, m)
+    return {
+        "kind": kind,
+        "at_t": r["evidence_window"]["end_t"],
+        "value": r["value"],
+        "score": r["details"]["score"],
+        "stats": r["details"]["stats"],
+        "geometry": r["geometry"],
+        "moments": moments,
+        "tool_call": r["tool_call"],
+    }
