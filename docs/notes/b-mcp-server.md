@@ -53,6 +53,13 @@ Every tool except `list_matches` and `verify` returns:
 Errors (unknown match, t outside the match, unknown player, bad zone) come back as MCP tool errors with a plain message.
 
 ## For stream D (deploy)
+**Azure request** (stream B creates nothing in Azure; the credit is $100 in total):
+- Image: GHCR (`ghcr.io/<owner>/chalktalk-mcp`), built by CI from `mcp/Dockerfile`. No ACR.
+- One Container App, workload profile **Consumption** only, `minReplicas: 0`, `maxReplicas: 1`, 0.5 vCPU / 1 GiB, in the shared Container Apps environment.
+- Monthly cost, approximate: **$0** for demo use. Example: 20 active hours is 36,000 vCPU-s and 72,000 GiB-s, inside the free grant of 180,000 vCPU-s and 360,000 GiB-s per subscription each month.
+  - Worst case, if it is kept awake around the clock: about $35 a month. That is why it needs `minReplicas: 0`.
+- Logs: give the environment's Log Analytics workspace a daily cap, or send logs nowhere. Ingestion is the one cost that grows on its own.
+
 - Container Apps settings:
   - target port 8000, scale to zero
   - liveness probe on `/healthz`
