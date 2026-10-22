@@ -50,6 +50,7 @@ The Azure subscription has **$100 of credit for the whole project**. Overspendin
 - **Cloudflare free plan only.** One Worker (`workers/edge`, TypeScript) serves the web build, `/api/*`, and the `MatchHub` Durable Object (SQLite-backed). Limits: 10 ms CPU per request, 100k requests a day.
   - Static files (match chunks, HLS segments) go in Workers static assets; they are free.
   - No Workers Paid, no Containers, no Python Workers.
+  - **The Cloudflare account is shared with another project (InspectMate); free limits are account-wide.** Only the coordinator deploys. Never run load tests or looping scripts against the live Worker. Check usage with `python3 -I scripts/cf_usage.py` (see `docs/notes/coord-cloudflare.md`).
 - **All Python compute runs on Azure:** the `mcp` tools and post-match jobs on Container Apps, and the crew on Foundry.
 - **Data is fully synthetic**, as the hackathon rules require.
   - Real tracking data (IDSSE, Metrica) may only calibrate and benchmark `sim`. Never ship or show it.
