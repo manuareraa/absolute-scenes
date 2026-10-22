@@ -1,0 +1,29 @@
+# Compiles and lints the Bicep. Offline: no Azure sign-in, nothing is deployed.
+name: infra
+
+on:
+  pull_request:
+    paths: ["infra/**", ".github/workflows/infra.yml"]
+  push:
+    branches: [main]
+    paths: ["infra/**", ".github/workflows/infra.yml"]
+
+permissions:
+  contents: read
+
+jobs:
+  bicep:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: az bicep install
+      - run: az bicep build --file infra/main.bicep --stdout > /dev/null
+      - run: az bicep lint --file infra/main.bicep
+      - name: Budget guard rails
+        run: |
+          code=$(grep -v '^\s*//' infra/main.bicep)
+          grep -q "minReplicas: 0" <<<"$code"
+          grep -q "maxReplicas: 1" <<<"$code"
+          if grep -qi "workloadProfiles" <<<"$code"; then echo "budget: workloadProfiles is not allowed"; exit 1; fi
+          if grep -qi "Microsoft.ContainerRegistry" <<<"$code"; then echo "budget: Microsoft.ContainerRegistry is not allowed"; exit 1; fi
+          if grep -qi "Microsoft.OperationalInsights" <<<"$code"; then echo "budget: Microsoft.OperationalInsights is not allowed"; exit 1; fi
