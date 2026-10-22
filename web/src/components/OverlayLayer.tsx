@@ -1,6 +1,7 @@
 import type { Frame, Overlay } from "@chalktalk/contracts";
 import { HALF_W, arrowHead, pathD, toSvg, toVec, truncatePolyline, type Vec } from "../pitch";
 import { strokeProgress } from "../playback";
+import { GhostFigure, ghostPose } from "./Ghost";
 
 type Stroke = Overlay["strokes"][number];
 
@@ -30,13 +31,12 @@ export function StrokeShape({ stroke, frame, k }: { stroke: Stroke; frame: Frame
     case "ghost_path": {
       const head = k >= 1 ? arrowHead(drawn) : null;
       const cls = stroke.shape === "ghost_path" ? "ghost" : stroke.shape;
+      const ghost = stroke.shape === "ghost_path" ? ghostPose(stroke, frame, drawn, k) : null;
       return (
         <g {...common} className={`stroke ${cls}`} stroke={color} fill={color}>
           <path d={pathD(drawn)} fill="none" strokeWidth={width ?? 0.45} strokeDasharray={dash ?? (stroke.shape === "run" ? "1.2 0.9" : undefined)} />
           {head && <path d={head} stroke="none" />}
-          {stroke.shape === "ghost_path" && drawn.length > 0 && (
-            <circle className="ghost-marker" cx={toSvg(drawn[drawn.length - 1])[0]} cy={toSvg(drawn[drawn.length - 1])[1]} r={1.05} />
-          )}
+          {ghost && <GhostFigure pose={ghost} color={color} />}
         </g>
       );
     }

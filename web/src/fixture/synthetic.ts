@@ -180,7 +180,7 @@ function strokesM2(f: Frame): Stroke[] {
     { id: "s2", shape: "zone", geometry_m: { points: [[ten.x + 3, ten.y - 6], [ten.x + 14, ten.y - 6], [ten.x + 14, ten.y + 6], [ten.x + 3, ten.y + 6]] }, style: { color: "chalk" }, cue_id: "k2", lead_ms: 150, duration_ms: 500, claim_ids: ["c1"] },
     { id: "s3", shape: "spotlight", geometry_m: { player_id: "h10", radius: 3 }, style: { color: "chalk" }, cue_id: "k3", lead_ms: 150, duration_ms: 400 },
     { id: "s4", shape: "arrow", geometry_m: { points: [[ten.x, ten.y], [ten.x + 9, ten.y - 2]] }, style: { color: "chalk" }, cue_id: "k4", lead_ms: 150, duration_ms: 500 },
-    { id: "s5", shape: "ghost_path", geometry_m: { points: [[runner.x, runner.y], [runner.x + 4, runner.y - 1], [runner.x + 9, runner.y - 5]] }, style: { color: "ghost", dash: true }, cue_id: "k5", lead_ms: 150, duration_ms: 700 },
+    { id: "s5", shape: "ghost_path", geometry_m: { points: [[runner.x, runner.y], [runner.x + 4, runner.y - 1], [runner.x + 9, runner.y - 5]], player_id: runner.id }, style: { color: "ghost", dash: true }, cue_id: "k5", lead_ms: 150, duration_ms: 700 },
     { id: "s6", shape: "line", geometry_m: { points: [[backX, -30], [backX, 30]] }, style: { color: "away", width: 0.4 }, cue_id: "k6", lead_ms: 150, duration_ms: 500 },
   ];
 }
