@@ -52,6 +52,7 @@ Every tool except `list_matches` and `verify` returns:
 | ball_speed | match_id, start_t, end_t | top speed in m/s (km/h in details) |
 | player_run | match_id, start_t, end_t, player_id | top speed in m/s; path, distance |
 | verify | name, args, output_hash?, value?, tolerance? | `{verified, hash_match, value_ok, value, diff}` |
+| evidence | name, args, output_hash?, pad_ms=2000 | M9 tap-a-number: re-runs the call; its value, strokes and window, plus a replay window (padded, max 60 s), the events in it, the ball path (dashed `run`) and `hash_match` |
 
 Errors (unknown match, t outside the match, unknown player, bad zone) come back as MCP tool errors with a plain message.
 
