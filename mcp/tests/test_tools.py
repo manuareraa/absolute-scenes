@@ -2,6 +2,7 @@ import json
 
 import pytest
 from chalktalk_contracts import validate
+from chalktalk_core.analytics import FORMATIONS
 from chalktalk_mcp.store import PackageSource, Store, UnknownMatch
 from chalktalk_mcp.tools import TOOL_NAMES, Tools
 from chalktalk_sim import write_package
@@ -36,7 +37,10 @@ def all_calls(t):
         ("shot_xg", {"match_id": MID, "t": t}),
         ("offside_line", {"match_id": MID, "t": t, "defending_team": "away"}),
         ("pass_options", {"match_id": MID, "t": t}),
+        ("formation", {"match_id": MID, "t": t, "team": "away"}),
+        ("obso", {"match_id": MID, "t": t}),
         ("xt_added", {"match_id": MID, "start_t": t, "end_t": t + 2000}),
+        ("line_breaking_passes", {"match_id": MID, "start_t": 0, "end_t": 90_000, "team": "home"}),
         ("pressing_intensity", {"match_id": MID, "start_t": 0, "end_t": 60_000, "team": "away"}),
         ("ball_speed", {"match_id": MID, "start_t": 0, "end_t": 60_000}),
         ("player_run", {"match_id": MID, "start_t": t, "end_t": t + 4000, "player_id": "H09"}),
@@ -114,3 +118,15 @@ def test_store_lru(match):
     s.put(match)
     s.get("sim-3")
     assert [m["match_id"] for m in s.list()] == ["sim-3"]
+
+
+def test_new_analyst_tools(store, owned_t):
+    tools = Tools(store)
+    f = tools.formation(MID, owned_t, "home")
+    assert f["value"] in FORMATIONS and len(f["details"]["roles"]) == 10
+    lb = tools.line_breaking_passes(MID, 0, 90_000, "home")
+    assert lb["details"]["completed_passes"] >= lb["value"] >= 0
+    o = tools.obso(MID, owned_t)
+    assert o["details"]["team"] == "home" and 0 <= o["value"] < 1
+    tc = o["tool_call"]
+    assert tools.verify(tc["name"], tc["args"], output_hash=tc["output_hash"])["verified"]

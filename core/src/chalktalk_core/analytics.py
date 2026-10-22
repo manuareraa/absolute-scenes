@@ -17,6 +17,7 @@ from __future__ import annotations
 import math
 from collections.abc import Iterable, Sequence
 from dataclasses import asdict, dataclass, field
+from itertools import pairwise
 from typing import Any
 
 import numpy as np
@@ -540,4 +541,246 @@ def player_run(frames: Iterable[Frame], player_id: str) -> Result:
             "distance_m": round(dist, 2),
             "kmh": round(max(speeds) * 3.6, 1),
         },
+    )
+
+
+# --------------------------------------------------------------------------- formation
+# Outfield lines from the back. A template is matched to the players sorted by depth; the
+# cost is the spread of each line along the pitch plus a fixed price per line, so a 4-line
+# shape only wins when the extra line is really there (EFPI-style, after Bauer et al. 2023).
+FORMATIONS: dict[str, tuple[int, ...]] = {
+    "4-4-2": (4, 4, 2),
+    "4-3-3": (4, 3, 3),
+    "4-2-3-1": (4, 2, 3, 1),
+    "4-5-1": (4, 5, 1),
+    "3-5-2": (3, 5, 2),
+    "3-4-3": (3, 4, 3),
+    "5-3-2": (5, 3, 2),
+}
+LINE_COST_M2 = 25.0
+ROLE_NAMES: dict[tuple[str, int], tuple[str, ...]] = {
+    ("D", 3): ("LCB", "CB", "RCB"),
+    ("D", 4): ("LB", "LCB", "RCB", "RB"),
+    ("D", 5): ("LWB", "LCB", "CB", "RCB", "RWB"),
+    ("DM", 2): ("LDM", "RDM"),
+    ("M", 2): ("LCM", "RCM"),
+    ("M", 3): ("LCM", "CM", "RCM"),
+    ("M", 4): ("LM", "LCM", "RCM", "RM"),
+    ("M", 5): ("LM", "LCM", "CM", "RCM", "RM"),
+    ("AM", 3): ("LAM", "CAM", "RAM"),
+    ("F", 1): ("ST",),
+    ("F", 2): ("LS", "RS"),
+    ("F", 3): ("LW", "ST", "RW"),
+}
+
+
+def _line_kinds(counts: tuple[int, ...]) -> list[str]:
+    if len(counts) == 4:
+        return ["D", "DM", "AM", "F"]
+    return ["D", "M", "F"]
+
+
+def average_shape(
+    frames: Frame | Snapshot | Iterable[Frame | Snapshot], team: str
+) -> tuple[Snapshot, list[str], np.ndarray, np.ndarray]:
+    """The team's average outfield shape over ``frames``: each player's mean offset from the
+    outfield centroid. Returns the last snapshot, the ids, the offsets (N, 2) and the last
+    frame's centroid."""
+    snaps = [_snap(frames)] if isinstance(frames, (dict, Snapshot)) else [_snap(f) for f in frames]
+    if not snaps:
+        raise ValueError("empty window")
+    last = snaps[-1]
+    ids = [last.ids[i] for i in last.outfield(team)]
+    offsets = np.zeros((len(ids), 2))
+    for s in snaps:
+        xy = s.xy[[s.index(p) for p in ids]]
+        offsets += xy - xy.mean(axis=0)
+    offsets /= len(snaps)
+    centre = last.xy[[last.index(p) for p in ids]].mean(axis=0)
+    return last, ids, offsets, centre
+
+
+def formation(frames: Frame | Snapshot | Iterable[Frame | Snapshot], team: str) -> Result:
+    """The team's formation and each outfield player's role and slot. Given several frames,
+    it fits the average shape (offsets from the team centroid), which is far steadier than
+    one frame. Slots are placed around the centroid of the last frame."""
+    if not isinstance(frames, (dict, Snapshot)):
+        frames = list(frames)
+    s, ids, offsets, centre = average_shape(frames, team)
+    t0 = s.t if isinstance(frames, (dict, Snapshot)) else _snap(frames[0]).t
+    if len(ids) != 10:
+        raise ValueError(f"{team} has {len(ids)} outfield players; formations need 10")
+    sign = s.sign(team)
+    order = np.argsort(offsets[:, 0] * sign, kind="stable")
+    xn = offsets[order, 0] * sign
+    costs: dict[str, float] = {}
+    for name, counts in FORMATIONS.items():
+        cut = np.cumsum((0, *counts))
+        sse = sum(float(np.sum((xn[a:b] - xn[a:b].mean()) ** 2)) for a, b in pairwise(cut))
+        costs[name] = round(sse + LINE_COST_M2 * len(counts), 2)
+    best = min(costs, key=lambda k: (costs[k], k))
+    counts = FORMATIONS[best]
+    cut = np.cumsum((0, *counts))
+    slot_xy = centre + offsets
+    roles: dict[str, str] = {}
+    slots: dict[str, list[float]] = {}
+    lines: list[list[str]] = []
+    geometry: list[dict[str, Any]] = []
+    for kind, (a, b) in zip(_line_kinds(counts), pairwise(cut), strict=True):
+        members = order[a:b]
+        # Left is +y when attacking +x: sort by y * sign, largest (left) first.
+        by_side = members[np.argsort(-offsets[members, 1] * sign, kind="stable")]
+        names = ROLE_NAMES[(kind, len(members))]
+        line_x = float(np.mean(slot_xy[members, 0]))
+        ys = slot_xy[members, 1]
+        lines.append([ids[i] for i in by_side])
+        geometry.append(
+            {
+                "shape": "line",
+                "geometry_m": {"points": [_pt((line_x, ys.min())), _pt((line_x, ys.max()))]},
+            }
+        )
+        for i, role in zip(by_side, names, strict=True):
+            roles[ids[i]] = role
+            slots[ids[i]] = _pt((line_x, slot_xy[i, 1]))
+            here = s.xy[s.index(ids[i])]
+            geometry.append({"shape": "label", "geometry_m": {"points": [_pt(here)], "text": role}})
+    return Result(
+        metric="formation",
+        value=best,
+        unit=None,
+        evidence_window=_window(t0, s.t),
+        geometry=geometry,
+        details={"team": team, "roles": roles, "lines": lines, "slots": slots, "costs": costs},
+    )
+
+
+# --------------------------------------------------------------------------- line breaks
+def line_break(
+    frame: Frame | Snapshot, team: str, start: Sequence[float], end: Sequence[float]
+) -> dict[str, Any]:
+    """Which opponent lines a pass from ``start`` to ``end`` by ``team`` goes through.
+
+    A line is broken when the ball starts behind its mean depth, ends at least 1 m beyond it,
+    and crosses it within its width plus 5 m (StatsBomb's rule). ``bypassed`` counts the
+    outfield opponents goal-side of the ball at the start and not at the end (Line Bypass
+    Score)."""
+    s = _snap(frame)
+    opp = other_team(team)
+    sign = s.sign(team)
+    sx, sy = float(start[0]) * sign, float(start[1])
+    ex, ey = float(end[0]) * sign, float(end[1])
+    broken = []
+    # In the order the ball meets them: the opponent's attack line first.
+    for name, members in reversed(
+        list(zip(("defence", "midfield", "attack"), _lines(s, opp), strict=True))
+    ):
+        lx = float(np.mean(s.xy[members, 0])) * sign
+        if not (sx < lx and ex >= lx + 1.0):
+            continue
+        cy = sy + (ey - sy) * (lx - sx) / (ex - sx)
+        ys = s.xy[members, 1]
+        if ys.min() - 5.0 <= cy <= ys.max() + 5.0:
+            broken.append(name)
+    ox = s.xy[s.outfield(opp), 0] * sign
+    bypassed = int(np.sum((ox > sx) & (ox <= ex)))
+    return {"lines_broken": broken, "bypassed": bypassed}
+
+
+def line_breaking_passes(
+    passes: Iterable[tuple[Frame | Snapshot, dict[str, Any]]],
+    team: str,
+    window: tuple[int, int],
+) -> Result:
+    """Completed passes by ``team`` that break at least one opponent line. ``passes`` pairs
+    the frame at each pass with its event (``attrs.start`` and ``attrs.end``)."""
+    found = []
+    total = 0
+    for fr, ev in passes:
+        total += 1
+        a = ev["attrs"]
+        lb = line_break(fr, team, a["start"], a["end"])
+        if lb["lines_broken"]:
+            found.append(
+                {
+                    "t": int(ev["t"]),
+                    "passer": ev["actors"][0],
+                    "receiver": a.get("receiver"),
+                    "start": _pt(a["start"]),
+                    "end": _pt(a["end"]),
+                    **lb,
+                }
+            )
+    ranked = sorted(found, key=lambda p: (-len(p["lines_broken"]), -p["bypassed"], p["t"]))
+    geometry = [
+        {
+            "shape": "pass_lane",
+            "geometry_m": {"points": [p["start"], p["end"]], "player_id": p["passer"]},
+            "style": {"variant": "open"},
+        }
+        for p in ranked[:8]
+    ]
+    return Result(
+        metric="line_breaking_passes",
+        value=len(found),
+        unit="count",
+        evidence_window=_window(*window),
+        geometry=geometry,
+        details={
+            "team": team,
+            "completed_passes": total,
+            "bypassed_total": sum(p["bypassed"] for p in found),
+            "passes": found,
+        },
+    )
+
+
+# --------------------------------------------------------------------------- OBSO
+TRANSITION_SIGMA_M = 14.0
+
+
+def obso(frame: Frame | Snapshot, team: str | None = None, step_m: float = 3.0) -> Result:
+    """Off-ball scoring opportunity (after Spearman 2018): over a grid, the chance the ball
+    goes there next (a Gaussian around the ball), times ``team``'s pitch control there, times
+    the xG of a shot from there. The value is the sum: the chance of scoring from the next
+    action. ``team`` defaults to the team on the ball."""
+    s = _snap(frame)
+    team = team or s.owner_team()
+    if team not in ("home", "away"):
+        raise ValueError("no team given and nobody has the ball")
+    sign = s.sign(team)
+    xs = np.arange(-HALF_LENGTH + step_m / 2, HALF_LENGTH, step_m)
+    ys = np.arange(-HALF_WIDTH + step_m / 2, HALF_WIDTH, step_m)
+    pc = _control_grid(s, team, xs, ys)
+    gx, gy = np.meshgrid(xs, ys)
+    d2 = (gx - s.ball[0]) ** 2 + (gy - s.ball[1]) ** 2
+    trans = np.exp(-d2 / (2 * TRANSITION_SIGMA_M**2))
+    trans /= trans.sum()
+    score = np.vectorize(lambda x, y: xg(float(x), float(y), sign))(gx, gy)
+    grid = trans * pc * score
+    total = float(grid.sum())
+    top = np.argsort(-grid.ravel(), kind="stable")[:3]
+    h = step_m / 2
+    cells, geometry = [], []
+    for k in top:
+        r, c = divmod(int(k), grid.shape[1])
+        x, y = float(xs[c]), float(ys[r])
+        corners = [(x - h, y - h), (x + h, y - h), (x + h, y + h), (x - h, y + h)]
+        geometry.append({"shape": "zone", "geometry_m": {"points": [_pt(p) for p in corners]}})
+        cells.append(
+            {
+                "at": _pt((x, y)),
+                "obso": round(float(grid[r, c]), 5),
+                "control": round(float(pc[r, c]), 3),
+                "xg": round(float(score[r, c]), 3),
+                "transition": round(float(trans[r, c]), 5),
+            }
+        )
+    return Result(
+        metric="obso",
+        value=round(total, 4),
+        unit="xG",
+        evidence_window=_window(s.t),
+        geometry=geometry,
+        details={"team": team, "step_m": step_m, "top_cells": cells},
     )

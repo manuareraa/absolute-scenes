@@ -44,7 +44,10 @@ Every tool except `list_matches` and `verify` returns:
 | shot_xg | match_id, t, player_id? | xG |
 | offside_line | match_id, t, defending_team | line x (m), attackers beyond it |
 | pass_options | match_id, t | number of safe options; each with lane risk, control, xT gain, offside |
+| formation | match_id, t, team, window_s?=30 | formation (4-4-2, 4-3-3, 4-2-3-1, 4-5-1, 3-5-2, 3-4-3, 5-3-2) from the average shape over the window; roles, lines and slots per player |
+| obso | match_id, t, team? | off-ball scoring opportunity (xG of the next action), with the 3 most dangerous cells as zones |
 | xt_added | match_id, start_t, end_t | ΔxT of the ball move, for the team in possession at start_t |
+| line_breaking_passes | match_id, start_t, end_t, team | completed passes that break opponent lines; lines broken and opponents bypassed per pass |
 | pressing_intensity | match_id, start_t, end_t, team | mean pressure on the opponent's carrier (window ≤ 180 s) |
 | ball_speed | match_id, start_t, end_t | top speed in m/s (km/h in details) |
 | player_run | match_id, start_t, end_t, player_id | top speed in m/s; path, distance |
