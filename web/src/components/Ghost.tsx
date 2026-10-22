@@ -1,6 +1,6 @@
 // The "ghost": a see-through figure where a player was expected to be, tethered to where they
-// really are. Until B's ghost tool lands it reads a `ghost_path` stroke: the path's last point is
-// the expected position and `geometry_m.player_id` (optional) is the real player.
+// really are. It reads the `ghost_path` stroke from B's `ghost` tool: the path is the ghost's
+// track, its last point is the expected position and `geometry_m.player_id` is the real player.
 import type { Frame, Overlay } from "@chalktalk/contracts";
 import { dist, toSvg, toVec, type Vec } from "../pitch";
 
