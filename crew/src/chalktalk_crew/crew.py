@@ -121,14 +121,18 @@ def fake_crew(config: CrewConfig | None = None) -> Crew:
     return Crew(FakeAnalyticsTools(), FakeLLMClient(), FakeSpeechClient(), config)
 
 
-def crew_from_env(tools: ToolClient | None = None) -> Crew:
-    """Build the crew the environment asks for (``CHALKTALK_CREW_BACKEND``, default ``fake``)."""
-    config = CrewConfig.from_env()
-    if config.backend == "fake":
-        return Crew(tools or FakeAnalyticsTools(), FakeLLMClient(), FakeSpeechClient(), config)
-    from .azure import AzureFoundryLLMClient, AzureSpeechClient
-
+def crew_from_env(tools: ToolClient | None = None, config: CrewConfig | None = None) -> Crew:
+    """Build the crew the environment asks for. ``CHALKTALK_CREW_BACKEND`` (default ``fake``)
+    sets both clients; ``CHALKTALK_LLM_BACKEND`` / ``CHALKTALK_SPEECH_BACKEND`` override each."""
+    config = config or CrewConfig.from_env()
     config.require_azure()
-    if tools is None:
-        raise RuntimeError("azure backend needs a tool client (stream B's MCP server)")
-    return Crew(tools, AzureFoundryLLMClient(config), AzureSpeechClient(config), config)
+    llm: LLMClient = FakeLLMClient()
+    speech: SpeechClient = FakeSpeechClient()
+    if "azure" in (config.llm_backend, config.speech_backend):
+        from .azure import AzureFoundryLLMClient, AzureSpeechClient
+
+        if config.llm_backend == "azure":
+            llm = AzureFoundryLLMClient(config)
+        if config.speech_backend == "azure":
+            speech = AzureSpeechClient(config)
+    return Crew(tools or FakeAnalyticsTools(), llm, speech, config)
