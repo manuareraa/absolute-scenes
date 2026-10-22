@@ -2,7 +2,12 @@
 name = "chalktalk-crew"
 version = "0.0.0"
 requires-python = ">=3.12"
-dependencies = ["chalktalk-contracts", "chalktalk-mcp", "chalktalk-sim"]
+dependencies = [
+    "chalktalk-contracts",
+    "chalktalk-mcp",
+    "chalktalk-sim",
+    "websockets>=13",
+]
 
 [project.optional-dependencies]
 # Live Azure Speech only; CI and tests never install it.
