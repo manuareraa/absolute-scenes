@@ -1,0 +1,16 @@
+**
+!pyproject.toml
+!uv.lock
+!crew/pyproject.toml
+!postmatch/pyproject.toml
+!vision/pyproject.toml
+!contracts/schemas/**
+!contracts/python/pyproject.toml
+!contracts/python/src/**
+!core/pyproject.toml
+!core/src/**
+!sim/pyproject.toml
+!sim/src/**
+!mcp/pyproject.toml
+!mcp/src/**
+**/__pycache__

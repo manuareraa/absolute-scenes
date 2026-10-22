@@ -7,12 +7,9 @@ import json
 import sys
 from pathlib import Path
 
-from .director import Beat, MatchConfig, simulate
+from .director import DEMO_BEATS, MatchConfig, simulate
 from .package import write_package
 from .realism import compare, profile
-
-# The compressed demo match: a home goal mid-way through the first half, sent to VAR.
-DEMO_BEATS = (Beat(150_000, "var_check"), Beat(150_000, "goal", "home"))
 
 
 def _config(args: argparse.Namespace) -> MatchConfig:
