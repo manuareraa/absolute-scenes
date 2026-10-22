@@ -53,6 +53,7 @@ class RunLog:
     stopped: str | None = None
     posted: list[str] = field(default_factory=list)
     post_failed: dict[str, str] = field(default_factory=dict)
+    agents: dict[str, Any] | None = None  # Foundry agent runs and fallbacks, when hosted
 
     def as_dict(self) -> dict[str, Any]:
         return dict(self.__dict__)
@@ -180,6 +181,8 @@ def run(
                     _post(poster, log, oid, overlay)
 
     log.llm, log.speech_characters, log.est_cost_usd = _usage(crew)
+    if agent_log := getattr(crew, "agent_log", None):
+        log.agents = {"runs": agent_log.runs, "fallbacks": agent_log.fallbacks}
     _write_json(root / "runs" / f"{log.started.replace(':', '')}.json", log.as_dict())
     return log
 

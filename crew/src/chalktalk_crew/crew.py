@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import os
 from typing import Any
 
 from chalktalk_contracts import validate
@@ -127,10 +128,17 @@ def fake_crew(config: CrewConfig | None = None) -> Crew:
     return Crew(FakeAnalyticsTools(), FakeLLMClient(), FakeSpeechClient(), config)
 
 
-def crew_from_env(tools: ToolClient | None = None, config: CrewConfig | None = None) -> Crew:
+def crew_from_env(
+    tools: ToolClient | None = None,
+    config: CrewConfig | None = None,
+    env: dict[str, str] | None = None,
+) -> Crew:
     """Build the crew the environment asks for. ``CHALKTALK_CREW_BACKEND`` (default ``fake``)
-    sets both clients; ``CHALKTALK_LLM_BACKEND`` / ``CHALKTALK_SPEECH_BACKEND`` override each."""
-    config = config or CrewConfig.from_env()
+    sets both clients; ``CHALKTALK_LLM_BACKEND`` / ``CHALKTALK_SPEECH_BACKEND`` override each.
+    ``CHALKTALK_AGENTS=foundry`` runs the four roles as Foundry agents, with the clients above
+    as their fallback (``foundry_agents``)."""
+    env = dict(os.environ) if env is None else env
+    config = config or CrewConfig.from_env(env)
     config.require_azure()
     llm: LLMClient = FakeLLMClient()
     speech: SpeechClient = FakeSpeechClient()
@@ -141,4 +149,14 @@ def crew_from_env(tools: ToolClient | None = None, config: CrewConfig | None = N
             llm = AzureFoundryLLMClient(config)
         if config.speech_backend == "azure":
             speech = AzureSpeechClient(config)
-    return Crew(tools or FakeAnalyticsTools(), llm, speech, config)
+    crew = Crew(tools or FakeAnalyticsTools(), llm, speech, config)
+    agents = (env.get("CHALKTALK_AGENTS") or "local").strip().lower()
+    if agents == "foundry":
+        from .foundry_agents import FoundryRunner, configure_tracing, host_on_foundry
+
+        runner = FoundryRunner.from_env(env)
+        configure_tracing(runner.project_endpoint)
+        host_on_foundry(crew, runner, runner.usage)
+    elif agents != "local":
+        raise ValueError(f"CHALKTALK_AGENTS must be 'local' or 'foundry', got {agents!r}")
+    return crew

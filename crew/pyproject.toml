@@ -12,6 +12,13 @@ dependencies = [
 [project.optional-dependencies]
 # Live Azure Speech only; CI and tests never install it.
 azure = ["azure-cognitiveservices-speech>=1.40"]
+# The crew on Foundry Agent Service (CHALKTALK_AGENTS=foundry); manual runs only, never CI.
+foundry = [
+  "agent-framework-foundry>=1.15",
+  "azure-ai-projects>=2.7",
+  "azure-identity>=1.26",
+  "azure-monitor-opentelemetry>=1.6",
+]
 
 [tool.uv.sources]
 chalktalk-contracts = { workspace = true }
