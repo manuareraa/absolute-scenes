@@ -21,7 +21,7 @@ TOOL_SPECS: dict[str, ToolSpec] = {
     "line_gap": ToolSpec("pass_lane", "gap_m", 0.5, "defending"),
     "pass_options": ToolSpec("arrow", "pass_options", 0.0, "attacking"),
     "pitch_control": ToolSpec("zone", "control_pct", 2.0, "attacking"),
-    "pressing_intensity": ToolSpec("ring", "pressers", 0.0, "defending"),
+    "pressing_intensity": ToolSpec("ring", "press_pct", 2.0, "defending"),
     "offside_line": ToolSpec("offside_line", "line_x_m", 0.2, "defending"),
     "shape_compactness": ToolSpec("zone", "block_m2", 10.0, "defending"),
     "xg": ToolSpec("arrow", "xg", 0.01, "attacking"),
@@ -61,4 +61,5 @@ class Analyst:
         self.tools = tools
 
     def analyse(self, moment: Moment, lens: str) -> list[ToolResult]:
+        """Run the lens's tools; a tool that cannot answer (``ToolError``) is dropped."""
         return call_tools(self.tools, plan(moment, lens))

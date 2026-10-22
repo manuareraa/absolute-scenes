@@ -30,6 +30,10 @@ def _centroid(geometry: dict[str, Any]) -> list[float] | None:
     ]
 
 
+class NoEvidence(RuntimeError):
+    """Every tool the lens asked for failed, so there is nothing grounded to say."""
+
+
 class Crew:
     def __init__(
         self,
@@ -56,6 +60,8 @@ class Crew:
         surface: str = "broadcast",
     ) -> dict[str, Any]:
         results = self.analyst.analyse(moment, lens)
+        if not results:
+            raise NoEvidence(f"no tool could explain moment {moment.id} for lens {lens}")
         draft = self.pundit.write(moment, results, lens=lens, side=side, lang=lang)
         rendered = render(draft.template, draft.values, lang=lang, voice=self.config.speech_voice)
         speech = self.speech.synthesize(rendered.ssml)

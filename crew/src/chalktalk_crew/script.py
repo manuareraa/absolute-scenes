@@ -26,6 +26,9 @@ def format_value(value: float | int | str | bool, unit: str | None) -> str:
     return str(round(value))
 
 
+IDENTIFIER = re.compile(r"\b[A-Za-z]+_[A-Za-z_]+\b")  # tool or slot names like line_gap
+
+
 class TemplateError(ValueError):
     pass
 
@@ -37,15 +40,35 @@ class Rendered:
     cue_order: list[str]
 
 
+def fix_slot_names(template: str, slots: set[str]) -> str:
+    """Repair misspelt slot names ({xG} for {xg}): by case, else the single unknown -> unspoken."""
+    used = {m.group(2) for m in TOKEN.finditer(template) if m.group(2)}
+    lower = {s.lower(): s for s in slots}
+    fixes = {u: lower[u.lower()] for u in used - slots if u.lower() in lower}
+    unknown = used - slots - set(fixes)
+    unspoken = slots - used - set(fixes.values())
+    if len(unknown) == 1 and len(unspoken) == 1:
+        fixes[unknown.pop()] = unspoken.pop()
+    for wrong, right in fixes.items():
+        template = template.replace("{" + wrong + "}", "{" + right + "}")
+    return template
+
+
 def check_template(template: str, slots: set[str], cues: set[str]) -> None:
-    """Reject templates with free digits, unknown slots, or missing/duplicate cues."""
+    """Reject free digits, raw names, unknown or unspoken slots, and missing or repeated cues."""
     bare = TOKEN.sub(" ", template)
     if NUMBER.search(bare):
         raise TemplateError(f"template has a number outside a slot: {bare!r}")
+    if ident := IDENTIFIER.search(bare):
+        raise TemplateError(f"template speaks a raw name {ident.group(0)!r}")
     seen_cues = [m.group(1) for m in TOKEN.finditer(template) if m.group(1)]
     seen_slots = {m.group(2) for m in TOKEN.finditer(template) if m.group(2)}
     if unknown := seen_slots - slots:
         raise TemplateError(f"unknown slots {sorted(unknown)}")
+    if unspoken := slots - seen_slots:
+        raise TemplateError(f"slots {sorted(unspoken)} are never spoken")
+    if re.search(r"\]\]\s*\{", template):
+        raise TemplateError("a cue must sit before the drawn noun, not before a number slot")
     if sorted(seen_cues) != sorted(cues):
         raise TemplateError(f"cues {seen_cues} must be exactly {sorted(cues)}, once each")
 
