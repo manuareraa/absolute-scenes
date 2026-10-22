@@ -91,4 +91,14 @@ describe("selectOverlays", () => {
     const pending: Overlay[] = only.map((o) => ({ ...o, approval: { state: "pending" } }));
     expect(selectOverlays(pending, "broadcast", "casual")).toEqual([]);
   });
+
+  it("prefers the viewer's side, then neutral, over the surface", () => {
+    const base = fx.overlays.find((o) => o.surface === "broadcast" && o.lens === "casual")!;
+    const v = (id: string, side: Overlay["side"], surface: Overlay["surface"]): Overlay => ({ ...base, id, side, surface });
+    const pool = [v("away-b", "away", "broadcast"), v("neutral-b", "neutral", "broadcast"), v("home-p", "home", "player"), v("home-b", "home", "broadcast")];
+    expect(selectOverlays(pool, "broadcast", "casual", "home").map((o) => o.id)).toEqual(["home-b"]);
+    expect(selectOverlays(pool, "show", "casual", "home").map((o) => o.id)).toEqual(["home-p"]);
+    expect(selectOverlays(pool, "broadcast", "casual", "away").map((o) => o.id)).toEqual(["away-b"]);
+    expect(selectOverlays(pool.slice(1, 3), "player", "casual", "away").map((o) => o.id)).toEqual(["neutral-b"]);
+  });
 });
