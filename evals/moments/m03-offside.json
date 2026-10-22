@@ -1,0 +1,31 @@
+{
+  "id": "m03-offside",
+  "description": "Home through ball, the runner is flagged offside. Synthetic, fictional players.",
+  "expect_tools": [
+    "offside_line"
+  ],
+  "events": [
+    {
+      "id": "e1",
+      "t": 2400000,
+      "type": "pass",
+      "actors": [
+        "h6"
+      ],
+      "source": "sim",
+      "confidence": 1.0,
+      "team": "home"
+    },
+    {
+      "id": "e2",
+      "t": 2401200,
+      "type": "offside",
+      "actors": [
+        "h11"
+      ],
+      "source": "sim",
+      "confidence": 1.0,
+      "team": "home"
+    }
+  ]
+}
