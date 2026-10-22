@@ -1,0 +1,85 @@
+# Builds the Analyst MCP server image (mcp/Dockerfile) and pushes it to GHCR.
+# PRs build only; main and manual runs push ghcr.io/manuareraa/chalktalk-mcp:{latest,sha-<short>}.
+# Uses GITHUB_TOKEN only; nothing here talks to Azure.
+name: mcp-image
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "mcp/**"
+      - "core/**"
+      - "sim/**"
+      - "contracts/schemas/**"
+      - "contracts/python/**"
+      - "pyproject.toml"
+      - "uv.lock"
+      - ".github/workflows/mcp-image.yml"
+  pull_request:
+    paths:
+      - "mcp/**"
+      - "core/**"
+      - "sim/**"
+      - "contracts/schemas/**"
+      - "contracts/python/**"
+      - "pyproject.toml"
+      - "uv.lock"
+      - ".github/workflows/mcp-image.yml"
+  workflow_dispatch:
+
+concurrency:
+  group: mcp-image-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+  packages: write
+
+env:
+  IMAGE: ghcr.io/manuareraa/chalktalk-mcp
+
+jobs:
+  image:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: docker/setup-buildx-action@v3
+      - name: Log in to GHCR
+        if: github.event_name != 'pull_request'
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.IMAGE }}
+          tags: |
+            type=sha,format=short
+            type=raw,value=latest,enable={{is_default_branch}}
+          labels: |
+            org.opencontainers.image.title=chalktalk-mcp
+            org.opencontainers.image.description=ChalkTalk Analyst MCP server (synthetic data only)
+      - uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: mcp/Dockerfile
+          platforms: linux/amd64
+          push: ${{ github.event_name != 'pull_request' }}
+          load: ${{ github.event_name == 'pull_request' }}
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+      - name: Smoke test (health endpoint)
+        if: github.event_name == 'pull_request'
+        run: |
+          tag=$(echo "${{ steps.meta.outputs.tags }}" | head -n1)
+          docker run -d --name mcp -p 8000:8000 "$tag"
+          for i in $(seq 1 30); do
+            curl -fsS http://127.0.0.1:8000/healthz && exit 0
+            sleep 1
+          done
+          docker logs mcp
+          exit 1
