@@ -55,6 +55,41 @@ def _feet(box) -> tuple[float, float]:
     return (x0 + x1) / 2, y1
 
 
+# Ball gating, in pixels at 1280 wide. A COCO detector also fires, weakly, on the penalty
+# and centre spots, so a weak candidate is only taken near where the ball just was.
+GATE_PX, GATE_STEP_PX, GATE_MAX_PX = 40.0, 12.0, 160.0
+SHORT_GAP = 6
+WEAK, REACQUIRE = 0.3, 0.35
+
+
+def pick_balls(tracks: list[dict], width: int) -> list[dict | None]:
+    """One ball candidate per frame (or None), chosen for continuity with the last one."""
+    s = width / 1280
+    out: list[dict | None] = []
+    last: tuple[np.ndarray, int] | None = None
+    for k, tr in enumerate(tracks):
+        cands = tr.get("balls", [])
+        pick = None
+        if last is not None:
+            gap = k - last[1]
+            r = min(GATE_PX + GATE_STEP_PX * (gap - 1), GATE_MAX_PX) * s
+            near = [
+                c
+                for c in cands
+                if np.hypot(*(np.array(_feet(c["box"])) - last[0])) <= r
+                and (gap <= SHORT_GAP or c["score"] >= WEAK)
+            ]
+            if near:
+                pick = max(near, key=lambda c: c["score"])
+        if pick is None:
+            strong = [c for c in cands if c["score"] >= REACQUIRE]
+            pick = max(strong, key=lambda c: c["score"]) if strong else None
+        if pick is not None:
+            last = (np.array(_feet(pick["box"])), k)
+        out.append(pick)
+    return out
+
+
 def to_pitch(
     images: Iterable[np.ndarray],
     tracks: list[dict],
@@ -64,6 +99,7 @@ def to_pitch(
 ) -> list[PitchFrame]:
     """Calibrate every frame, project people and the ball, and label each track's kit."""
     cal = LineCalibrator(camera_position, width, height)
+    picks = pick_balls(tracks, width)
     out: list[PitchFrame] = []
     kit_votes: dict[int, list[str | None]] = defaultdict(list)
     for img, tr in zip(images, tracks, strict=False):
@@ -88,9 +124,8 @@ def to_pitch(
                         "kit_conf": kconf,
                     }
                 )
-        balls = tr.get("balls", [])
-        if balls:
-            b = max(balls, key=lambda d: d["score"])
+        b = picks[len(out)] if len(out) < len(picks) else None
+        if b is not None:
             (bx, by) = image_to_pitch(H, np.array([_feet(b["box"])]))[0]
             pf.ball = {"box": b["box"], "score": b["score"], "x": float(bx), "y": float(by)}
         out.append(pf)
