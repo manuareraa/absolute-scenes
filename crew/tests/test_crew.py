@@ -198,8 +198,9 @@ def test_lead_clamped_when_cue_is_first_word():
 
 def test_config_from_env():
     cfg = CrewConfig.from_env({"CHALKTALK_CREW_BACKEND": "azure", "CHALKTALK_LEAD_MS": "200"})
-    assert cfg.backend == "azure" and cfg.lead_ms == 200
-    with pytest.raises(RuntimeError, match="CHALKTALK_FOUNDRY_ENDPOINT"):
+    assert cfg.backend == cfg.llm_backend == cfg.speech_backend == "azure"
+    assert cfg.lead_ms == 200
+    with pytest.raises(RuntimeError, match="AZURE_OPENAI_ENDPOINT.*AZURE_SPEECH_KEY"):
         cfg.require_azure()
     with pytest.raises(ValueError):
         CrewConfig.from_env({"CHALKTALK_CREW_BACKEND": "cloud"})
@@ -207,19 +208,7 @@ def test_config_from_env():
 
 
 def test_crew_from_env_defaults_to_fake(monkeypatch):
-    monkeypatch.delenv("CHALKTALK_CREW_BACKEND", raising=False)
+    for k in ("CHALKTALK_CREW_BACKEND", "CHALKTALK_LLM_BACKEND", "CHALKTALK_SPEECH_BACKEND"):
+        monkeypatch.delenv(k, raising=False)
     crew = crew_from_env()
     assert crew.run(counter_then_foul())[0]["gate"]["passed"]
-
-
-def test_azure_backend_fails_loudly(monkeypatch):
-    for k, v in {
-        "CHALKTALK_CREW_BACKEND": "azure",
-        "CHALKTALK_FOUNDRY_ENDPOINT": "https://example.invalid",
-        "CHALKTALK_FOUNDRY_DEPLOYMENT": "writer",
-        "CHALKTALK_SPEECH_REGION": "westeurope",
-    }.items():
-        monkeypatch.setenv(k, v)
-    crew = crew_from_env(tools=FakeAnalyticsTools())
-    with pytest.raises(NotImplementedError):
-        crew.run(counter_then_foul())
