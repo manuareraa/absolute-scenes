@@ -76,8 +76,10 @@ def run(voice: str) -> list[dict]:
         words: list[tuple[int, int, str]] = []  # (ssml text offset, audio ms, text)
         marks: dict[str, int] = {}
         synth.synthesis_word_boundary.connect(
-            lambda e, w=words: e.boundary_type == sdk.SpeechSynthesisBoundaryType.Word
-            and w.append((e.text_offset, round(e.audio_offset / TICKS_PER_MS), e.text))
+            lambda e, w=words: (
+                e.boundary_type == sdk.SpeechSynthesisBoundaryType.Word
+                and w.append((e.text_offset, round(e.audio_offset / TICKS_PER_MS), e.text))
+            )
         )
         synth.bookmark_reached.connect(
             lambda e, m=marks: m.__setitem__(e.text, round(e.audio_offset / TICKS_PER_MS))
