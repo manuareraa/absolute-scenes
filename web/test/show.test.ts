@@ -11,7 +11,7 @@ const BASE = "http://x.test/fixtures/show-sim-7/";
 
 describe("show fixture", () => {
   it("holds postmatch shows that pass the show contract", () => {
-    expect(fx.shows.length).toBe(9);
+    expect(fx.shows.length).toBe(18); // 9 per caption language
     for (const s of fx.shows) expect(validate("show", s).errors).toEqual([]);
   });
 
