@@ -3,7 +3,14 @@
 import json
 
 import pytest
-from chalktalk_crew.live import SECRET_HEADER, OverlayPoster, PostError
+from chalktalk_crew.live import (
+    SECRET_HEADER,
+    OverlayPoster,
+    PostError,
+    verified_overlays,
+    watch,
+    ws_clock,
+)
 from chalktalk_crew.pipeline import RunOptions, run
 
 SECRET = "test-secret-not-real"
@@ -79,3 +86,79 @@ def test_from_env_needs_a_secret():
         OverlayPoster.from_env({})
     p = OverlayPoster.from_env({"CHALKTALK_OVERLAY_SECRET": SECRET})
     assert p.url == "http://127.0.0.1:8787/api/overlay" and SECRET not in repr(p)
+
+
+def ov(i, tc, passed=True):
+    return {"id": f"ov-{i}", "match_tc": tc, "gate": {"passed": passed}}
+
+
+class Recorder:
+    """Stands in for ``OverlayPoster``: records sends, fails ids listed in ``fail``."""
+
+    def __init__(self, fail=()):
+        self.sent, self.fail = [], set(fail)
+
+    def send(self, match_id, overlay):
+        if overlay["id"] in self.fail:
+            raise PostError("HTTP 500: busy")
+        self.sent.append(overlay["id"])
+
+
+def test_watch_posts_each_overlay_ahead_of_its_moment():
+    rec = Recorder()
+    clock = iter(range(0, 60_000, 1000))
+    log = watch(clock, [ov(2, 30_000), ov(1, 12_000)], rec, "sim-7", ahead_ms=8000)
+    assert rec.sent == ["ov-1", "ov-2"]
+    assert log.posted == {"ov-1": 4000, "ov-2": 22_000}
+    assert log.last_t == 22_000  # stops once everything is posted
+
+
+def test_watch_skips_aired_moments_and_logs_failures():
+    rec = Recorder(fail={"ov-3"})
+    log = watch(
+        iter([20_000, 21_000, 40_000]),
+        [ov(1, 5000), ov(2, 21_000), ov(3, 25_000)],
+        rec,
+        "sim-7",
+        ahead_ms=8000,
+    )
+    assert log.missed == ["ov-1"] and rec.sent == ["ov-2"] and list(log.failed) == ["ov-3"]
+
+
+def test_watch_ends_with_the_clock():
+    log = watch(iter([0, 1000]), [ov(1, 50_000)], Recorder(), "sim-7")
+    assert not log.posted and log.last_t == 1000
+
+
+def test_ws_clock_reads_hello_frames_and_clock_until_end():
+    import threading
+
+    from websockets.sync.server import serve
+
+    msgs = [
+        {"type": "hello", "viewers": 1, "clock": {"t": 1000, "playing": True}},
+        {"type": "frames", "t0": 1000, "t1": 2000, "clock": {"t": 2000}, "frames": []},
+        {"type": "overlay", "overlay": {"id": "x"}},
+        {"type": "clock", "clock": {"t": 9000, "playing": True}},
+        {"type": "end", "clock": {"t": 600_000}},
+    ]
+    paths = []
+
+    def handler(ws):
+        paths.append(ws.request.path)
+        for m in msgs:
+            ws.send(json.dumps(m))
+        ws.recv()  # hold until the client closes
+
+    with serve(handler, "127.0.0.1", 0) as server:
+        threading.Thread(target=server.serve_forever, daemon=True).start()
+        port = server.socket.getsockname()[1]
+        ticks = list(ws_clock(f"http://127.0.0.1:{port}", "sim-7", timeout_s=5))
+        server.shutdown()
+    assert ticks == [1000, 2000, 9000] and paths == ["/ws/match/sim-7"]
+
+
+def test_verified_overlays_reads_fresh_and_cached(tmp_path):
+    log = run(RunOptions(seed=7, half_minutes=3.0, max_moments=2, cache=tmp_path))
+    got = verified_overlays(tmp_path, log)
+    assert [o["id"] for o in got] == log.generated and all(o["gate"]["passed"] for o in got)
