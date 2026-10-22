@@ -1,0 +1,20 @@
+{
+  "name": "chalktalk",
+  "private": true,
+  "type": "module",
+  "workspaces": ["contracts/ts", "workers/edge", "web"],
+  "engines": { "node": ">=22" },
+  "scripts": {
+    "typecheck": "npm run typecheck --workspaces --if-present",
+    "test": "npm run test --workspaces --if-present",
+    "build": "npm run build --workspace web",
+    "check:worker": "npm run check --workspace workers/edge",
+    "gen:contracts": "bash scripts/gen_contracts.sh"
+  },
+  "devDependencies": {
+    "@types/node": "^22.0.0",
+    "json-schema-to-typescript": "^15.0.0",
+    "typescript": "^5.6.0",
+    "vitest": "^3.0.0"
+  }
+}

@@ -1,0 +1,21 @@
+{
+  "id": "c1",
+  "text_slot": "gap_m",
+  "value": 11.4,
+  "unit": "m",
+  "tool_call": {
+    "id": "tc1",
+    "name": "line_gap",
+    "args": {
+      "t": 1834000,
+      "team": "away"
+    },
+    "output_hash": "sha256:0f3a"
+  },
+  "evidence_window": {
+    "start_t": 1832000,
+    "end_t": 1836000
+  },
+  "tolerance": 0.5,
+  "verified": true
+}

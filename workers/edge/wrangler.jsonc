@@ -1,0 +1,19 @@
+// One Worker on the Cloudflare free plan: serves the web build, the small JSON API,
+// and the per-match MatchHub Durable Object (SQLite-backed, as the free plan requires).
+{
+  "$schema": "../../node_modules/wrangler/config-schema.json",
+  "name": "chalktalk",
+  "main": "src/index.ts",
+  "compatibility_date": "2026-09-01",
+  "assets": {
+    "directory": "../../web/dist",
+    "binding": "ASSETS",
+    "not_found_handling": "single-page-application",
+    "run_worker_first": ["/api/*", "/ws/*"]
+  },
+  "durable_objects": {
+    "bindings": [{ "name": "MATCH_HUB", "class_name": "MatchHub" }]
+  },
+  "migrations": [{ "tag": "v1", "new_sqlite_classes": ["MatchHub"] }],
+  "observability": { "enabled": true }
+}

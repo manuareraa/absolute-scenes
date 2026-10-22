@@ -1,0 +1,19 @@
+{
+  "id": "e1",
+  "t": 1834000,
+  "type": "pass",
+  "actors": [
+    "h8",
+    "h10"
+  ],
+  "team": "home",
+  "attrs": {
+    "end": [
+      31.5,
+      6.8
+    ],
+    "outcome": "complete"
+  },
+  "source": "sim",
+  "confidence": 1.0
+}

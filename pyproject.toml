@@ -1,0 +1,43 @@
+[project]
+name = "chalktalk"
+version = "0.0.0"
+requires-python = ">=3.12"
+dependencies = [
+  "chalktalk-contracts",
+  "chalktalk-core",
+  "chalktalk-sim",
+  "chalktalk-mcp",
+  "chalktalk-crew",
+  "chalktalk-postmatch",
+  "chalktalk-vision",
+]
+
+[tool.uv]
+package = false
+
+[tool.uv.workspace]
+members = ["contracts/python", "core", "sim", "mcp", "crew", "postmatch", "vision"]
+
+[tool.uv.sources]
+chalktalk-contracts = { workspace = true }
+chalktalk-core = { workspace = true }
+chalktalk-sim = { workspace = true }
+chalktalk-mcp = { workspace = true }
+chalktalk-crew = { workspace = true }
+chalktalk-postmatch = { workspace = true }
+chalktalk-vision = { workspace = true }
+
+[dependency-groups]
+dev = ["pytest>=8", "ruff>=0.6", "datamodel-code-generator>=0.26"]
+
+[tool.pytest.ini_options]
+addopts = "--import-mode=importlib -q"
+testpaths = ["contracts/python/tests", "core/tests", "sim/tests", "mcp/tests", "crew/tests", "postmatch/tests", "vision/tests", "scripts/tests"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py312"
+extend-exclude = ["contracts/python/src/chalktalk_contracts/models"]
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "B", "UP"]

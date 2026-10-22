@@ -1,0 +1,43 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "frame.schema.json",
+  "title": "Frame",
+  "description": "One tracking frame. Pitch metres, origin at the centre spot, x along the long axis (home attacks +x in period 1), y across. 105 x 68 pitch.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["t", "period", "ball", "players"],
+  "properties": {
+    "t": { "type": "integer", "minimum": 0, "description": "Match clock in ms since kick-off of period 1." },
+    "period": { "type": "integer", "minimum": 1, "maximum": 5 },
+    "ball": { "$ref": "#/$defs/Ball" },
+    "players": { "type": "array", "items": { "$ref": "#/$defs/PlayerState" }, "maxItems": 30 }
+  },
+  "$defs": {
+    "Ball": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["x", "y", "z", "v"],
+      "properties": {
+        "x": { "type": "number", "minimum": -60, "maximum": 60 },
+        "y": { "type": "number", "minimum": -40, "maximum": 40 },
+        "z": { "type": "number", "minimum": 0, "description": "Height in metres." },
+        "v": { "type": "number", "minimum": 0, "description": "Speed in m/s." },
+        "owner": { "type": ["string", "null"], "description": "Player id in possession, if any." }
+      }
+    },
+    "PlayerState": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "team", "x", "y", "v", "heading"],
+      "properties": {
+        "id": { "type": "string", "minLength": 1 },
+        "team": { "type": "string", "enum": ["home", "away", "ref"] },
+        "x": { "type": "number", "minimum": -60, "maximum": 60 },
+        "y": { "type": "number", "minimum": -40, "maximum": 40 },
+        "v": { "type": "number", "minimum": 0, "description": "Speed in m/s." },
+        "heading": { "type": "number", "minimum": -180, "maximum": 180, "description": "Direction of travel in degrees, 0 = +x, counter-clockwise." },
+        "body_heading": { "type": "number", "minimum": -180, "maximum": 180, "description": "Facing direction in degrees, if different from heading." }
+      }
+    }
+  }
+}

@@ -1,0 +1,20 @@
+#!/usr/bin/env bash
+# Enabled once per clone with: git config core.hooksPath .githooks
+# 1. No commits on main. 2. No commits from the main checkout (use a worktree).
+# 3. The branch may only change paths its stream owns (owners.toml).
+set -euo pipefail
+
+branch=$(git symbolic-ref --short -q HEAD || echo DETACHED)
+if [ "$branch" = "main" ]; then
+  echo "pre-commit: no commits on main. Work in a worktree branch (see CLAUDE.md)." >&2
+  exit 1
+fi
+
+git_dir=$(cd "$(git rev-parse --git-dir)" && pwd -P)
+common_dir=$(cd "$(git rev-parse --git-common-dir)" && pwd -P)
+if [ "$git_dir" = "$common_dir" ]; then
+  echo "pre-commit: this is the main checkout. Create a worktree: scripts/new-worktree.sh <branch>" >&2
+  exit 1
+fi
+
+python3 -I "$(git rev-parse --show-toplevel)/scripts/check_paths.py" --branch "$branch" --staged

@@ -1,0 +1,129 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "overlay.schema.json",
+  "title": "Overlay",
+  "description": "One breakdown: strokes on the pitch, each bound to a spoken cue. Timing rule: a stroke starts at script.cues[cue_id].offset_ms - lead_ms on the audio clock.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["id", "match_tc", "surface", "claims", "strokes", "script", "lens", "side", "lang", "approval"],
+  "properties": {
+    "id": { "type": "string", "minLength": 1 },
+    "stream_tc": { "type": ["integer", "null"], "minimum": 0, "description": "Media time in ms on the HLS stream where it plays; null until scheduled." },
+    "match_tc": { "type": "integer", "minimum": 0, "description": "Match clock in ms of the moment explained." },
+    "surface": { "type": "string", "enum": ["broadcast", "player", "show"] },
+    "claims": { "type": "array", "items": { "$ref": "claim.schema.json" } },
+    "strokes": { "type": "array", "items": { "$ref": "#/$defs/Stroke" } },
+    "script": { "$ref": "#/$defs/Script" },
+    "camera": { "$ref": "#/$defs/Camera" },
+    "lens": { "type": "string", "enum": ["casual", "analyst", "newcomer"] },
+    "side": { "type": "string", "enum": ["home", "away", "neutral"] },
+    "lang": { "type": "string", "pattern": "^[a-z]{2,3}(-[A-Za-z0-9]{2,8})*$", "description": "BCP 47 tag." },
+    "approval": { "$ref": "#/$defs/Approval" },
+    "gate": { "$ref": "#/$defs/Gate" }
+  },
+  "$defs": {
+    "Stroke": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "shape", "geometry_m", "cue_id"],
+      "properties": {
+        "id": { "type": "string", "minLength": 1 },
+        "shape": {
+          "type": "string",
+          "enum": ["arrow", "run", "pass_lane", "line", "offside_line", "zone", "ring", "spotlight", "ghost_path", "label"]
+        },
+        "geometry_m": { "$ref": "#/$defs/Geometry" },
+        "style": { "$ref": "#/$defs/StrokeStyle" },
+        "cue_id": { "type": "string", "minLength": 1 },
+        "lead_ms": { "type": "integer", "minimum": 0, "maximum": 1000, "default": 150 },
+        "duration_ms": { "type": "integer", "minimum": 0, "default": 600 },
+        "claim_ids": { "type": "array", "items": { "type": "string" }, "description": "Claims this stroke shows (evidence links)." }
+      }
+    },
+    "Geometry": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "Coordinates in pitch metres, always from tools, never from the LLM.",
+      "properties": {
+        "points": { "type": "array", "items": { "$ref": "#/$defs/Point" } },
+        "radius": { "type": "number", "minimum": 0 },
+        "player_id": { "type": "string" },
+        "text": { "type": "string" }
+      }
+    },
+    "Point": {
+      "type": "array",
+      "prefixItems": [{ "type": "number" }, { "type": "number" }],
+      "minItems": 2,
+      "maxItems": 2
+    },
+    "StrokeStyle": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "color": { "type": "string", "description": "Design token name, e.g. 'chalk', 'home', 'away', 'danger'." },
+        "width": { "type": "number", "minimum": 0 },
+        "dash": { "type": "boolean" }
+      }
+    },
+    "Script": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["text", "cues"],
+      "properties": {
+        "ssml": { "type": "string" },
+        "text": { "type": "string" },
+        "audio_url": { "type": "string" },
+        "cues": { "type": "array", "items": { "$ref": "#/$defs/Cue" } },
+        "words": { "type": "array", "items": { "$ref": "#/$defs/Word" } }
+      }
+    },
+    "Cue": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["cue_id", "offset_ms"],
+      "properties": {
+        "cue_id": { "type": "string", "minLength": 1 },
+        "offset_ms": { "type": "integer", "minimum": 0, "description": "Audio offset of the word that names the stroke." }
+      }
+    },
+    "Word": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["text", "offset_ms", "duration_ms"],
+      "properties": {
+        "text": { "type": "string" },
+        "offset_ms": { "type": "integer", "minimum": 0 },
+        "duration_ms": { "type": "integer", "minimum": 0 }
+      }
+    },
+    "Camera": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "preset": { "type": "string", "enum": ["broadcast", "high", "tactical", "behind_goal", "player"] },
+        "target": { "$ref": "#/$defs/Point" },
+        "zoom": { "type": "number", "minimum": 0 }
+      }
+    },
+    "Approval": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["state"],
+      "properties": {
+        "state": { "type": "string", "enum": ["pending", "approved", "rejected", "overridden", "auto"] },
+        "by": { "type": ["string", "null"] },
+        "at": { "type": ["string", "null"], "format": "date-time" }
+      }
+    },
+    "Gate": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["passed"],
+      "properties": {
+        "passed": { "type": "boolean" },
+        "scores": { "type": "object", "additionalProperties": { "type": "number" } }
+      }
+    }
+  }
+}
