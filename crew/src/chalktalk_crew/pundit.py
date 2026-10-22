@@ -6,13 +6,13 @@ Claims, values and geometry are built by code from tool outputs; the LLM only wr
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from typing import Any
 
 from .analyst import TOOL_SPECS
 from .director import Moment
 from .llm import Beat, DraftRequest, FakeLLMClient, LLMClient
-from .script import TemplateError, check_template, format_value
+from .script import TemplateError, check_template, fix_slot_names, format_value
 from .tools import ToolResult
 
 
@@ -78,12 +78,17 @@ class Pundit:
         request = DraftRequest(lens=lens, side=side, lang=lang, trigger=moment.trigger, beats=beats)
         slots = {b.slot for b in beats}
         cues = {b.cue_id for b in beats}
-        template = self.llm.draft(request)
         fallback = False
         try:
+            template = fix_slot_names(self.llm.draft(request), slots)
             check_template(template, slots, cues)
-        except TemplateError:
-            # The model broke the rules (a free number, a lost cue): use the rule-based writer.
-            template, fallback = self._fallback.draft(request), True
-            check_template(template, slots, cues)
+        except TemplateError as err:
+            try:  # one repair attempt, told exactly which rule broke
+                template = self.llm.draft(replace(request, feedback=str(err)))
+                template = fix_slot_names(template, slots)
+                check_template(template, slots, cues)
+            except TemplateError:
+                # Still broken (a free number, a lost cue): use the rule-based writer.
+                template, fallback = self._fallback.draft(request), True
+                check_template(template, slots, cues)
         return Draft(claims, strokes, template, values, fallback)

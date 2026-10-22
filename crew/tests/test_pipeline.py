@@ -113,3 +113,56 @@ def test_speech_retries_throttling_only(monkeypatch):
     client._synthesize_once = lambda s: (_ for _ in ()).throw(AzureCallError("speech failed: 401"))
     with pytest.raises(AzureCallError, match="401"):
         client.synthesize("<speak/>")
+
+
+def test_template_check_rejects_raw_names_and_unspoken_slots():
+    from chalktalk_crew.script import TemplateError, check_template
+
+    with pytest.raises(TemplateError, match="raw name"):
+        check_template("Our [[k1]]line_gap holds {gap_m} metres.", {"gap_m"}, {"k1"})
+    with pytest.raises(TemplateError, match="never spoken"):
+        check_template("Look at the [[k1]]gap.", {"gap_m"}, {"k1"})
+    check_template("Look at the [[k1]]gap, {gap_m} metres.", {"gap_m"}, {"k1"})
+
+
+def test_failed_azure_calls_are_logged_and_left_uncached(tmp_path):
+    class Down(FakeSpeechClient):
+        def synthesize(self, ssml):
+            raise AzureCallError("speech failed: ServiceTimeout")
+
+    opts = RunOptions(seed=7, half_minutes=HALF, max_moments=1, cache=tmp_path)
+    log = run(opts, config=CrewConfig(), llm=CountingLLM(), speech=Down())
+    assert log.failed and not log.generated
+    assert not list(tmp_path.glob("*/overlays/*.json"))
+
+
+def test_pundit_repairs_a_broken_draft_once_before_falling_back(core):
+    from chalktalk_crew.crew import Crew
+
+    class DropsACue(CountingLLM):
+        def draft(self, request):
+            good = super().draft(request)
+            return good if request.feedback else good.replace("[[k1]]", "")
+
+    llm = DropsACue()
+    crew = Crew(core, llm, FakeSpeechClient())
+    match = simulate(MatchConfig(seed=7, half_minutes=HALF, beats=DEMO_BEATS))
+    overlay = crew.breakdown(crew.director.moments(match.events)[0], lens="casual", side="home")
+    assert llm.n == 2 and overlay["gate"]["scores"]["template_fallback"] == 0.0
+
+
+def test_fix_slot_names():
+    from chalktalk_crew.script import fix_slot_names
+
+    assert fix_slot_names("{xG} and {gap_m}", {"xg", "gap_m"}) == "{xg} and {gap_m}"
+    assert fix_slot_names("{options} and {gap_m}", {"pass_options", "gap_m"}) == (
+        "{pass_options} and {gap_m}"
+    )
+    assert fix_slot_names("{a} {b}", {"x", "y"}) == "{a} {b}"  # ambiguous: left for the check
+
+
+def test_cue_before_a_number_is_rejected():
+    from chalktalk_crew.script import TemplateError, check_template
+
+    with pytest.raises(TemplateError, match="drawn noun"):
+        check_template("The press is at [[k1]]{press_pct} percent.", {"press_pct"}, {"k1"})

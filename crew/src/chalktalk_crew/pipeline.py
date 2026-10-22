@@ -16,6 +16,7 @@ from typing import Any
 
 from chalktalk_contracts import validate
 
+from .azure import AzureCallError
 from .config import CrewConfig
 from .core_tools import CoreToolClient
 from .crew import Crew, NoEvidence, crew_from_env
@@ -43,6 +44,7 @@ class RunLog:
     cached: list[str] = field(default_factory=list)
     rejected: list[str] = field(default_factory=list)
     skipped: list[str] = field(default_factory=list)
+    failed: dict[str, str] = field(default_factory=dict)
     llm: dict[str, Any] = field(default_factory=dict)
     speech_characters: int = 0
     est_cost_usd: float = 0.0
@@ -134,6 +136,9 @@ def run(
                     overlay = crew.breakdown(moment, lens=lens, side=side, lang=opts.lang)
                 except NoEvidence:
                     log.skipped.append(oid)
+                    continue
+                except AzureCallError as err:  # not cached, so the next run tries it again
+                    log.failed[oid] = str(err)[:200]
                     continue
                 if not overlay["gate"]["passed"]:
                     _write_json(bad, overlay)

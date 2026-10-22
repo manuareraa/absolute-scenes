@@ -162,7 +162,7 @@ def snap_bookmarks(
     return out
 
 
-THROTTLED = re.compile(r"429|TooManyRequests|throttl", re.IGNORECASE)
+TRANSIENT = re.compile(r"429|TooManyRequests|throttl|ServiceTimeout", re.IGNORECASE)
 LANG_ATTR = re.compile(r"xml:lang='([a-z]{2})'")
 
 
@@ -189,12 +189,12 @@ class AzureSpeechClient:
         return LANG_ATTR.sub(f"xml:lang='{locale}'", ssml)
 
     def synthesize(self, ssml: str) -> SpeechResult:
-        """Synthesize, backing off when F0 throttles (it allows a few requests at a time)."""
+        """Synthesize, backing off when F0 throttles or times out (it is slow and rate-limited)."""
         for attempt in range(self.retries + 1):
             try:
                 return self._synthesize_once(ssml)
             except AzureCallError as err:
-                if not THROTTLED.search(str(err)) or attempt == self.retries:
+                if not TRANSIENT.search(str(err)) or attempt == self.retries:
                     raise
                 time.sleep(2 ** (attempt + 1))
         raise AssertionError("unreachable")
