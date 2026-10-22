@@ -79,3 +79,10 @@ def test_shape_is_plausible(match):
     length = p[::25, home, PX].max(axis=1) - p[::25, home, PX].min(axis=1)
     assert 25 < np.median(width) < 60
     assert 20 < np.median(length) < 55
+
+
+def test_config_round_trips_through_meta(match):
+    from chalktalk_sim import config_from_meta, simulate
+
+    again = simulate(config_from_meta(match.seed, match.info()))
+    assert again.digest() == match.digest()

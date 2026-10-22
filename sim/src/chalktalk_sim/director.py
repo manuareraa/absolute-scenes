@@ -17,7 +17,7 @@ so the same config always yields the same match. Events carry ``source="sim"`` a
 from __future__ import annotations
 
 import math
-from dataclasses import dataclass, field
+from dataclasses import asdict, dataclass, field
 from typing import Any, Literal
 
 import numpy as np
@@ -57,6 +57,23 @@ class MatchConfig:
     periods: int = 2
     beats: tuple[Beat, ...] = ()
     calibration: Calibration = field(default=DEFAULT)
+
+
+# The compressed demo match: a home goal mid-way through the first half, sent to VAR.
+DEMO_BEATS = (Beat(150_000, "var_check"), Beat(150_000, "goal", "home"))
+
+
+def config_from_meta(seed: int, meta: dict[str, Any]) -> MatchConfig:
+    """Rebuild the config of a match from its manifest/meta (calibration included)."""
+    return MatchConfig(
+        seed=seed,
+        half_minutes=meta["half_minutes"],
+        periods=meta["periods"],
+        beats=tuple(Beat(**b) for b in meta.get("beats", [])),
+        calibration=Calibration.from_dict(meta["calibration"])
+        if "calibration" in meta
+        else DEFAULT,
+    )
 
 
 def simulate(config: MatchConfig) -> Match:
@@ -890,6 +907,7 @@ class _Director:
         meta = {
             "half_minutes": self.cfg.half_minutes,
             "periods": self.cfg.periods,
+            "beats": [asdict(b) for b in self.cfg.beats],
             "score": {"home": self.score[0], "away": self.score[1]},
             "calibration": self.cal.to_dict(),
         }
