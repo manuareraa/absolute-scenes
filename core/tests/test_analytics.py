@@ -152,3 +152,45 @@ def test_ball_speed_and_player_run():
 
 def test_distance_between():
     assert an.distance_between(frame(), "H08", "A11").value == pytest.approx(6.71, abs=0.01)
+
+
+def test_formation_and_roles():
+    d = check(an.formation(frame(), "home"))
+    assert d["value"] == "4-4-2"
+    roles = d["details"]["roles"]
+    # Home attacks +x, so its left is +y.
+    assert roles["H05"] == "LB" and roles["H02"] == "RB" and roles["H11"] == "LS"
+    assert len(roles) == 10 and "H01" not in roles
+    assert d["details"]["slots"]["H05"] == [-31.0, 25.0]
+    # Away attacks -x, so its left is -y.
+    assert check(an.formation(frame(), "away"))["details"]["roles"]["A02"] == "LB"
+    # Drop a striker into midfield and pull a midfielder up: a 4-2-3-1 or 4-5-1 shape.
+    moves = {"H11": (-2, 7), "H06": (-1, -20), "H09": (-1, 20), "H08": (-14, 2)}
+    assert an.formation(frame(moves=moves), "home").value in ("4-2-3-1", "4-5-1")
+
+
+def test_line_break():
+    lb = an.line_break(frame(), "home", (-30, -25), (14, -6))
+    assert lb == {"lines_broken": ["midfield"], "bypassed": 6}
+    through = an.line_break(frame(), "home", (-12, 0), (30, 0))
+    assert through["lines_broken"] == ["attack", "midfield", "defence"]
+    assert an.line_break(frame(), "home", (-30, -25), (-14, -5))["lines_broken"] == []
+
+
+def test_line_breaking_passes():
+    ev = {"t": 1000, "actors": ["H02"], "attrs": {"start": [-30, -25], "end": [14, -6]}}
+    short = {"t": 2000, "actors": ["H03"], "attrs": {"start": [-32, -8], "end": [-30, -25]}}
+    d = check(an.line_breaking_passes([(frame(), ev), (frame(), short)], "home", (0, 3000)))
+    assert d["value"] == 1 and d["details"]["completed_passes"] == 2
+    assert d["geometry"][0]["shape"] == "pass_lane"
+    assert d["evidence_window"] == {"start_t": 0, "end_t": 3000}
+
+
+def test_obso_grows_near_goal():
+    far = check(an.obso(frame()))
+    near = an.obso(frame(owner="H10", ball=(14.4, -6), moves={"H10": (40, -4)}))
+    assert far["details"]["team"] == "home"
+    assert near.value > far["value"] > 0
+    assert len(far["geometry"]) == 3
+    with pytest.raises(ValueError):
+        an.obso(frame(owner=None))

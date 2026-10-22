@@ -193,6 +193,23 @@ class Tools:
         args = {"match_id": match_id, "t": t}
         return _result("pass_options", args, match_id, an.pass_options(fr))
 
+    def formation(self, match_id: str, t: int, team: str, window_s: float = 30.0) -> dict[str, Any]:
+        """The team's formation (e.g. 4-4-2) and each outfield player's role and slot, from
+        its average shape over the window_s seconds up to t (0 for the frame at t alone)."""
+        src = self.store.get(match_id)
+        end = src.frame(t)["t"]
+        start = max(0, end - int(window_s * 1000))
+        frames = src.window(start, end, max_frames=60)
+        args = {"match_id": match_id, "t": t, "team": team, "window_s": window_s}
+        return _result("formation", args, match_id, an.formation(frames, team))
+
+    def obso(self, match_id: str, t: int, team: str | None = None) -> dict[str, Any]:
+        """Off-ball scoring opportunity: chance of scoring from the next action, with the
+        three most dangerous cells. team defaults to the team on the ball."""
+        fr = self.store.get(match_id).frame(t)
+        args = {"match_id": match_id, "t": t, "team": team}
+        return _result("obso", args, match_id, an.obso(fr, team))
+
     # ----------------------------------------------------------------- windows
     def xt_added(self, match_id: str, start_t: int, end_t: int) -> dict[str, Any]:
         """Expected threat the team on the ball at start_t added by moving it to end_t."""
@@ -213,6 +230,25 @@ class Tools:
         r.details["sign"] = attack_sign(team, a["period"])
         args = {"match_id": match_id, "start_t": start_t, "end_t": end_t}
         return _result("xt_added", args, match_id, r)
+
+    def line_breaking_passes(
+        self, match_id: str, start_t: int, end_t: int, team: str
+    ) -> dict[str, Any]:
+        """Completed passes by the team that break opponent lines, with the lines broken and
+        the opponents bypassed (max 200 passes)."""
+        src = self.store.get(match_id)
+        passes = [
+            e
+            for e in src.events()
+            if e["type"] == "pass"
+            and e.get("team") == team
+            and start_t <= e["t"] <= end_t
+            and e["attrs"].get("outcome") == "complete"
+        ][:MAX_EVENTS]
+        pairs = [(src.frame(e["t"]), e) for e in passes]
+        args = {"match_id": match_id, "start_t": start_t, "end_t": end_t, "team": team}
+        r = an.line_breaking_passes(pairs, team, (start_t, end_t))
+        return _result("line_breaking_passes", args, match_id, r)
 
     def pressing_intensity(
         self, match_id: str, start_t: int, end_t: int, team: str
@@ -284,7 +320,10 @@ TOOL_NAMES = (
     "shot_xg",
     "offside_line",
     "pass_options",
+    "formation",
+    "obso",
     "xt_added",
+    "line_breaking_passes",
     "pressing_intensity",
     "ball_speed",
     "player_run",
