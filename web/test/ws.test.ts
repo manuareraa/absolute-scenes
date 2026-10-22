@@ -22,7 +22,7 @@ const overlay = makeFixture().overlays[0];
 function setup(timeout = 3000) {
   const modes: SourceMode[] = [];
   const got: string[] = [];
-  const stop = connectMatch("ws://x/ws/match/demo-001", { onMode: (m) => modes.push(m), onOverlay: (o) => got.push(o.id) }, { WebSocketImpl: Impl, openTimeoutMs: timeout });
+  const stop = connectMatch("ws://x/ws/match/demo-001", { onMode: (m) => modes.push(m), onMessage: (m) => got.push(m.type === "overlay" ? m.overlay.id : m.type) }, { WebSocketImpl: Impl, openTimeoutMs: timeout });
   return { modes, got, stop, sock: FakeSocket.last };
 }
 
@@ -34,9 +34,17 @@ describe("match socket", () => {
     expect(matchWsUrl("m 1", { protocol: "https:", host: "a.b" })).toBe("wss://a.b/ws/match/m%201");
   });
 
-  it("accepts only valid overlay messages", () => {
-    expect(parseHubMessage(JSON.stringify({ type: "overlay", overlay }))?.id).toBe(overlay.id);
+  it("parses hub messages and rejects malformed ones", () => {
+    const clock = { t: 1000, playing: true, rate: 1, server_ms: 5 };
+    const o = parseHubMessage(JSON.stringify({ type: "overlay", overlay }));
+    expect(o?.type === "overlay" && o.overlay.id).toBe(overlay.id);
+    expect(parseHubMessage(JSON.stringify({ type: "hello", viewers: 1, match_id: "m", fps: 25, duration_ms: 9, batch_ms: 1000, clock }))?.type).toBe("hello");
+    expect(parseHubMessage(JSON.stringify({ type: "frames", t0: 0, t1: 1000, clock, frames: [], events: [] }))?.type).toBe("frames");
+    expect(parseHubMessage(JSON.stringify({ type: "clock", clock }))?.type).toBe("clock");
+    expect(parseHubMessage(JSON.stringify({ type: "end", clock }))?.type).toBe("end");
     expect(parseHubMessage(JSON.stringify({ type: "hello", viewers: 1 }))).toBeNull();
+    expect(parseHubMessage(JSON.stringify({ type: "clock", clock: { t: "x" } }))).toBeNull();
+    expect(parseHubMessage(JSON.stringify({ type: "pong" }))).toBeNull();
     expect(parseHubMessage(JSON.stringify({ type: "overlay", overlay: { id: "x" } }))).toBeNull();
     expect(parseHubMessage("not json")).toBeNull();
     expect(parseHubMessage(new ArrayBuffer(2))).toBeNull();

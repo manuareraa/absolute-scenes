@@ -1,13 +1,14 @@
-// Client for the MatchHub Durable Object at /ws/match/:id. Overlays arrive ahead of time as
-// `{type: "overlay", overlay}`; each is checked against the contract before it is used.
-// If the hub cannot be reached, the app keeps playing the local fixture.
-import { validate, type Overlay } from "@chalktalk/contracts";
+// Client for the MatchHub Durable Object at /ws/match/:id (protocol: docs/notes/d-edge.md).
+// The hub sends `hello`, `frames`, `clock`, `end` and `overlay`; overlays are checked against
+// the contract before they are used. If the hub cannot be reached, the app plays the fixture.
+import { validate } from "@chalktalk/contracts";
+import type { HubClock, HubMessage } from "./live";
 
 export type SourceMode = "connecting" | "live" | "fixture";
 
 export interface MatchSocketHandlers {
   onMode(mode: SourceMode, detail?: string): void;
-  onOverlay(overlay: Overlay): void;
+  onMessage(msg: HubMessage): void;
 }
 
 type WsCtor = new (url: string) => WebSocket;
@@ -17,18 +18,36 @@ export function matchWsUrl(matchId: string, loc: { protocol: string; host: strin
   return `${scheme}//${loc.host}/ws/match/${encodeURIComponent(matchId)}`;
 }
 
-/** Parse one hub message; returns the overlay it carries, or null for other or bad messages. */
-export function parseHubMessage(data: unknown): Overlay | null {
+const isNum = (v: unknown): v is number => typeof v === "number" && Number.isFinite(v);
+
+function isClock(c: unknown): c is HubClock {
+  const k = c as Partial<HubClock> | null;
+  return !!k && isNum(k.t) && typeof k.playing === "boolean" && isNum(k.rate) && isNum(k.server_ms);
+}
+
+/** Parse one hub message; returns null for unknown or malformed messages. */
+export function parseHubMessage(data: unknown): HubMessage | null {
   if (typeof data !== "string") return null;
-  let msg: unknown;
+  let msg: Record<string, unknown>;
   try {
     msg = JSON.parse(data);
   } catch {
     return null;
   }
-  if (!msg || typeof msg !== "object" || (msg as { type?: unknown }).type !== "overlay") return null;
-  const overlay = (msg as { overlay?: unknown }).overlay;
-  return validate("overlay", overlay).ok ? (overlay as Overlay) : null;
+  if (!msg || typeof msg !== "object") return null;
+  switch (msg.type) {
+    case "overlay":
+      return validate("overlay", msg.overlay).ok ? (msg as unknown as HubMessage) : null;
+    case "hello":
+      return isClock(msg.clock) && isNum(msg.duration_ms) ? (msg as unknown as HubMessage) : null;
+    case "frames":
+      return isClock(msg.clock) && Array.isArray(msg.frames) ? (msg as unknown as HubMessage) : null;
+    case "clock":
+    case "end":
+      return isClock(msg.clock) ? (msg as unknown as HubMessage) : null;
+    default:
+      return null;
+  }
 }
 
 /**
@@ -69,8 +88,8 @@ export function connectMatch(
     if (!done) handlers.onMode("live");
   };
   ws.onmessage = (ev: MessageEvent) => {
-    const overlay = parseHubMessage(ev.data);
-    if (overlay && !done) handlers.onOverlay(overlay);
+    const msg = parseHubMessage(ev.data);
+    if (msg && !done) handlers.onMessage(msg);
   };
   ws.onerror = () => fallback("hub unavailable");
   ws.onclose = () => fallback("hub closed");

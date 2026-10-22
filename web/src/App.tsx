@@ -3,6 +3,7 @@ import type { Overlay } from "@chalktalk/contracts";
 import { OverlayLayer } from "./components/OverlayLayer";
 import { PitchView } from "./components/PitchView";
 import { FRAME_MS, LENSES, SURFACES, type Fixture } from "./fixture/synthetic";
+import { applyHubMessage, liveFrame, LiveDirector, liveMatchT, newLiveState } from "./live";
 import { frameAt, playStateAt, selectOverlays, timeline, wordIndexAt } from "./playback";
 import { connectMatch, matchWsUrl, type SourceMode } from "./ws";
 
@@ -10,7 +11,9 @@ type Surface = Overlay["surface"];
 type Lens = Overlay["lens"];
 
 const params = new URLSearchParams(location.search);
-const MATCH_ID = params.get("match") ?? "demo-001";
+/** The hub's match (a `chalktalk_sim` package); the local fixture plays when the hub is down. */
+const MATCH_ID = params.get("match") ?? "sim-7";
+const FIXTURE_ID = params.get("fixture") ?? "demo-001";
 
 /** Wall clock in ms that ticks at the frame rate while playing. */
 function usePlayClock(playing: boolean) {
@@ -38,10 +41,15 @@ export function App() {
   const [mode, setMode] = useState<{ mode: SourceMode; detail?: string }>({ mode: "connecting" });
   const [live, setLive] = useState<Overlay[]>([]);
   const [playing, setPlaying] = useState(true);
-  const { elapsed, seek } = usePlayClock(playing);
+  // Hub state lives in a ref: frame batches land every second, renders tick at the frame rate.
+  const hub = useRef(newLiveState());
+  const director = useRef(new LiveDirector());
+  const [hubReady, setHubReady] = useState(false);
+  const isLive = mode.mode === "live" && hubReady;
+  const { elapsed, seek } = usePlayClock(playing || isLive);
 
   useEffect(() => {
-    fetch(`/fixtures/${MATCH_ID}.json`)
+    fetch(`/fixtures/${FIXTURE_ID}.json`)
       .then((r) => (r.ok ? r.json() : Promise.reject(new Error(`fixture ${r.status}`))))
       .then(setFixture)
       .catch((e: Error) => setError(e.message));
@@ -51,21 +59,37 @@ export function App() {
     () =>
       connectMatch(matchWsUrl(MATCH_ID, location), {
         onMode: (m, detail) => setMode({ mode: m, detail }),
-        onOverlay: (o) => setLive((prev) => [...prev.filter((p) => p.id !== o.id), o]),
+        onMessage: (m) => {
+          if (m.type === "overlay") return setLive((prev) => [...prev.filter((p) => p.id !== m.overlay.id), m.overlay]);
+          hub.current = applyHubMessage(hub.current, m, performance.now());
+          if (m.type === "frames" && m.frames.length) setHubReady(true);
+        },
       }),
     [],
   );
 
   const frames = fixture?.frames ?? [];
   const matchEnd = frames.length ? frames[frames.length - 1].t : 0;
-  const source = mode.mode === "live" && live.length ? live : (fixture?.overlays ?? []);
+  const source = isLive ? live : (fixture?.overlays ?? []);
   const overlays = useMemo(() => selectOverlays(source, surface, lens), [source, surface, lens]);
   const tl = useMemo(() => timeline(matchEnd, overlays), [matchEnd, overlays]);
-  const state = playStateAt(elapsed, matchEnd, overlays);
-  const frame = frameAt(frames, state.matchT);
   const loopPos = tl.loopMs ? ((elapsed % tl.loopMs) + tl.loopMs) % tl.loopMs : 0;
 
-  if (error) return <main className="app error">Could not load the match fixture: {error}</main>;
+  let state, frame;
+  if (isLive) {
+    // Play on the hub's clock; hold on a moment while its breakdown runs, then rejoin live.
+    const now = performance.now();
+    const liveT = liveMatchT(hub.current, now);
+    const cut = director.current.step(overlays, liveT, now);
+    const matchT = cut.overlay ? cut.overlay.match_tc : liveT;
+    state = { matchT, overlay: cut.overlay, audioMs: cut.audioMs };
+    frame = liveFrame(hub.current, matchT);
+  } else {
+    state = playStateAt(elapsed, matchEnd, overlays);
+    frame = frameAt(frames, state.matchT);
+  }
+
+  if (error && !isLive) return <main className="app error">Could not load the match fixture: {error}</main>;
 
   return (
     <main className={`app surface-${surface}`}>
@@ -74,12 +98,12 @@ export function App() {
         <Segmented label="Surface" value={surface} options={SURFACES} onChange={setSurface} />
         <Segmented label="Lens" value={lens} options={LENSES} onChange={setLens} />
         <span className={`badge ${mode.mode}`} title={mode.detail}>
-          {mode.mode === "live" ? "live hub" : mode.mode === "connecting" ? "connecting…" : "fixture playback"}
+          {isLive ? (hub.current.ended ? "full time" : "live hub") : mode.mode === "fixture" ? "fixture playback" : "connecting…"}
         </span>
       </header>
 
       <div className="stage">
-        {surface === "show" && (
+        {surface === "show" && !isLive && (
           <nav className="chapters" aria-label="Chapters">
             {tl.starts.map(({ overlay, at }, i) => (
               <button key={overlay.id} className={state.overlay?.id === overlay.id ? "on" : ""} onClick={() => seek(at)}>
@@ -97,7 +121,7 @@ export function App() {
         </div>
       </div>
 
-      {surface !== "broadcast" && (
+      {surface !== "broadcast" && !isLive && (
         <footer className="transport">
           <button onClick={() => setPlaying((p) => !p)}>{playing ? "Pause" : "Play"}</button>
           <input
