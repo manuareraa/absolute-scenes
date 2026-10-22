@@ -24,6 +24,7 @@ MAX_EVENTS = 200
 MAX_PAD_MS = 10_000
 MAX_REPLAY_MS = 60_000
 NOT_EVIDENCE = ("list_matches", "verify", "evidence")
+VAR_LOOKBACK_MS = 15_000
 EVENT_FIELDS = ("id", "t", "type", "actors", "team", "attrs")
 
 ToolFn = Callable[..., dict[str, Any]]
@@ -190,6 +191,48 @@ class Tools:
         fr = self.store.get(match_id).frame(t)
         args = {"match_id": match_id, "t": t, "defending_team": defending_team}
         return _result("offside_line", args, match_id, an.offside_line(fr, defending_team))
+
+    def var_offside(self, match_id: str, t: int, player_id: str | None = None) -> dict[str, Any]:
+        """VAR offside check of the last pass at or before t (within 15 s; to player_id if
+        given, by the scoring team when t falls on a goal or VAR check), judged on the frame
+        at the moment of the pass: the line, the receiver's margin (m, > 0 offside) and the
+        decision. With no such pass, the frame at t and player_id."""
+        src = self.store.get(match_id)
+        args = {"match_id": match_id, "t": t, "player_id": player_id}
+        lo = t - VAR_LOOKBACK_MS
+        team = next(
+            (
+                e.get("team")
+                for e in reversed(src.events())
+                if lo <= e["t"] <= t and e["type"] in ("goal", "var_check", "var_decision")
+            ),
+            None,
+        )
+        pas = next(
+            (
+                e
+                for e in reversed(src.events())
+                if e["type"] == "pass"
+                and lo <= e["t"] <= t
+                and e.get("attrs", {}).get("receiver")
+                and (player_id is None or e["attrs"]["receiver"] == player_id)
+                and (team is None or e.get("team") == team)
+            ),
+            None,
+        )
+        if pas is not None:
+            fr = src.frame(pas["t"])
+            receiver, passer = pas["attrs"]["receiver"], (pas.get("actors") or [None])[0]
+        elif player_id is not None:
+            fr, receiver, passer = src.frame(t), player_id, None
+        else:
+            raise ValueError(f"no pass in the {VAR_LOOKBACK_MS // 1000} s before t={t}")
+        r = an.var_offside(fr, receiver, passer_id=passer)
+        if pas is not None:
+            r.evidence_window = {"start_t": int(fr["t"]), "end_t": max(int(fr["t"]), int(t))}
+            r.details["pass_event"] = pas["id"]
+            r.details["pass_outcome"] = pas["attrs"].get("outcome")
+        return _result("var_offside", args, match_id, r)
 
     def pass_options(self, match_id: str, t: int) -> dict[str, Any]:
         """The carrier's pass options: lane risk, control at the receiver, xT gain, offside."""
@@ -395,6 +438,7 @@ TOOL_NAMES = (
     "control_at",
     "shot_xg",
     "offside_line",
+    "var_offside",
     "pass_options",
     "formation",
     "obso",

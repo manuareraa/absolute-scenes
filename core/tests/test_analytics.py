@@ -126,6 +126,27 @@ def test_offside_line_and_attackers_beyond():
     assert an.offside_line(frame(moves=high, ball=(-20, 0)), "away").value == 0.0
 
 
+def test_var_offside():
+    # Away's second-last defender is at x = 22; H11 at 25 is 3 m off, at 21.6 onside.
+    off = check(an.var_offside(frame(moves={"H11": (25, 7)}), "H11", passer_id="H08"))
+    assert off["value"] == 3.0 and off["details"]["decision"] == "offside"
+    assert off["details"]["line_x"] == 22.0 and off["details"]["line_from"] == "defender"
+    assert (
+        off["geometry"][0]["shape"] == "offside_line"
+        and off["geometry"][-1]["shape"] == "pass_lane"
+    )
+    on = an.var_offside(frame(moves={"H11": (21.6, 7)}), "H11")
+    assert on.value == -0.4 and on.details["decision"] == "onside"
+    level = an.var_offside(frame(moves={"H11": (22, 7)}), "H11")
+    assert level.value == 0.0 and level.details["decision"] == "onside"
+    # A high line: with every home outfielder past halfway, the line is halfway itself;
+    # A10 in its own half (3 m short of it) is onside.
+    high = {pid: (6, y) for pid, x, y in HOME[1:9]}
+    half = an.var_offside(frame(moves={**high, "A10": (3, 0)}), "A10")
+    assert half.details["line_from"] == "halfway"
+    assert half.value == -3.0 and half.details["decision"] == "onside"
+
+
 def test_pass_options():
     d = check(an.pass_options(frame()))
     ids = {o["id"] for o in d["details"]["options"]}
