@@ -3,7 +3,8 @@
 Each (moment, lens, side, lang) is generated once. Verified overlays, their MP3 and cue sheet
 land under ``<cache>/<match_id>-<digest8>/``; a moment already in ``overlays/`` (or in
 ``rejected/``, unless retried) is never sent to Foundry or Speech again. Every run writes a log
-with token counts and an estimated cost to ``runs/``.
+with token counts and an estimated cost to ``runs/``. With a poster (``--post``), every verified
+overlay of the run, fresh or cached, is also POSTed to the edge Worker (``live.py``).
 """
 
 from __future__ import annotations
@@ -33,6 +34,7 @@ class RunOptions:
     cache: Path = Path(".chalktalk-cache")
     budget_usd: float = 0.25
     retry_rejected: bool = False
+    post: bool = False
 
 
 @dataclass
@@ -49,6 +51,8 @@ class RunLog:
     speech_characters: int = 0
     est_cost_usd: float = 0.0
     stopped: str | None = None
+    posted: list[str] = field(default_factory=list)
+    post_failed: dict[str, str] = field(default_factory=dict)
 
     def as_dict(self) -> dict[str, Any]:
         return dict(self.__dict__)
@@ -91,14 +95,26 @@ def _usage(crew: Crew) -> tuple[dict[str, Any], int, float]:
     return llm, chars, float(llm.get("est_cost_usd", 0.0))  # Speech F0 is free
 
 
+def _post(poster: Any, log: RunLog, oid: str, overlay: dict[str, Any]) -> None:
+    from .live import PostError
+
+    try:
+        poster.send(log.match_id, overlay)
+        log.posted.append(oid)
+    except PostError as err:  # the overlay stays cached; a re-run with --post sends it again
+        log.post_failed[oid] = str(err)[:200]
+
+
 def run(
     opts: RunOptions,
     *,
     config: CrewConfig | None = None,
     llm: Any = None,
     speech: Any = None,
+    poster: Any = None,
 ) -> RunLog:
-    """Generate the missing overlays for one match. ``llm``/``speech`` override env clients."""
+    """Generate the missing overlays for one match. ``llm``/``speech``/``poster`` override the
+    env clients; the poster is used only when ``opts.post`` is set."""
     from chalktalk_mcp.store import Store
     from chalktalk_mcp.tools import Tools
     from chalktalk_sim import DEMO_BEATS, MatchConfig, simulate
@@ -114,6 +130,10 @@ def run(
     tap = AudioTap(speech if speech is not None else crew.speech)
     crew.speech = tap
 
+    if opts.post and poster is None:
+        from .live import OverlayPoster
+
+        poster = OverlayPoster.from_env()
     root = Path(opts.cache) / f"{source.match_id}-{digest[:8]}"
     log = RunLog(source.match_id, digest, time.strftime("%Y-%m-%dT%H:%M:%S"))
     moments = crew.director.moments(match.events)[: opts.max_moments]
@@ -125,6 +145,8 @@ def run(
                 bad = root / "rejected" / f"{oid}.json"
                 if done.exists() or (bad.exists() and not opts.retry_rejected):
                     log.cached.append(oid)
+                    if done.exists() and opts.post:
+                        _post(poster, log, oid, json.loads(done.read_text()))
                     continue
                 spent = _usage(crew)[2]
                 if spent >= opts.budget_usd:
@@ -154,6 +176,8 @@ def run(
                 _write_json(done, overlay)
                 bad.unlink(missing_ok=True)
                 log.generated.append(oid)
+                if opts.post:
+                    _post(poster, log, oid, overlay)
 
     log.llm, log.speech_characters, log.est_cost_usd = _usage(crew)
     _write_json(root / "runs" / f"{log.started.replace(':', '')}.json", log.as_dict())

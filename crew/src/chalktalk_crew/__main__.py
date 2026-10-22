@@ -27,6 +27,11 @@ def main(argv: list[str] | None = None) -> int:
     p.add_argument("--cache", type=Path, default=Path(".chalktalk-cache"))
     p.add_argument("--budget-usd", type=float, default=0.25, help="stop generating past this")
     p.add_argument("--retry-rejected", action="store_true")
+    p.add_argument(
+        "--post",
+        action="store_true",
+        help="POST verified overlays to $CHALKTALK_EDGE_URL/api/overlay (secret from env)",
+    )
     args = parser.parse_args(argv)
 
     log = run(
@@ -40,6 +45,7 @@ def main(argv: list[str] | None = None) -> int:
             cache=args.cache,
             budget_usd=args.budget_usd,
             retry_rejected=args.retry_rejected,
+            post=args.post,
         )
     )
     json.dump(log.as_dict(), sys.stdout, indent=2)
