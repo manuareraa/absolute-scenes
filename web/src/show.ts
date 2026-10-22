@@ -1,5 +1,6 @@
 // Post-match show playback: a `show` contract from `chalktalk_postmatch` plays as chapters. Each
 // chapter runs a few seconds of play up to its moment, then holds there for the breakdown.
+import type { EvidenceMap } from "./evidence";
 import type { Frame, Overlay, Show } from "@chalktalk/contracts";
 import { breakdownDurationMs, type PlayState } from "./playback";
 
@@ -9,6 +10,8 @@ export interface ShowFixture {
   fps: number;
   frames: Frame[];
   shows: Show[];
+  /** Each claim's evidence replay, by output hash (`evidence.ts`). */
+  evidence?: EvidenceMap;
 }
 
 /** Play before each moment; the fixture keeps 4 s of frames before every match_tc. */

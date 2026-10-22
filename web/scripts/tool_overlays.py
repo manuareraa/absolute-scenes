@@ -167,3 +167,68 @@ def ghost_overlay(t: Tools, moment_t: int, side: str = "neutral") -> dict[str, A
         side=side,
         camera={"preset": "tactical", "target": end_ghost},
     )
+
+
+# ---------------------------------------------------------------------------------- evidence
+EVIDENCE_PAD_MS = 2000
+EVENT_KEEP = ("t", "type", "team", "actors")
+
+
+def evidence_entry(t: Tools, overlay: dict[str, Any], c: dict[str, Any]) -> dict[str, Any]:
+    """What tapping claim ``c`` replays: B's ``evidence`` tool re-run of its call where that
+    tool can re-run it, else the claim's own evidence window and the strokes bound to it.
+
+    ``check`` says which: ``match`` (same output hash, or the value within the claim's
+    tolerance), ``differs`` (the re-run disagrees; shown, never hidden) or ``window`` (no re-run).
+    """
+    tc = c["tool_call"]
+    own = [
+        {k: s[k] for k in ("shape", "geometry_m", "style") if k in s}
+        for s in overlay["strokes"]
+        if c["id"] in s.get("claim_ids", [])
+    ]
+    base = {"tool": tc["name"], "args": tc["args"], "claim_value": c["value"], "unit": c["unit"]}
+    try:
+        args = {"match_id": "sim-7", **tc["args"]}
+        e = t.evidence(tc["name"], args, tc["output_hash"], pad_ms=EVIDENCE_PAD_MS)
+    except (ValueError, TypeError, KeyError):
+        w = c["evidence_window"]
+        src = t.store.get("sim-7")
+        a, b = (
+            max(0, w["start_t"] - EVIDENCE_PAD_MS),
+            min(src.duration_ms, w["end_t"] + EVIDENCE_PAD_MS),
+        )
+        hits = [x for x in src.events() if a <= x["t"] <= b]
+        return {
+            **base,
+            "check": "window",
+            "rerun_value": None,
+            "hash_match": None,
+            "replay": {"start_t": a, "end_t": b},
+            "geometry": own,
+            "events": [{k: x[k] for k in EVENT_KEEP if k in x} for x in hits],
+        }
+    d = e["details"]
+    v, tol = e["value"], c.get("tolerance") or 0
+    close = isinstance(v, int | float) and isinstance(c["value"], int | float)
+    ok = d["hash_match"] or (close and abs(v - c["value"]) <= tol + 1e-9) or v == c["value"]
+    return {
+        **base,
+        "check": "match" if ok else "differs",
+        "rerun_value": v,
+        "hash_match": d["hash_match"],
+        "replay": d["replay"],
+        "geometry": e["geometry"],
+        "events": [{k: x[k] for k in EVENT_KEEP if k in x} for x in d["events"]],
+    }
+
+
+def evidence_map(t: Tools, overlays: list[dict[str, Any]]) -> dict[str, dict[str, Any]]:
+    """Every claim's evidence, keyed by its tool call's output hash (one entry per call)."""
+    out: dict[str, dict[str, Any]] = {}
+    for o in overlays:
+        for c in o["claims"]:
+            h = c["tool_call"]["output_hash"]
+            if h not in out:
+                out[h] = evidence_entry(t, o, c)
+    return out

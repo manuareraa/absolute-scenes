@@ -2,7 +2,8 @@
 
 Shows come from ``chalktalk_postmatch.build_shows`` over the cached, gate-passed overlays.
 Frames are the seeded sim match, cut to a window round each moment so the file stays small.
-Each show also gets a ghost chapter built from B's ``ghost`` tool (``tool_overlays.py``).
+Each show also gets a ghost chapter built from B's ``ghost`` tool (``tool_overlays.py``), and
+every claim its evidence (B's ``evidence`` tool) with the frames to replay it when tapped.
 Audio stays where the crew wrote it; ``audio_url`` is relative to the fixture's folder.
 With ``--queue`` it also writes the producer console's queue: every cached overlay (approval
 untouched, rejected ones included) with the frame at each moment.
@@ -20,11 +21,12 @@ from pathlib import Path
 from chalktalk_postmatch.show import build_shows
 from chalktalk_sim import DEMO_BEATS, MatchConfig, simulate
 from chalktalk_sim.match import FRAME_MS
-from tool_overlays import ghost_overlay, tools
+from tool_overlays import evidence_map, ghost_overlay, tools
 
 PRE_MS = 4000
 POST_MS = 1000
 STEP = 2  # every other frame: 12.5 fps is plenty for the pre-roll
+REPLAY_STEP = 5  # evidence replays: 5 fps, the web eases between frames
 
 
 GHOST_TITLE = "Where they should have been"
@@ -65,15 +67,29 @@ def main() -> None:
     overlays = [json.loads(f.read_text()) for f in sorted((root / "overlays").glob("*.json"))]
     rejected = [json.loads(f.read_text()) for f in sorted((root / "rejected").glob("*.json"))]
     shows = build_shows(overlays, match_id=match_id)
-    add_ghost_chapters(shows, tools(args.half_minutes, digest), overlays)
+    t = tools(args.half_minutes, digest)
+    add_ghost_chapters(shows, t, overlays)
+    evidence = evidence_map(t, [g["overlay"] for s in shows for g in s["segments"]])
 
     keep: set[int] = set()
     for t in {o["match_tc"] for o in overlays}:
         first = max(0, (t - PRE_MS) // FRAME_MS)
         keep.update(range(first, (t + POST_MS) // FRAME_MS + 1, STEP))
+    for t in {g["overlay"]["match_tc"] for s in shows for g in s["segments"]}:
+        first = max(0, (t - PRE_MS) // FRAME_MS)
+        keep.update(range(first, (t + POST_MS) // FRAME_MS + 1, STEP))
+    for e in evidence.values():
+        r = e["replay"]
+        keep.update(range(r["start_t"] // FRAME_MS, r["end_t"] // FRAME_MS + 1, REPLAY_STEP))
     frames = [match.frame(i) for i in sorted(keep) if i < match.n_frames]
 
-    out = {"match_id": match_id, "fps": 1000 // FRAME_MS, "frames": frames, "shows": shows}
+    out = {
+        "match_id": match_id,
+        "fps": 1000 // FRAME_MS,
+        "frames": frames,
+        "shows": shows,
+        "evidence": evidence,
+    }
     args.out.write_text(json.dumps(out, separators=(",", ":")))
     print(f"{args.out}: {len(shows)} shows, {len(frames)} frames, {args.out.stat().st_size} B")
 

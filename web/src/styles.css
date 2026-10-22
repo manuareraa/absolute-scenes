@@ -105,3 +105,21 @@ button { font: inherit; color: inherit; cursor: pointer; }
   .queue { width: 100%; max-height: 240px; }
   .caption { font-size: 13px; position: static; transform: none; max-width: none; margin-top: 8px; }
 }
+
+/* Evidence replay (M9) */
+.claims { margin-top: 12px; display: flex; flex-direction: column; gap: 4px; }
+.claims h2 { font-size: 12px; font-weight: 600; color: var(--muted); margin: 0 0 2px; }
+.claims button { text-align: left; background: transparent; border: 1px dashed #2c3b31; border-radius: 6px; padding: 5px 8px; font-size: 13px; cursor: pointer; }
+.claims button.on, .claims button:hover { border-color: var(--accent); }
+.caption .num { font: inherit; color: inherit; background: none; border: 0; padding: 0; border-bottom: 1px dashed currentColor; cursor: pointer; }
+.caption .num:hover, .caption .num:focus-visible { color: var(--accent); }
+.evidence { position: absolute; left: 12px; bottom: 12px; max-width: min(620px, 75%); background: #000d; border: 1px solid var(--accent); border-radius: 6px; padding: 8px 12px; font-size: 14px; }
+.evidence header { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
+.evidence header button { margin-left: auto; background: var(--panel); border: 1px solid #2c3b31; border-radius: 6px; padding: 4px 10px; cursor: pointer; }
+.evidence .check { font-size: 12px; padding: 1px 8px; border-radius: 10px; background: #12442a; color: #7ff0a8; }
+.evidence .check.differs { background: #4a3a16; color: #f5d49a; }
+.evidence .check.window { background: #23302a; color: var(--muted); }
+.evidence .call { margin: 6px 0 4px; color: var(--muted); font-size: 12px; }
+.evidence .events { margin: 0; padding-left: 18px; font-size: 12px; font-variant-numeric: tabular-nums; }
+.evidence .muted { color: var(--muted); list-style: none; }
+@media (max-width: 760px) { .evidence { position: static; margin-top: 8px; } }
