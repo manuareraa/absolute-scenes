@@ -294,6 +294,8 @@ version = "0.0.0"
 source = { editable = "crew" }
 dependencies = [
     { name = "chalktalk-contracts" },
+    { name = "chalktalk-mcp" },
+    { name = "chalktalk-sim" },
 ]
 
 [package.optional-dependencies]
@@ -305,6 +307,8 @@ azure = [
 requires-dist = [
     { name = "azure-cognitiveservices-speech", marker = "extra == 'azure'", specifier = ">=1.40" },
     { name = "chalktalk-contracts", editable = "contracts/python" },
+    { name = "chalktalk-mcp", editable = "mcp" },
+    { name = "chalktalk-sim", editable = "sim" },
 ]
 provides-extras = ["azure"]
 

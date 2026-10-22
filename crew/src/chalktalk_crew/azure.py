@@ -162,13 +162,14 @@ def snap_bookmarks(
     return out
 
 
+THROTTLED = re.compile(r"429|TooManyRequests|throttl", re.IGNORECASE)
 LANG_ATTR = re.compile(r"xml:lang='([a-z]{2})'")
 
 
 class AzureSpeechClient:
     """Azure AI Speech TTS: MP3 audio, WordBoundary timings and bookmark offsets in ms."""
 
-    def __init__(self, config: CrewConfig, *, snap: bool = True) -> None:
+    def __init__(self, config: CrewConfig, *, snap: bool = True, retries: int = 3) -> None:
         if not ((config.speech_region or config.speech_endpoint) and config.speech_key):
             raise RuntimeError("Speech needs AZURE_SPEECH_REGION and AZURE_SPEECH_KEY")
         self.region = config.speech_region
@@ -176,6 +177,7 @@ class AzureSpeechClient:
         self._key = config.speech_key
         self.voice = config.speech_voice
         self.snap = snap
+        self.retries = retries
         self.characters = 0  # billed characters (F0 includes 0.5M a month)
 
     def __repr__(self) -> str:
@@ -187,6 +189,17 @@ class AzureSpeechClient:
         return LANG_ATTR.sub(f"xml:lang='{locale}'", ssml)
 
     def synthesize(self, ssml: str) -> SpeechResult:
+        """Synthesize, backing off when F0 throttles (it allows a few requests at a time)."""
+        for attempt in range(self.retries + 1):
+            try:
+                return self._synthesize_once(ssml)
+            except AzureCallError as err:
+                if not THROTTLED.search(str(err)) or attempt == self.retries:
+                    raise
+                time.sleep(2 ** (attempt + 1))
+        raise AssertionError("unreachable")
+
+    def _synthesize_once(self, ssml: str) -> SpeechResult:
         try:
             import azure.cognitiveservices.speech as sdk
         except ImportError as err:  # pragma: no cover - exercised only with the extra installed
@@ -224,7 +237,9 @@ class AzureSpeechClient:
         result = synth.speak_ssml_async(ssml).get()
         if result.reason != sdk.ResultReason.SynthesizingAudioCompleted:
             details = result.cancellation_details
-            raise AzureCallError(f"speech failed: {details.reason} {details.error_details}")
+            raise AzureCallError(
+                f"speech failed: {details.reason} {details.error_code} {details.error_details}"
+            )
         self.characters += len(re.sub(r"<[^>]+>", "", ssml))
         timed.sort(key=lambda wt: wt[0].offset_ms)
         words = [w for w, _ in timed]

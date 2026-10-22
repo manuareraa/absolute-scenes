@@ -54,7 +54,8 @@ class Pundit:
                     "value": res.output["value"],
                     "unit": res.output.get("unit"),
                     "tool_call": res.tool_call,
-                    "evidence_window": {"start_t": moment.window[0], "end_t": moment.window[1]},
+                    "evidence_window": res.output.get("evidence_window")
+                    or {"start_t": moment.window[0], "end_t": moment.window[1]},
                     "tolerance": spec.tolerance,
                     "verified": None,
                 }
@@ -62,7 +63,7 @@ class Pundit:
             strokes.append(
                 {
                     "id": f"s{i}",
-                    "shape": spec.shape,
+                    "shape": res.output.get("shape", spec.shape),
                     "geometry_m": res.output["geometry"],
                     "style": {"color": team if spec.measures == "attacking" else "chalk"},
                     "cue_id": cue_id,

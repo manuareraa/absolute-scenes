@@ -27,6 +27,10 @@ def output_hash(output: Any) -> str:
     return "sha256:" + hashlib.sha256(canonical_json(output).encode()).hexdigest()
 
 
+class ToolError(RuntimeError):
+    """A tool could not answer for these args (e.g. nobody on the ball). The Analyst drops it."""
+
+
 class ToolClient(Protocol):
     def call(self, name: str, args: dict[str, Any]) -> dict[str, Any]: ...
 
@@ -52,14 +56,25 @@ class ToolResult:
 def call_tools(
     client: ToolClient, requests: list[tuple[str, dict[str, Any]]], *, prefix: str = "tc"
 ) -> list[ToolResult]:
-    """Run tool calls in parallel (LLMCompiler style); results keep the request order."""
+    """Run tool calls in parallel (LLMCompiler style); results keep the request order.
+
+    A call that raises ``ToolError`` is dropped; any other exception propagates.
+    """
     if not requests:
         return []
+
+    def run(req: tuple[str, dict[str, Any]]) -> dict[str, Any] | None:
+        try:
+            return client.call(req[0], req[1])
+        except ToolError:
+            return None
+
     with ThreadPoolExecutor(max_workers=min(4, len(requests))) as pool:
-        outputs = list(pool.map(lambda r: client.call(r[0], r[1]), requests))
+        outputs = list(pool.map(run, requests))
+    kept = [(req, out) for req, out in zip(requests, outputs, strict=True) if out is not None]
     return [
         ToolResult(f"{prefix}{i + 1}", name, args, out, output_hash(out))
-        for i, ((name, args), out) in enumerate(zip(requests, outputs, strict=True))
+        for i, ((name, args), out) in enumerate(kept)
     ]
 
 
@@ -122,8 +137,8 @@ class FakeAnalyticsTools:
     def _pressing_intensity(self, rng: random.Random, args: dict[str, Any]) -> dict[str, Any]:
         player = str(args.get("player") or f"{(args.get('team') or 'h')[0]}{rng.randint(2, 11)}")
         return {
-            "value": rng.randint(1, 4),
-            "unit": "players",
+            "value": round(rng.uniform(30, 90)),
+            "unit": "%",
             "geometry": {"player_id": player, "radius": 5.0},
         }
 

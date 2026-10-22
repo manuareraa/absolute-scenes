@@ -78,10 +78,10 @@ _PHRASES: dict[str, dict[str, str]] = {
         "of the time.",
     },
     "pressing_intensity": {
-        "casual": "Then the [[{cue}]]press arrives, with {{{slot}}} closing in.",
-        "analyst": "The [[{cue}]]press: {{{slot}}} within tackling range.",
-        "newcomer": "Watch the [[{cue}]]pressure: the number rushing in to win it back is "
-        "{{{slot}}}.",
+        "casual": "Then the [[{cue}]]press arrives, {{{slot}}} percent intensity.",
+        "analyst": "The [[{cue}]]press: intensity on the carrier at {{{slot}}} percent.",
+        "newcomer": "Watch the [[{cue}]]pressure: how hard they hunt the ball, {{{slot}}} percent "
+        "of the maximum.",
     },
     "offside_line": {
         "casual": "The [[{cue}]]line was {{{slot}}} metres from halfway.",
