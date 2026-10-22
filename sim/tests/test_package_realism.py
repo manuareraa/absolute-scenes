@@ -50,3 +50,14 @@ def test_cli_generate(tmp_path, capsys):
     out = json.loads(capsys.readouterr().out)
     assert (tmp_path / "sim-2" / "manifest.json").exists()
     assert set(out["score"]) == {"home", "away"}
+
+
+def test_sim_close_to_reference(match):
+    from chalktalk_sim.realism import reference_profile
+
+    ref = reference_profile()
+    assert ref["matches"] == 2 and "IDSSE" in ref["source"]
+    report = compare(profile(match), ref["profile"])
+    assert set(report) == set(ref["profile"])
+    mean_ks = sum(r["ks"] for r in report.values()) / len(report)
+    assert mean_ks < 0.3, report

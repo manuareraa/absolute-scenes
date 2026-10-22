@@ -6,6 +6,8 @@ and to compare against a reference profile built the same way from calibration d
 
 from __future__ import annotations
 
+import json
+from pathlib import Path
 from typing import Any
 
 import numpy as np
@@ -126,3 +128,9 @@ def compare(sim: dict[str, dict], ref: dict[str, dict]) -> dict[str, dict[str, A
             "ref_median": r["q"][50] if r["q"] else None,
         }
     return out
+
+
+def reference_profile() -> dict[str, Any]:
+    """The committed IDSSE reference: ``{source, matches, fit, profile}`` (quantiles only)."""
+    path = Path(__file__).parent / "data" / "reference_profile.json"
+    return json.loads(path.read_text())

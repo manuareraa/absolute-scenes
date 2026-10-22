@@ -232,7 +232,7 @@ class _Director:
         cal = self.cal
         tgt = np.zeros((self.n, 2))
         cap = self.vmax * cal.jog_speed_frac
-        self.gain = np.full(self.n, 0.9)
+        self.gain = np.full(self.n, cal.arrive_gain)
         bx, by = float(self.ball[0]), float(self.ball[1])
         dead = self.state in ("goal", "kickoff")
         if dead:
