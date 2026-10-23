@@ -30,7 +30,7 @@ import {
 } from "./producer";
 import { keepConnected, matchWsUrl } from "./ws";
 
-/** `/producer?queue=queue-sim-7`; public, but airing needs the hub secret (decisions stay local without it). */
+/** `/producer?queue=queue-sim-7`; open to anyone: decisions air on the live match for every viewer. */
 const QUEUE_ID = new URLSearchParams(location.search).get("queue") ?? "queue-sim-7";
 const INTRO_KEY = "chalktalk.producer.intro";
 
@@ -48,8 +48,6 @@ export function Producer() {
   const [openOnly, setOpenOnly] = useState(true);
   const [selected, setSelected] = useState<string | null>(null);
   const [by, setBy] = useState("producer");
-  // The hub secret stays in memory only: never stored, never in the URL.
-  const [secret, setSecret] = useState("");
   const [sent, setSent] = useState<Record<string, string>>({});
   // The live match on the hub: its clock (to see what is about to air) and the crew's posts.
   const hub = useRef(newLiveState());
@@ -133,12 +131,11 @@ export function Producer() {
     const text =
       d === "reject"
         ? `Rejected ${versions} of ${clock(o.match_tc)}: it stays off air`
-        : `Approved ${versions}: ${secret ? `airs at ${clock(o.match_tc)} on the broadcast` : "saved in this browser only (no producer key)"}`;
-    setToast({ text, prev: Object.fromEntries(batch.map((x) => [x.id, decisions[x.id]])), posted: !!secret });
-    if (!secret) return;
+        : `Approved ${versions}: airs at ${clock(o.match_tc)} on the broadcast`;
+    setToast({ text, prev: Object.fromEntries(batch.map((x) => [x.id, decisions[x.id]])), posted: true });
     for (const x of batch) setSent((s) => ({ ...s, [x.id]: "sending…" }));
     const results = await Promise.all(
-      batch.map((x) => postDecision(fetch, fx.match_id, { ...x, approval: next[x.id] }, secret).catch(() => ({ ok: false, status: 0 }))),
+      batch.map((x) => postDecision(fetch, fx.match_id, { ...x, approval: next[x.id] }).catch(() => ({ ok: false, status: 0 }))),
     );
     const bad = results.find((r) => !r.ok);
     const msg = bad ? `hub said ${bad.status || "unreachable"}` : batch.length > 1 ? `${batch.length} tellings sent to hub` : "sent to hub";
@@ -148,17 +145,17 @@ export function Producer() {
   /** A new take: withdraw this console's approvals from the hub, clear them, and restart the
    * match from kick-off, so nothing airs until it is approved again. */
   async function onRestart() {
-    if (!fx || !secret) return;
+    if (!fx) return;
     setRestart("restarting…");
     const aired = all.filter((o) => decisions[o.id]?.state === "approved" || decisions[o.id]?.state === "overridden");
     const fail = { ok: false, status: 0 };
-    const pulled = await Promise.all(aired.map((o) => postDecision(fetch, fx.match_id, withdrawn(o), secret).catch(() => fail)));
+    const pulled = await Promise.all(aired.map((o) => postDecision(fetch, fx.match_id, withdrawn(o)).catch(() => fail)));
     const bad = pulled.find((r) => !r.ok);
     if (bad) return setRestart(`hub said ${bad.status || "unreachable"}`);
     setDecisions({});
     saveDecisions(fx.match_id, {});
     setSent({});
-    const r = await restartMatch(fetch, fx.match_id, secret).catch(() => fail);
+    const r = await restartMatch(fetch, fx.match_id).catch(() => fail);
     setRestart(r.ok ? "" : `hub said ${r.status || "unreachable"}`);
   }
 
@@ -175,9 +172,9 @@ export function Producer() {
     saveDecisions(fx.match_id, next);
     const first = Object.keys(t.prev)[0];
     if (first) setSelected(first);
-    if (!t.posted || !secret) return;
+    if (!t.posted) return;
     const back = all.filter((o) => o.id in t.prev).map((o) => (t.prev[o.id] ? { ...o, approval: t.prev[o.id]! } : withdrawn(o)));
-    await Promise.all(back.map((o) => postDecision(fetch, fx.match_id, o, secret).catch(() => null)));
+    await Promise.all(back.map((o) => postDecision(fetch, fx.match_id, o).catch(() => null)));
   }
 
   function undo(o: Overlay) {
@@ -220,8 +217,7 @@ export function Producer() {
         )}
         {hubUp && (
           <button
-            disabled={!secret}
-            title={secret ? "A new take: withdraw your approvals and play the match again from kick-off, for every viewer" : "Needs the producer key"}
+            title="A new take: withdraw your approvals and play the match again from kick-off, for every viewer"
             onClick={() => void onRestart()}
           >
             Restart match
@@ -247,16 +243,7 @@ export function Producer() {
         <label className="field" title="Recorded with each decision">
           Your name <input value={by} onChange={(e) => setBy(e.target.value)} size={10} />
         </label>
-        <label className="field" title="Lets your decisions reach the live match. Kept in this page only: never stored or put in the URL.">
-          Producer key <input type="password" value={secret} onChange={(e) => setSecret(e.target.value)} size={10} autoComplete="off" />
-        </label>
       </div>
-      {!secret && (
-        <p className="notice" role="note">
-          View-only: without the producer key your decisions stay in this browser and nothing goes to air. The public broadcast still airs the fact-checked
-          moments on its own in demo mode.
-        </p>
-      )}
 
       {intro && (
         <section className="intro" aria-labelledby="intro-title">

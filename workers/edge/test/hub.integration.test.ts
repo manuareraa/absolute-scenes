@@ -1,7 +1,7 @@
 // End to end against workerd (through wrangler): the real Worker, the MatchHub Durable
 // Object with hibernating sockets, static assets and the alarm-driven clock.
 // S2 edge half: two clients on one match both receive the same frames and overlays.
-import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
@@ -10,6 +10,7 @@ import { overlay, writePackage } from "./fixture";
 
 const SECRET = "test-secret-not-real";
 const MATCH = "sim-test";
+const OPEN = "sim-open"; // the open producer path, kept apart from the clock tests
 
 type Msg = { type: string; [k: string]: any };
 
@@ -56,6 +57,9 @@ beforeAll(async () => {
   dir = mkdtempSync(join(tmpdir(), "chalktalk-edge-"));
   const assets = join(dir, "public");
   writePackage(assets, MATCH, 6000);
+  mkdirSync(join(assets, "fixtures"), { recursive: true });
+  writePackage(assets, OPEN, 6000);
+  writeFileSync(join(assets, "fixtures", `queue-${OPEN}.json`), JSON.stringify({ match_id: OPEN, overlays: [overlay("queued")] }));
   const config = join(dir, "wrangler.json");
   writeFileSync(
     config,
@@ -114,7 +118,25 @@ describe("edge worker", () => {
     expect(res.status).toBe(200);
   });
 
-  it("guards overlay posts with the shared secret", async () => {
+  it("lets anyone decide a queued overlay, but only its approval", async () => {
+    const c = await Client.open(wsUrl(OPEN));
+    try {
+      const forged = { ...overlay("queued"), script: { ssml: "<speak/>", text: "forged", cues: [], words: [] } };
+      const approval = { state: "approved", by: "judge", at: null };
+      expect((await post("/api/overlay", { match_id: OPEN, overlay: { ...forged, approval } }, null)).status).toBe(200);
+      const got = await c.next((m) => m.type === "overlay" && m.overlay.id === "queued");
+      expect(got.overlay.script.text).toBe("");
+      expect(got.overlay.approval).toEqual(approval);
+      const bad = { ...overlay("queued"), approval: { state: "nope" } };
+      expect((await post("/api/overlay", { match_id: OPEN, overlay: bad }, null)).status).toBe(403);
+      expect((await post(`/api/match/${OPEN}/control`, { action: "reset" }, null)).status).toBe(200);
+      expect((await post(`/api/match/${OPEN}/control`, { action: "seek", t: 100 }, null)).status).toBe(403);
+    } finally {
+      c.close();
+    }
+  });
+
+  it("guards other overlay posts with the shared secret", async () => {
     expect((await post("/api/overlay", { match_id: MATCH, overlay: overlay("x") }, null)).status).toBe(403);
     expect((await post("/api/overlay", { match_id: MATCH, overlay: overlay("x") }, "wrong")).status).toBe(403);
     expect((await post("/api/overlay", { match_id: MATCH, overlay: { id: "x" } })).status).toBe(400);

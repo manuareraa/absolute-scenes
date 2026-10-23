@@ -12,8 +12,6 @@ export interface QueueFixture {
   frames: Frame[];
 }
 
-/** Header the edge Worker checks on `POST /api/overlay` (`workers/edge/src/auth.ts`). */
-export const SECRET_HEADER = "x-chalktalk-secret";
 
 export const isOpen = (o: Overlay) => o.approval.state === "pending";
 export const gatePassed = (o: Overlay) => o.gate?.passed ?? false;
@@ -94,16 +92,13 @@ export function counts(overlays: Overlay[]): Record<Approval["state"], number> {
   return c;
 }
 
-/** Re-post a decided overlay to the match hub, which replaces it by id for every viewer. */
-export async function postDecision(
-  fetcher: typeof fetch,
-  matchId: string,
-  overlay: Overlay,
-  secret: string,
-): Promise<{ ok: boolean; status: number }> {
+/** Re-post a decided overlay to the match hub, which replaces it by id for every viewer. The
+ * console needs no key: the edge takes the overlay from the published queue and only its
+ * approval from this post (`workers/edge/src/open.ts`). */
+export async function postDecision(fetcher: typeof fetch, matchId: string, overlay: Overlay): Promise<{ ok: boolean; status: number }> {
   const r = await fetcher("/api/overlay", {
     method: "POST",
-    headers: { "content-type": "application/json", [SECRET_HEADER]: secret },
+    headers: { "content-type": "application/json" },
     body: JSON.stringify({ match_id: matchId, overlay }),
   });
   return { ok: r.ok, status: r.status };
@@ -123,11 +118,11 @@ export function mergeQueue(fixture: Overlay[], live: Overlay[]): Overlay[] {
 export const withdrawn = (o: Overlay): Overlay => ({ ...o, approval: { state: "pending", by: null, at: null } });
 
 /** Restart the match on the hub (`reset` puts the clock at 0, paused; `play` starts it). */
-export async function restartMatch(fetcher: typeof fetch, matchId: string, secret: string): Promise<{ ok: boolean; status: number }> {
+export async function restartMatch(fetcher: typeof fetch, matchId: string): Promise<{ ok: boolean; status: number }> {
   for (const action of ["reset", "play"]) {
     const r = await fetcher(`/api/match/${encodeURIComponent(matchId)}/control`, {
       method: "POST",
-      headers: { "content-type": "application/json", [SECRET_HEADER]: secret },
+      headers: { "content-type": "application/json" },
       body: JSON.stringify({ action }),
     });
     if (!r.ok) return { ok: false, status: r.status };

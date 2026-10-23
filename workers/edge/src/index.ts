@@ -1,5 +1,6 @@
 import { checkSecret } from "./auth";
 import type { Env } from "./env";
+import { OPEN_ACTIONS, openDecision, queueFile } from "./open";
 import { checkOverlay, MAX_OVERLAY_BYTES } from "./overlay";
 import { isMatchId, isPackageFile, packageBase, route } from "./routes";
 
@@ -58,20 +59,28 @@ export default {
       case "match_control":
       case "overlay": {
         if (request.method !== "POST") return new Response("method not allowed", { status: 405 });
-        if (!env.OVERLAY_SECRET) return new Response("posting disabled: no secret set", { status: 503 });
-        if (!(await checkSecret(request, env.OVERLAY_SECRET))) {
-          return new Response("forbidden", { status: 403 });
-        }
+        // The crew (with the secret) may post any overlay. Without it, the open producer may
+        // only decide queued overlays and restart the match (see open.ts).
+        const trusted = !!env.OVERLAY_SECRET && (await checkSecret(request, env.OVERLAY_SECRET));
         const body = await readJson(request);
         if (body instanceof Response) return body;
         if (r.kind === "match_control") {
+          const action = (body as { action?: unknown } | null)?.action;
+          if (!trusted && !(typeof action === "string" && OPEN_ACTIONS.has(action))) {
+            return new Response("forbidden", { status: 403 });
+          }
           return toHub(env, r.matchId, "/control", { method: "POST", body: JSON.stringify(body) });
         }
         const err = checkOverlay(body);
         if (err) return Response.json({ error: err }, { status: 400 });
-        const { match_id, overlay } = body as { match_id: string; overlay: unknown };
+        const { match_id, overlay } = body as { match_id: string; overlay: { id: string; approval?: unknown } };
         if (!isMatchId(match_id)) return Response.json({ error: "bad match_id" }, { status: 400 });
-        return toHub(env, match_id, "/overlay", { method: "POST", body: JSON.stringify(overlay) });
+        if (trusted) return toHub(env, match_id, "/overlay", { method: "POST", body: JSON.stringify(overlay) });
+        const res = await env.ASSETS.fetch(new Request(new URL(queueFile(match_id), request.url)));
+        if (!isPackageFile(res)) return new Response("forbidden: no published queue", { status: 403 });
+        const decided = openDecision(await res.json(), match_id, overlay);
+        if ("error" in decided) return Response.json({ error: decided.error }, { status: 403 });
+        return toHub(env, match_id, "/overlay", { method: "POST", body: JSON.stringify(decided.overlay) });
       }
 
       default:
