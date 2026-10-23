@@ -312,3 +312,22 @@ button.logo:hover .wordmark b, button.logo:focus-visible .wordmark b { color: va
   .cta { min-width: 0; flex: 1 1 100%; }
   .built ol { grid-template-columns: 1fr 1fr; row-gap: 18px; }
 }
+
+/* Guided tour: a chalk-yellow spotlight on one group of the screen, and a card that says what it is for. */
+.tour { position: fixed; inset: 0; z-index: 20; }
+.tour-spot { position: fixed; border: 2px solid var(--signal); border-radius: 8px; box-shadow: 0 0 0 200vmax #000b, 0 0 24px #ffd23f55; pointer-events: none; transition: top 0.25s ease, left 0.25s ease, width 0.25s ease, height 0.25s ease; }
+.tour-card { position: fixed; width: min(340px, calc(100vw - 24px)); background: var(--panel); border: 1px solid var(--border); border-top: 3px solid var(--signal); border-radius: 8px; padding: 14px 16px; box-shadow: 0 16px 48px #000c; }
+.tour-card h2 { margin: 0 0 6px; font-family: var(--font-display); font-size: 22px; text-transform: uppercase; letter-spacing: 0.02em; }
+.tour-card p { margin: 0; color: #ddd7c8; font-size: 14px; line-height: 1.5; }
+.tour-card .tour-count { margin: 0 0 4px; font-family: var(--font-display); font-weight: 600; font-size: 12px; text-transform: uppercase; letter-spacing: 0.14em; color: var(--signal); }
+.tour-link { display: inline-block; margin-top: 8px; color: var(--signal); font-weight: 600; font-size: 14px; }
+.tour-nav { display: flex; align-items: center; gap: 8px; margin-top: 14px; }
+.tour-nav button { background: transparent; border: 1px solid var(--border); border-radius: 6px; padding: 5px 12px; }
+.tour-nav button:hover, .tour-nav button:focus-visible { border-color: var(--signal); }
+.tour-nav .primary { background: var(--signal); border-color: var(--signal); color: #17140c; font-weight: 600; }
+.tour-nav .tour-skip { border-color: transparent; padding-left: 0; color: var(--muted); font-size: 13px; }
+.tour-dots { display: flex; gap: 5px; margin-right: auto; }
+.tour-dots i { width: 6px; height: 6px; border-radius: 50%; background: var(--border); }
+.tour-dots i.on { background: var(--signal); }
+.bar .tour-btn { width: auto; padding: 0 10px; font-size: 13px; font-weight: 600; }
+@media (prefers-reduced-motion: reduce) { .tour-spot { transition: none; } }
