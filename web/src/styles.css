@@ -70,7 +70,7 @@ button { font: inherit; color: inherit; cursor: pointer; }
 .player.away circle { fill: var(--away); }
 .player.ref circle { fill: var(--ref); }
 .player line { stroke: #fffc; stroke-width: 0.18; }
-.player text { font-size: 1.1px; text-anchor: middle; fill: #fff; font-weight: 700; pointer-events: none; }
+.player text { font: 700 1.45px var(--font-display); text-anchor: middle; fill: #fff; pointer-events: none; paint-order: stroke; stroke: #0008; stroke-width: 0.12px; }
 .ball { fill: #fff; stroke: #111; stroke-width: 0.18; }
 .ball-shadow { fill: #0006; }
 
