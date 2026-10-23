@@ -38,7 +38,17 @@ function usePhone(): boolean {
   return phone;
 }
 
-export function PitchView({ frame, children, label = "Synthetic pitch view" }: { frame: Frame | undefined; children?: ReactNode; label?: string }) {
+export function PitchView(props: {
+  frame: Frame | undefined;
+  children?: ReactNode;
+  label?: string;
+  /** "My player": a ring and a name label on this player. */
+  mine?: string | null;
+  mineLabel?: string;
+  /** Tapping a disc picks (or drops) that player. */
+  onPick?(id: string): void;
+}) {
+  const { frame, children, label = "Synthetic pitch view", mine, mineLabel, onPick } = props;
   const k = usePhone() ? 1.6 : 1;
   return (
     <svg className="pitch" viewBox={VIEW_BOX} role="img" aria-label={label}>
@@ -56,11 +66,21 @@ export function PitchView({ frame, children, label = "Synthetic pitch view" }: {
             const [cx, cy] = [Math.cos(rad), Math.sin(rad)];
             const n = p.team === "ref" ? null : shirtNumber(p.id);
             return (
-              <g key={p.id} className={`player ${p.team}`} transform={`translate(${x.toFixed(2)} ${y.toFixed(2)})${k === 1 ? "" : ` scale(${k})`}`}>
+              <g
+                key={p.id}
+                className={`player ${p.team}${p.id === mine ? " mine" : ""}${onPick && p.team !== "ref" ? " pickable" : ""}`}
+                onClick={onPick && p.team !== "ref" ? () => onPick(p.id) : undefined}
+                transform={`translate(${x.toFixed(2)} ${y.toFixed(2)})${k === 1 ? "" : ` scale(${k})`}`}>
+                {p.id === mine && <circle className="mine-ring" r={2} />}
                 <circle r={1.25} />
                 {/* The heading tick starts at the disc's edge, so it never crosses the number. */}
                 <line x1={(1.25 * cx).toFixed(2)} y1={(1.25 * cy).toFixed(2)} x2={(2 * cx).toFixed(2)} y2={(2 * cy).toFixed(2)} />
                 {n !== null && <text y={0.5}>{n}</text>}
+                {p.id === mine && mineLabel && (
+                  <text className="mine-label" y={-2.7}>
+                    {mineLabel}
+                  </text>
+                )}
               </g>
             );
           })}

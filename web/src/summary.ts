@@ -28,6 +28,8 @@ export interface Moment {
   xg?: number | null;
   score_after?: { home: number; away: number } | null;
   var?: { check_t: number; decision: string } | null;
+  /** Player ids in the moment, main actor first. */
+  actors?: string[];
   replay: EvidenceEntry;
 }
 

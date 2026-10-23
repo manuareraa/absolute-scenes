@@ -18,6 +18,8 @@ import { useOverlayAudio } from "./useOverlayAudio";
 import { isProvisional, varBanner, varFor, varGraphics } from "./var";
 import { Landing, type Jump } from "./Landing";
 import { Tour, tourSeen } from "./Tour";
+import { catchUpAt } from "./catchup";
+import { eventStats, ingest, involves, loadMyPlayer, playerLabel, rosterOf, saveMyPlayer, statsUpTo, type MatchEvent, type RosterPlayer, type Track, type TrackStats } from "./myplayer";
 import { keepConnected, matchWsUrl, type SourceMode } from "./ws";
 
 type Surface = Overlay["surface"];
@@ -62,6 +64,7 @@ const LANDING = !params.has("surface") && !params.has("demo") && params.get("wel
 // three.js only loads when the 3D view is first opened.
 const Broadcast3D = lazy(() => import("./figures/Broadcast3D"));
 const GOAL_BANNER_MS = 8000;
+const NOTICE_MS = 5000;
 
 /**
  * Wall clock in ms that re-renders on every animation frame while playing, so a stroke shows on
@@ -113,6 +116,18 @@ export function App() {
   const [tour, setTour] = useState<{ resume: boolean } | null>(null);
   const tourAuto = useRef(!tourSeen());
   const [settingsOpen, setSettingsOpen] = useState(false);
+  // "My player": the one player this viewer follows, kept across visits.
+  const [myId, setMyIdState] = useState<string | null>(loadMyPlayer);
+  const setMyId = (id: string | null) => {
+    setMyIdState(id);
+    saveMyPlayer(id);
+  };
+  // Names come from the match manifest; without it (local dev) players show as "#9".
+  const [roster, setRoster] = useState<Map<string, RosterPlayer>>(() => new Map());
+  // A short status line over the board ("nothing to catch up on yet").
+  const [notice, setNotice] = useState<string | null>(null);
+  // "Catch me up" on broadcast loads the show fixture (it carries the summaries) on first press.
+  const [catchPending, setCatchPending] = useState(false);
   const s = tr(lang);
   // Hub state lives in a ref: frame batches land every second, renders tick at the frame rate.
   const hub = useRef(newLiveState());
@@ -120,6 +135,9 @@ export function App() {
   // Goals seen in the hub's event batches, keyed so a re-sent batch counts once.
   const goals = useRef(new Map<string, Goal>());
   const shots = useRef(new Map<string, Shot>());
+  // The hub keeps only seconds of frames, so live player totals are summed as batches arrive.
+  const liveTracks = useRef(new Map<string, Track>());
+  const liveEvents = useRef(new Map<string, MatchEvent>());
   const [hubReady, setHubReady] = useState(false);
   const isLive = mode.mode === "live" && hubReady;
   // The show is a recorded studio programme: it plays its own fixture on its own clock, live hub
@@ -185,6 +203,8 @@ export function App() {
   };
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
+      const typing = e.target instanceof HTMLElement && /^(INPUT|SELECT|TEXTAREA)$/.test(e.target.tagName);
+      if ((e.key === "c" || e.key === "C") && !typing && !e.ctrlKey && !e.metaKey && !e.altKey && !landing && !how && !tour) return catchMeUp();
       if (e.key !== "Escape") return;
       if (how) return setHow(false);
       if (settingsOpen) return setSettingsOpen(false);
@@ -219,14 +239,28 @@ export function App() {
   }, []);
 
   const wantShow = surface === "show";
+  const needShow = wantShow || catchPending;
   useEffect(() => {
-    if (!wantShow || showFx) return;
+    if (!needShow || showFx) return;
     // Without a show fixture the show surface keeps playing the demo fixture's show overlays.
     fetch(`/fixtures/${SHOW_ID}.json`)
       .then((r) => (r.ok ? r.json() : Promise.reject(new Error(`show ${r.status}`))))
       .then(setShowFx)
       .catch(() => setShowFailed(true));
-  }, [wantShow, showFx]);
+  }, [needShow, showFx]);
+
+  useEffect(() => {
+    fetch(`/api/match/${MATCH_ID}`)
+      .then((r) => (r.ok ? r.json() : Promise.reject(new Error(`match ${r.status}`))))
+      .then((m) => setRoster(rosterOf(m)))
+      .catch(() => {});
+  }, []);
+
+  useEffect(() => {
+    if (!notice) return;
+    const id = setTimeout(() => setNotice(null), NOTICE_MS);
+    return () => clearTimeout(id);
+  }, [notice]);
 
   useEffect(
     () =>
@@ -236,7 +270,16 @@ export function App() {
           if (m.type === "overlay") return setLive((prev) => [...prev.filter((p) => p.id !== m.overlay.id), m.overlay]);
           hub.current = applyHubMessage(hub.current, m, performance.now());
           if (m.type === "frames") {
-            for (const e of m.events as { t: number; type: string; team?: string; xg?: number }[]) {
+            // A clock that jumps back (a replayed match) starts the totals again.
+            const first = m.frames[0]?.t;
+            const seen = Math.max(-Infinity, ...[...liveTracks.current.values()].map((x) => x.lastT));
+            if (first !== undefined && first < seen - 5000) {
+              liveTracks.current.clear();
+              liveEvents.current.clear();
+            }
+            ingest(liveTracks.current, m.frames);
+            for (const e of m.events as { t: number; type: string; team?: string; xg?: number; actors?: string[] }[]) {
+              if (e?.actors?.length) liveEvents.current.set(`${e.t}:${e.type}:${e.actors[0]}`, e);
               if (e?.type === "goal" && e.team) goals.current.set(`${e.t}:${e.team}`, { t: e.t, team: e.team });
               if (e?.type === "shot" && e.team) shots.current.set(`${e.t}:${e.team}`, typeof e.xg === "number" ? { t: e.t, team: e.team, xg: e.xg } : { t: e.t, team: e.team });
             }
@@ -298,8 +341,9 @@ export function App() {
 
   // Strokes and captions run on the overlay audio's clock, not on wall time.
   const audio = useOverlayAudio(state.overlay, state.audioMs, running && !replay && !summary, seekGen);
-  const replaying = showMode && replay !== null;
-  const summing = showMode && summary !== null && !replaying;
+  // Summaries and their replays come from the show fixture, so they also open over the broadcast.
+  const replaying = showFx !== null && replay !== null;
+  const summing = showFx !== null && summary !== null && !replaying;
   const replayT = replaying ? replayMatchT(replay.entry, rc.elapsed) : 0;
   if (replaying) frame = frameBetween(showFx.frames, replayT);
   const topMoment = summing ? decidingMoments(summary.s)[0] : undefined;
@@ -335,6 +379,44 @@ export function App() {
   const status = surface === "broadcast" ? airStatus(overlays, matchT, state.overlay !== null, ended) : null;
   const preRoll = showMode && !replaying && !summing && chapter >= 0 && state.overlay === null;
 
+  // Catch me up: the latest summary the data has for the match on screen, as of the time on screen.
+  const shownMatch = showMode ? showFx.match_id : isLive ? MATCH_ID : fixture?.match_id;
+  const catchMeUp = () => {
+    if (!showFx) {
+      if (showFailed) setNotice(s.catchUpNone);
+      else setCatchPending(true);
+      return;
+    }
+    const c = showFx.match_id === shownMatch ? catchUpAt(showFx.summaries, matchT) : ({ kind: "none" } as const);
+    if (c.kind === "ready") {
+      setNotice(null);
+      openSummary(c.summary);
+    } else setNotice(c.kind === "not-yet" && c.nextT !== null ? s.catchUpNotYet(clock(c.nextT)) : s.catchUpNone);
+  };
+  useEffect(() => {
+    if (!catchPending || (!showFx && !showFailed)) return;
+    setCatchPending(false);
+    catchMeUp();
+  }, [catchPending, showFx, showFailed]);
+
+  // My player: totals from the frames on screen (recorded) or received (live), never estimated.
+  const names = shownMatch === MATCH_ID ? roster : undefined;
+  const recorded = showMode || summing || replaying ? showFx!.frames : isLive ? null : frames;
+  const statT = Math.floor(boardT / 250);
+  const recStats = useMemo(() => (myId && recorded ? statsUpTo(recorded, myId, boardT) : null), [recorded, myId, statT]);
+  const myStats: TrackStats | null = !myId ? null : recorded ? recStats : (liveTracks.current.get(myId) ?? null);
+  // Touches need every event; only the live feed has them. The show's evidence clips give a last action.
+  const myEvents: MatchEvent[] | null = isLive && !recorded ? [...liveEvents.current.values()] : recorded && showFx && recorded === showFx.frames ? Object.values(showFx.evidence ?? {}).flatMap((e) => e.events) : null;
+  const myEv = myId && myEvents ? eventStats(myEvents, myId, isLive && !recorded ? Infinity : boardT) : null;
+  const pickable = useMemo(
+    () =>
+      (frame?.players ?? [])
+        .filter((p) => p.team !== "ref")
+        .map((p) => p.id)
+        .sort(),
+    [frame?.players.length, shownMatch],
+  );
+
   // The tour opens once per visitor, right after the first moment has aired, with the show paused.
   const firstAired = showMode && !landing && (chapter > 0 || (chapter === 0 && state.overlay !== null && state.audioMs >= book.chapters[0].breakdownMs - 400));
   const openTour = () => {
@@ -367,6 +449,20 @@ export function App() {
           <Segmented s={s} group="side" value={side} options={SIDES} onChange={setSide} />
           {langs.length > 1 && <Segmented s={s} group="lang" value={langs.includes(lang) ? lang : "en-GB"} options={langs} onChange={setLang} />}
           <Segmented s={s} group="view" value={view} options={VIEW_OPTIONS} onChange={setView} />
+          <div className="group" title={s.groupHints.player}>
+            <label className="group-label" htmlFor="my-player">
+              {s.groups.player}
+            </label>
+            <select id="my-player" className="picker" value={myId ?? ""} onChange={(e) => setMyId(e.target.value || null)}>
+              <option value="">{s.me.nobody}</option>
+              {myId && !pickable.includes(myId) && <option value={myId}>{playerLabel(myId, names)}</option>}
+              {pickable.map((id) => (
+                <option key={id} value={id}>
+                  {playerLabel(id, names)}
+                </option>
+              ))}
+            </select>
+          </div>
         </div>
         <span className={`badge ${isLive ? "live" : mode.mode}`} title={isLive ? s.liveHint : mode.mode === "fixture" ? (mode.detail ?? s.recordedHint) : undefined} role="status">
           {isLive ? (ended ? s.fullTime : s.live) : mode.mode === "fixture" ? s.recorded : s.connecting}
@@ -397,6 +493,7 @@ export function App() {
             {book.chapters.map((c, i) => (
               <button key={c.overlay.id} className={chapter === i ? "on" : ""} aria-current={chapter === i} onClick={() => seek(c.at)} title={titles[i]}>
                 <b>{i + 1}.</b> {titles[i]}
+                {myId && involves(c.overlay, myId) && <i className="mine-dot" title={s.me.inChapter} aria-label={s.me.inChapter} role="img" />}
               </button>
             ))}
             {showFx.summaries && Object.values(showFx.summaries).length > 0 && (
@@ -435,12 +532,12 @@ export function App() {
             {view === "3d" && (
               <Suspense fallback={show3d ? <PitchView frame={frame} label={s.pitch} /> : null}>
                 <div className="view3d" hidden={!show3d}>
-                  <Broadcast3D frame={frame} active={show3d} quality={QUALITY} label={s.broadcast3d} />
+                  <Broadcast3D frame={frame} active={show3d} quality={QUALITY} label={s.broadcast3d} mine={myId} />
                 </div>
               </Suspense>
             )}
             {!show3d && (
-              <PitchView frame={frame} label={s.pitch}>
+              <PitchView frame={frame} label={s.pitch} mine={myId} mineLabel={myId ? playerLabel(myId, names) : undefined} onPick={(id) => setMyId(id === myId ? null : id)}>
                 <OverlayLayer overlay={drawn} frame={frame} audioMs={replaying || summing ? Infinity : audioMs} />
               </PitchView>
             )}
@@ -462,7 +559,7 @@ export function App() {
             {replaying ? (
               <EvidencePanel title={replay.title} entry={replay.entry} t={replayT} onClose={closeEvidence} back={summary ? s.backToMoments : s.backToShow} s={s} lang={lang} />
             ) : summing ? (
-              <SummaryPanel sm={summary.s} onMoment={openMoment} onClose={closeSummary} s={s} lang={lang} />
+              <SummaryPanel sm={summary.s} onMoment={openMoment} onClose={closeSummary} s={s} lang={lang} mine={myId} />
             ) : (
               state.overlay && <Caption overlay={state.overlay} audioMs={audioMs} onClaim={showMode ? openEvidence : undefined} tappable={tappable} hint={s.replayEvidence} />
             )}
@@ -471,6 +568,17 @@ export function App() {
                 {s.soundOn}
               </button>
             )}
+            {notice && (
+              <div className="notice" role="status">
+                {notice}
+              </div>
+            )}
+          </div>
+          <div className="viewer-bar">
+            <button className="catch-up" onClick={catchMeUp} title={s.catchMeUpHint} aria-keyshortcuts="c">
+              {s.catchMeUp}
+            </button>
+            <MyLine id={myId} label={myId ? playerLabel(myId, names) : ""} st={myStats} ev={myEv} live={isLive && !recorded} onStop={() => setMyId(null)} s={s} lang={lang} />
           </div>
           <Legend s={s} />
         </div>
@@ -607,7 +715,36 @@ function VarBanner({ title, detail, provisional }: { title: string; detail: stri
   );
 }
 
-function SummaryPanel({ sm, onMoment, onClose, s, lang }: { sm: Summary; onMoment(m: Moment): void; onClose(): void; s: Strings; lang: string }) {
+function MyLine(props: { id: string | null; label: string; st: TrackStats | null; ev: { touches: number; last: MatchEvent | null } | null; live: boolean; onStop(): void; s: Strings; lang: string }) {
+  const { id, label, st, ev, live, s, lang } = props;
+  if (!id) return <p className="my-line muted">{s.me.follow}</p>;
+  const parts: [string, boolean][] = [];
+  if (!st) parts.push([s.me.notHere, true]);
+  else {
+    parts.push([st.distanceM < 1000 ? s.me.m(num(Math.round(st.distanceM), lang)) : s.me.km(num(st.distanceM / 1000, lang)), false]);
+    parts.push([s.me.sprints(st.sprints), false]);
+    parts.push([s.me.top(num(st.topSpeed * 3.6, lang)), false]);
+    parts.push(live && ev ? [s.me.touches(ev.touches), false] : [s.me.noTouches, true]);
+    if (!ev) parts.push([s.me.noLast, true]);
+    else if (ev.last) parts.push([s.me.last(s.events[ev.last.type] ?? ev.last.type.replaceAll("_", " "), clock(ev.last.t)), false]);
+    parts.push([s.me.seen(clock(st.seenMs)), true]);
+  }
+  return (
+    <p className="my-line" title={s.me.hint} aria-live="off">
+      <b className="my-name">{label}</b>
+      {parts.map(([text, gap]) => (
+        <span key={text} className={gap ? "gap" : undefined}>
+          {text}
+        </span>
+      ))}
+      <button className="my-stop" onClick={props.onStop} aria-label={s.me.stop} title={s.me.stop}>
+        ×
+      </button>
+    </p>
+  );
+}
+
+function SummaryPanel({ sm, onMoment, onClose, s, lang, mine }: { sm: Summary; onMoment(m: Moment): void; onClose(): void; s: Strings; lang: string; mine: string | null }) {
   const { home, away } = sm.stats;
   const rows: [string, string, string][] = [
     [s.stats.shots, String(home.shots), String(away.shots)],
@@ -643,6 +780,7 @@ function SummaryPanel({ sm, onMoment, onClose, s, lang }: { sm: Summary; onMomen
               <span className="when">{clock(m.t)}</span>
               <span className="kind">{s.kinds[m.kind] ?? m.kind}</span>
               <span className="headline">{momentHeadline(m, lang)}</span>
+              {mine && m.actors?.includes(mine) && <i className="mine-dot" title={s.me.inChapter} aria-label={s.me.inChapter} role="img" />}
             </button>
           </li>
         ))}

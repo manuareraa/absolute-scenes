@@ -16,6 +16,8 @@ const TORSO_H = 0.55;
 const SHIRT = { home: "#3e8ef7", away: "#e5484d", ref: "#f5d90a" } as const;
 const SHORTS = { home: "#f4f1e6", away: "#1b1b1b", ref: "#1b1b1b" } as const;
 const UP = new THREE.Vector3(0, 1, 0);
+// "My player" ring on the grass, in the signal yellow of the design system.
+const SIGNAL = "#ffd23f";
 
 /** Pitch markings as one LineSegments geometry, with goal frames. */
 function markingsGeometry(): THREE.BufferGeometry {
@@ -101,9 +103,12 @@ interface Orbit {
 // A raised broadcast angle from behind the near touchline that frames both touchlines.
 const HOME_ORBIT = { az: 0, el: 0.62, r: 92 };
 
-function Figures({ frame, orbit }: { frame: Frame | undefined; orbit: { current: Orbit } }) {
+function Figures({ frame, orbit, mine }: { frame: Frame | undefined; orbit: { current: Orbit }; mine?: string | null }) {
   const latest = useRef(frame);
   latest.current = frame;
+  const mineRef = useRef(mine);
+  mineRef.current = mine;
+  const ring = useRef<THREE.Mesh>(null);
   const gaits = useRef(new Map<string, Gait>());
   const head = useRef<THREE.InstancedMesh>(null);
   const torso = useRef<THREE.InstancedMesh>(null);
@@ -160,6 +165,11 @@ function Figures({ frame, orbit }: { frame: Frame | undefined; orbit: { current:
       if (m.instanceColor) m.instanceColor.needsUpdate = true;
     }
     ball.current?.position.set(f.ball.x, 0.11 + f.ball.z, -f.ball.y);
+    const me = mineRef.current ? f.players.find((p) => p.id === mineRef.current) : undefined;
+    if (ring.current) {
+      ring.current.visible = !!me;
+      if (me) ring.current.position.set(me.x, 0.03, -me.y);
+    }
 
     // Raised side camera that pans with the ball, eased; a drag orbits it around that point.
     const o = orbit.current;
@@ -188,6 +198,10 @@ function Figures({ frame, orbit }: { frame: Frame | undefined; orbit: { current:
       <instancedMesh ref={arms} args={[arm, undefined, 2 * MAX]} castShadow>
         <meshLambertMaterial />
       </instancedMesh>
+      <mesh ref={ring} rotation={[-Math.PI / 2, 0, 0]} visible={false}>
+        <ringGeometry args={[0.75, 1.05, 32]} />
+        <meshBasicMaterial color={SIGNAL} transparent opacity={0.9} depthWrite={false} />
+      </mesh>
       <mesh ref={ball} castShadow>
         <sphereGeometry args={[0.32, 12, 10]} />
         <meshLambertMaterial color="#ffffff" />
@@ -196,8 +210,8 @@ function Figures({ frame, orbit }: { frame: Frame | undefined; orbit: { current:
   );
 }
 
-export default function Broadcast3D(props: { frame: Frame | undefined; active: boolean; quality: "light" | "high"; label?: string }) {
-  const { frame, active, quality, label = "Synthetic broadcast view" } = props;
+export default function Broadcast3D(props: { frame: Frame | undefined; active: boolean; quality: "light" | "high"; label?: string; mine?: string | null }) {
+  const { frame, active, quality, label = "Synthetic broadcast view", mine } = props;
   const high = quality === "high";
   const orbit = useRef<Orbit>({ ...HOME_ORBIT, tx: 0 });
   const drag = useRef<{ x: number; y: number } | null>(null);
@@ -243,7 +257,7 @@ export default function Broadcast3D(props: { frame: Frame | undefined; active: b
         <orthographicCamera attach="shadow-camera" args={[-60, 60, 40, -40, 1, 200]} />
       </directionalLight>
       <Pitch />
-      <Figures frame={frame} orbit={orbit} />
+      <Figures frame={frame} orbit={orbit} mine={mine} />
     </Canvas>
   );
 }
