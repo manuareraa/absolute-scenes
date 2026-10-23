@@ -130,4 +130,8 @@ export function checkLabel(e: EvidenceEntry): string {
 const fmt = (v: unknown) => (typeof v === "number" ? String(Math.round(v * 100) / 100) : String(v));
 
 /** A claim's slot as words, without its unit suffix: `gap_m` -> "gap", `pass_options` stays. */
-export const slotLabel = (slot: string) => slot.replace(/_(m|pct|pts|s|ms|kmh)$/, "").replaceAll("_", " ");
+export const slotLabel = (slot: string) => {
+  const words = slot.replace(/_(m|pct|pts|s|ms|kmh)$/, "").replaceAll("_", " ");
+  return SLOT_WORDS[words] ?? words;
+};
+const SLOT_WORDS: Record<string, string> = { pc: "pitch control" };
