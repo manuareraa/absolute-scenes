@@ -53,6 +53,14 @@ describe("tapping numbers", () => {
     const tapped = [...claimWords(ghost).keys()].map((i) => words[i]);
     expect(tapped).not.toContain(words[words.indexOf("number") + 1]);
   });
+
+  it("reads a number inside a joined speech word, past a shirt number", () => {
+    const at = { ...gap, value: 4.57, tolerance: 0.05 };
+    const ov = { ...o, claims: [at] };
+    expect(claimForWord(ov, "9 is 4.6", "number")).toBe(at);
+    expect(claimForWord(ov, "4,6", "dorsal")).toBeUndefined();
+    expect(claimForWord(ov, "número 4,6")).toBeUndefined();
+  });
 });
 
 describe("replay clock", () => {
