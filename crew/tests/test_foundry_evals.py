@@ -99,3 +99,16 @@ def test_groundedness_reads_numbers_in_the_overlay_language(rows):
     assert ev(overlay=ov, tool_outputs=row["tool_outputs"])["claim_groundedness_result"] == "fail"
     ov["script"]["text"] = NUMBER.sub(lambda m: m[0].replace(".", ","), ov["script"]["text"])
     assert ev(overlay=ov, tool_outputs=row["tool_outputs"])["claim_groundedness_result"] == "pass"
+
+
+def test_a_cached_pipeline_run_scores_as_live_rows(tmp_path):
+    from chalktalk_crew import CrewConfig
+    from chalktalk_crew.pipeline import RunOptions, run
+    from chalktalk_evals.foundry import live_rows
+
+    opts = RunOptions(seed=7, half_minutes=3.0, max_moments=1, cache=tmp_path)
+    log = run(opts, config=CrewConfig())
+    rows = live_rows(tmp_path, 7, 3.0)
+    assert [r["id"] for r in rows] == sorted(log.generated) and rows
+    report = evaluate_local(rows)
+    assert report["passed"], report["rows"]

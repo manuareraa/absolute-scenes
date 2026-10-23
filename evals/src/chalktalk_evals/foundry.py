@@ -93,6 +93,47 @@ def build_items(
     return rows
 
 
+def overlay_rows(overlays: list[dict[str, Any]], tools: Any) -> list[dict[str, Any]]:
+    """Dataset rows for overlays made elsewhere (a cached live run), re-running their tools."""
+    rows = []
+    for overlay in overlays:
+        outputs = {
+            _key(c["tool_call"]["name"], c["tool_call"]["args"]): tools.call(
+                c["tool_call"]["name"], c["tool_call"]["args"]
+            )
+            for c in overlay["claims"]
+        }
+        rows.append(
+            {
+                "id": overlay["id"],
+                "moment": overlay["id"].split("-")[1],
+                "overlay": overlay,
+                "tool_outputs": outputs,
+                "query": f"Explain this moment for a {overlay['lens']} viewer.",
+                "response": overlay["script"]["text"],
+                "context": json.dumps(
+                    [{k: o.get(k) for k in ("value", "unit")} for o in outputs.values()]
+                ),
+            }
+        )
+    return rows
+
+
+def live_rows(cache: Path, seed: int, half_minutes: float) -> list[dict[str, Any]]:
+    """Rows for every overlay a ``chalktalk_crew run`` cached, scored against the same match."""
+    from chalktalk_crew.core_tools import CoreToolClient
+    from chalktalk_mcp.store import Store
+    from chalktalk_mcp.tools import Tools
+    from chalktalk_sim import DEMO_BEATS, MatchConfig, simulate
+
+    match = simulate(MatchConfig(seed=seed, half_minutes=half_minutes, beats=DEMO_BEATS))
+    store = Store(half_minutes=half_minutes)
+    source = store.put(match)
+    tools = CoreToolClient(Tools(store), source.match_id)
+    paths = sorted(cache.glob(f"{source.match_id}-{match.digest()[:8]}/overlays/*.json"))
+    return overlay_rows([json.loads(p.read_text()) for p in paths], tools)
+
+
 def _result(ok: bool) -> str:
     return "pass" if ok else "fail"
 
@@ -254,15 +295,21 @@ def main(argv: list[str] | None = None) -> int:  # pragma: no cover - manual run
     parser.add_argument("--out", type=Path, default=Path(".chalktalk-evals"))
     parser.add_argument("--items", type=int, default=ITEMS)
     parser.add_argument("--lang", default="en-GB")
+    parser.add_argument("--live-cache", type=Path, help="also score a cached live run's overlays")
+    parser.add_argument("--seed", type=int, default=7)
+    parser.add_argument("--half-minutes", type=float, default=3.0)
     parser.add_argument("--local", action="store_true", help="score without azure-ai-evaluation")
     parser.add_argument("--log-to-foundry", action="store_true")
     parser.add_argument("--judge", action="store_true", help="add the LLM groundedness judge")
     args = parser.parse_args(argv)
 
-    from chalktalk_crew import FakeAnalyticsTools, crew_from_env
+    from chalktalk_crew import FakeAnalyticsTools, fake_crew
 
+    # The synthetic items always use the fake crew, so the eval run itself spends no tokens.
     tools = FakeAnalyticsTools()
-    rows = build_items(crew_from_env(tools), tools, args.items, lang=args.lang)
+    rows = build_items(fake_crew(), tools, args.items, lang=args.lang)
+    if args.live_cache:
+        rows += live_rows(args.live_cache, args.seed, args.half_minutes)
     data = write_jsonl(rows, args.out / "dataset.jsonl")
     local = evaluate_local(rows)
     report: dict[str, Any] = {"items": len(rows), "local": local["metrics"]}
