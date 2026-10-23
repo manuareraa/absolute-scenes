@@ -29,7 +29,9 @@ const failed: Overlay = { ...first, id: "failed", gate: { ...first.gate!, passed
 
 describe("queue fixture", () => {
   it("holds crew overlays that pass the overlay contract, with a frame at each moment", () => {
-    expect(n).toBe(72); // 36 per caption language
+    const moments = new Set(fx.overlays.map((o) => o.match_tc));
+    expect(moments.size).toBeGreaterThan(0);
+    for (const lang of ["en-GB", "es-ES"]) expect(fx.overlays.filter((o) => o.lang === lang).length).toBe(n / 2);
     for (const o of fx.overlays) {
       expect(validate("overlay", o).errors).toEqual([]);
       expect(Math.abs(frameAt(fx.frames, o.match_tc)!.t - o.match_tc)).toBeLessThan(80);
@@ -99,7 +101,7 @@ describe("hub", () => {
 describe("approving a whole moment", () => {
   it("takes every open telling at the moment, across lens, side and language", () => {
     const at = momentTellings(fx.overlays, first);
-    expect(at.length).toBe(n / 4); // four moments in the queue
+    expect(at.length).toBe(n / new Set(fx.overlays.map((o) => o.match_tc)).size); // same tellings per moment
     expect(new Set(at.map((o) => o.lang))).toEqual(new Set(["en-GB", "es-ES"]));
     expect(at.every((o) => o.match_tc === first.match_tc)).toBe(true);
     const decided = applyDecisions(fx.overlays, { [at[1].id]: approvalFor(at[1], "reject", "ed", AT) });

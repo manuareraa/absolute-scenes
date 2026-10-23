@@ -25,25 +25,35 @@ export type EvidenceMap = Record<string, EvidenceEntry>;
 
 export const evidenceFor = (map: EvidenceMap | undefined, c: Claim) => map?.[c.tool_call.output_hash];
 
-/** How far a caption word's number is from a claim's value, if it could be speaking it: the same
- * value to the word's precision, or within the claim's tolerance. The decimal may be a comma
- * (es-ES says "14,4"); a trailing comma is punctuation. */
-function wordDistance(c: Claim, word: string): number | null {
-  const m = word.match(/-?\d+(?:[.,](\d+))?/);
+/** Words after which a number is a shirt number, not a measurement ("number 9", "el dorsal 9"). */
+const SHIRT = new Set(["number", "no", "número", "numero", "dorsal"]);
+
+/** How far a caption word's numbers are from a claim's value, if it could be speaking it: the same
+ * value to the number's precision, or within the claim's tolerance. Speech word timings can join
+ * tokens ("9 is 4.6"), so every number in the word counts except a shirt number. The decimal may be
+ * a comma (es-ES says "14,4"); a trailing comma is punctuation. `prev` is the word before. */
+function wordDistance(c: Claim, word: string, prev = ""): number | null {
   const v = Number(c.value);
-  if (!m || !Number.isFinite(v)) return null;
-  const d = Math.abs(v - Number(m[0].replace(",", ".")));
-  const half = 0.5 * 10 ** -(m[1]?.length ?? 0) + 1e-9;
-  return d <= half || d <= (c.tolerance ?? 0) ? d : null;
+  if (!Number.isFinite(v)) return null;
+  const tokens = [prev.split(/\s+/).pop() ?? "", ...word.split(/\s+/)];
+  let best: number | null = null;
+  for (let i = 1; i < tokens.length; i++) {
+    const m = tokens[i].match(/^-?\d+(?:[.,](\d+))?/);
+    if (!m || SHIRT.has(tokens[i - 1].toLowerCase().replace(/[^\p{L}]/gu, ""))) continue;
+    const d = Math.abs(v - Number(m[0].replace(",", ".")));
+    const half = 0.5 * 10 ** -(m[1]?.length ?? 0) + 1e-9;
+    if ((d <= half || d <= (c.tolerance ?? 0)) && (best === null || d < best)) best = d;
+  }
+  return best;
 }
 
 /** The claim a caption word speaks, if it is a number. */
-export function claimForWord(overlay: Overlay, word: string): Claim | undefined {
-  return overlay.claims.find((c) => wordDistance(c, word) !== null);
+export function claimForWord(overlay: Overlay, word: string, prev = ""): Claim | undefined {
+  return overlay.claims.find((c) => wordDistance(c, word, prev) !== null);
 }
 
-/** Word index -> the claim it speaks: each claim on its closest word, so "number 7" is not
- * mistaken for "7.1 metres". */
+/** Word index -> the claim it speaks: each claim on its closest word, and never on a shirt number,
+ * so "number 7" is not mistaken for "7.1 metres". */
 export function claimWords(overlay: Overlay): Map<number, Claim> {
   const words = overlay.script.words ?? [];
   const out = new Map<number, Claim>();
@@ -51,7 +61,7 @@ export function claimWords(overlay: Overlay): Map<number, Claim> {
     let best = -1;
     let bestD = Infinity;
     words.forEach((w, i) => {
-      const d = wordDistance(c, w.text);
+      const d = wordDistance(c, w.text, words[i - 1]?.text);
       if (d !== null && d < bestD && !out.has(i)) [best, bestD] = [i, d];
     });
     if (best >= 0) out.set(best, c);

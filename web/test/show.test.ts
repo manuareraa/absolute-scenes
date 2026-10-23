@@ -85,6 +85,9 @@ describe("chapters", () => {
     const withAudio = { ...show, segments: [{ ...seg, audio_url: `audio/${seg.overlay.id}.mp3` }] as Show["segments"] };
     const [c] = chaptersOf(withAudio, BASE).chapters;
     expect(c.overlay.script.audio_url).toBe(`${BASE}audio/${seg.overlay.id}.mp3`);
-    expect(chapters[0].overlay.script.audio_url).toBeUndefined();
+    const { audio_url: _, ...script } = seg.overlay.script;
+    const silent = { ...seg, audio_url: undefined, overlay: { ...seg.overlay, script } };
+    const [none] = chaptersOf({ ...show, segments: [silent] as Show["segments"] }, BASE).chapters;
+    expect(none.overlay.script.audio_url).toBeUndefined();
   });
 });
