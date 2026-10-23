@@ -147,19 +147,34 @@ def snap_bookmarks(
     bookmark tag. Otherwise the first word starting at or after the bookmark. Spike S1 found
     bookmarks fire 12 ms before their word, or at the start of a pause before it, never after;
     a wider early slack picks the previous short word (docs/notes/c-s1-word-timing.md).
-    Bookmarks with no word after them keep their raw offset.
+    A bookmark the writer put after its word (before punctuation or the end of the script)
+    names the word before it, so it snaps back to that word's start. Bookmarks with no word to
+    snap to keep their raw offset.
     """
     out: dict[str, int] = {}
     for mark, offset in raw.items():
         nxt: int | None = None
         pos = ssml.find(f"mark='{mark}'") if ssml is not None else -1
+        back = pos >= 0 and ssml is not None and names_previous(ssml, mark)
         if pos >= 0 and text_offsets is not None:
-            after = [(t, w.offset_ms) for t, w in zip(text_offsets, words, strict=True) if t > pos]
-            nxt = min(after)[1] if after else None
+            pairs = list(zip(text_offsets, (w.offset_ms for w in words), strict=True))
+            side = [p for p in pairs if (p[0] < pos if back else p[0] > pos)]
+            nxt = (max(side) if back else min(side))[1] if side else None
+        elif back:
+            nxt = max((w.offset_ms for w in words if w.offset_ms < offset), default=None)
         else:
             nxt = next((w.offset_ms for w in words if w.offset_ms >= offset), None)
         out[mark] = offset if nxt is None else nxt
     return out
+
+
+TRAILING = re.compile(r"\s*(?:[.,;:!?)\u2026]|</)")
+
+
+def names_previous(ssml: str, mark: str) -> bool:
+    """True when ``mark``'s bookmark sits after its word: punctuation or the end follows it."""
+    m = re.search(rf"<bookmark mark='{re.escape(mark)}'\s*/>", ssml)
+    return m is not None and TRAILING.match(ssml, m.end()) is not None
 
 
 TRANSIENT = re.compile(r"429|TooManyRequests|throttl|ServiceTimeout", re.IGNORECASE)

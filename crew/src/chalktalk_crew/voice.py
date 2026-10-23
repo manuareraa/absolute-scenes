@@ -16,11 +16,13 @@ from __future__ import annotations
 
 import hashlib
 import json
+import re
 import shutil
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
+from .azure import names_previous
 from .speech import SpeechResult, WordTiming
 
 STATIC_ASSET_CAP = 25 * 1024 * 1024  # Workers static assets: 25 MiB per file
@@ -32,6 +34,7 @@ class VoiceLog:
     synthesized: list[str] = field(default_factory=list)
     reused: list[str] = field(default_factory=list)  # same SSML as a chapter voiced before
     missing: list[str] = field(default_factory=list)  # crew chapter with no cached MP3
+    cues_moved: int = 0  # cues written after their word, moved back onto it
     speech_characters: int = 0
     files: int = 0
     total_bytes: int = 0
@@ -64,6 +67,36 @@ def cue_word_gap_ms(overlay: dict[str, Any]) -> int:
     starts = [w["offset_ms"] for w in overlay["script"].get("words") or []]
     gaps = [min(abs(c["offset_ms"] - s) for s in starts) for c in overlay["script"]["cues"]]
     return max(gaps, default=0) if starts else 0
+
+
+def _norm(word: str) -> str:
+    return word.strip(".,;:!?\"'¿¡()…").lower()
+
+
+def resnap_trailing(overlay: dict[str, Any]) -> int:
+    """Move each cue the writer put after its word (``names_previous``) onto that word's start.
+
+    Works from the text, not the cue's current offset, so it is idempotent and also fixes
+    overlays cached before ``snap_bookmarks`` learned this. Returns the number of cues moved.
+    """
+    script = overlay["script"]
+    words = script.get("words") or []
+    moved = 0
+    for cue in script["cues"]:
+        mark = cue["cue_id"]
+        tag = re.search(rf"<bookmark mark='{re.escape(mark)}'\s*/>", script["ssml"])
+        if not (tag and names_previous(script["ssml"], mark)):
+            continue
+        before = re.sub(r"<[^>]+>", " ", script["ssml"][: tag.start()])
+        tokens = [t for t in (_norm(x) for x in before.split()) if t]
+        if not tokens:
+            continue
+        nth = tokens.count(tokens[-1])  # the named word is the nth occurrence of its text
+        hits = [w["offset_ms"] for w in words if _norm(w["text"]) == tokens[-1]]
+        if len(hits) >= nth and cue["offset_ms"] != hits[nth - 1]:
+            cue["offset_ms"] = hits[nth - 1]
+            moved += 1
+    return moved
 
 
 def voice_overlay(overlay: dict[str, Any], r: SpeechResult, audio_url: str | None) -> None:
@@ -117,6 +150,7 @@ def voice_show(fixture: dict[str, Any], crew_root: Path, out_dir: Path, speech: 
                     written[key] = url
                 voice_overlay(ov, r, url if r.audio else None)
             seg.pop("audio_url", None)  # the player prefers it over the script's
+            log.cues_moved += resnap_trailing(ov)
             log.cue_word_gap_max_ms = max(log.cue_word_gap_max_ms, cue_word_gap_ms(ov))
     sizes = [f.stat().st_size for f in out_dir.glob("*.mp3")]
     log.files, log.total_bytes, log.largest_bytes = len(sizes), sum(sizes), max(sizes, default=0)
@@ -149,4 +183,13 @@ def main(args: Any) -> dict[str, Any]:  # pragma: no cover - manual, see the mod
     if log.largest_bytes > STATIC_ASSET_CAP:
         raise SystemExit(f"an MP3 is over the 25 MiB static asset cap: {log.largest_bytes} B")
     out_json.write_text(json.dumps(fixture, separators=(",", ":")))
-    return {"fixture": str(out_json), "audio": str(out_dir), **log.as_dict()}
+    report = {"fixture": str(out_json), "audio": str(out_dir), **log.as_dict()}
+    if args.queue:  # the producer queue carries the same crew overlays: fix their cues too
+        queue = json.loads(args.queue.read_text())
+        report["queue_cues_moved"] = sum(resnap_trailing(o) for o in queue["overlays"])
+        out_queue = args.out / args.queue.name
+        if out_queue.resolve() == args.queue.resolve():
+            raise SystemExit("--out must not be the queue's own folder")
+        out_queue.write_text(json.dumps(queue, separators=(",", ":")))
+        report["queue"] = str(out_queue)
+    return report
