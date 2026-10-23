@@ -53,6 +53,22 @@ export function showEvents(fx: Pick<ShowFixture, "evidence" | "summaries">): { g
   return { goals: uniq(goals), shots: uniq(shots) };
 }
 
+/** Goals and shots in match package events (the hub's batches, or the package's events.json). */
+export function packageEvents(events: unknown[]): { goals: Goal[]; shots: Shot[] } {
+  const goals: Goal[] = [];
+  const shots: Shot[] = [];
+  for (const e of events as { t?: unknown; type?: unknown; team?: unknown; xg?: unknown; attrs?: { xg?: unknown } }[]) {
+    if (!e || typeof e.t !== "number" || !sides(e.team)) continue;
+    if (e.type === "goal") goals.push({ t: e.t, team: e.team });
+    if (e.type === "shot") {
+      // The package keeps a shot's xG in its attrs.
+      const xg = e.attrs?.xg ?? e.xg;
+      shots.push(typeof xg === "number" ? { t: e.t, team: e.team, xg } : { t: e.t, team: e.team });
+    }
+  }
+  return { goals, shots };
+}
+
 /** The score after every goal up to and including match time `t`. */
 export function scoreAt(goals: Goal[], t: number): Score {
   const score = { home: 0, away: 0 };
