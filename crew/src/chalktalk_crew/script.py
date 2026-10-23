@@ -216,6 +216,8 @@ def render(template: str, values: dict[str, str], *, lang: str, voice: str) -> R
     text_parts.append(template[pos:])
     ssml_parts.append(escape(template[pos:]))
     text = re.sub(r"\s+", " ", "".join(text_parts)).strip()
+    # A cue mark before a full stop leaves "goals ." in the text; close the gap.
+    text = re.sub(r"\s+([.,;:!?])", r"\1", text)
     body = re.sub(r"\s+", " ", "".join(ssml_parts)).strip()
     ssml = (
         f"<speak version='1.0' xmlns='http://www.w3.org/2001/10/synthesis' xml:lang='{lang}'>"
