@@ -73,6 +73,12 @@ def test_render_escapes_and_bookmarks():
     assert r.cue_order == ["k1"]
 
 
+def test_render_closes_space_left_by_a_cue_before_punctuation():
+    template = "Worth {xg} expected goals [[k2]] . Wide [[k3]] , then!"
+    r = render(template, {"xg": "0.03"}, lang="en-GB", voice="v")
+    assert r.text == "Worth 0.03 expected goals. Wide, then!"
+
+
 def test_fake_speech_bookmarks_land_on_next_word():
     ssml = (
         "<speak><voice name='v'>One, <bookmark mark='a'/>two &amp; three"
