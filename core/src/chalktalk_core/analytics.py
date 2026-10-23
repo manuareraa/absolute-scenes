@@ -12,7 +12,8 @@ Models (all reimplemented here, numpy only):
   actively pressing (moving at least 2 m/s towards the carrier, or within touching distance)
   count;
 - pitch control as a softmax over TTI of every player to each grid cell;
-- a parametric xG (distance and goal angle) and a parametric xT surface.
+- an xG logistic on distance and goal angle, fitted to 23,328 open-play shots in the Wyscout
+  open event data (Pappalardo et al. 2019, CC BY 4.0), and a parametric xT surface.
 """
 
 from __future__ import annotations
@@ -368,14 +369,23 @@ def control_at(frame: Frame | Snapshot, team: str, x: float, y: float) -> Result
 
 
 # --------------------------------------------------------------------------- value
+# Logistic xG on distance (m) and goal angle (rad), fitted by maximum likelihood to the 23,328
+# open-play shots (2,545 goals) of the 2017/18 English, German and Spanish leagues in the
+# Wyscout open event data (Pappalardo et al. 2019, CC BY 4.0). Penalties and free kicks are
+# excluded. Only these three numbers are kept; no event data ships.
+XG_INTERCEPT = -1.430
+XG_DISTANCE = -0.0900
+XG_ANGLE = 1.414
+
+
 def xg(x: float, y: float, attack_sign: int) -> float:
-    """Expected goals of a shot from (x, y) at the goal at ``attack_sign`` * 52.5."""
+    """Expected goals of an open-play shot from (x, y) at the goal at ``attack_sign`` * 52.5."""
     dx = attack_sign * HALF_LENGTH - x
     dist = math.hypot(dx, y)
     angle = math.atan2(GOAL_WIDTH * abs(dx), dx * dx + y * y - (GOAL_WIDTH / 2) ** 2)
     if angle < 0:
         angle += math.pi
-    z = -1.1 - 0.105 * dist + 1.6 * angle
+    z = XG_INTERCEPT + XG_DISTANCE * dist + XG_ANGLE * angle
     return 1.0 / (1.0 + math.exp(-z))
 
 

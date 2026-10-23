@@ -125,6 +125,9 @@ def test_pitch_control_halves():
 def test_xg_and_xt_shape():
     assert an.xg(41.5, 0, 1) > an.xg(30, 0, 1) > an.xg(30, 25, 1)
     assert an.xg(-41.5, 0, -1) == pytest.approx(an.xg(41.5, 0, 1))
+    # Fitted on Wyscout open play: central from 11 m about 0.18, from the box edge about 0.09.
+    assert 0.14 < an.xg(41.5, 0, 1) < 0.25
+    assert 0.06 < an.xg(36.0, 0, 1) < 0.14
     assert an.xt(45, 0, 1) > an.xt(20, 0, 1) > an.xt(-20, 0, 1)
     r = an.xt_added("home", 1, (0, 0), (35, 5))
     assert r.value > 0
