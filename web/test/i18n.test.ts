@@ -40,3 +40,10 @@ describe("num", () => {
     expect(num(11.64, "en-GB")).toBe("11.6");
   });
 });
+
+describe("chapterTitles es-ES", () => {
+  it("translates the chance chapters", () => {
+    const ch = { title: "4' · The chance", overlay: { match_tc: 184000, claims: [] } };
+    expect(chapterTitles([ch], "es-ES")[0]).toBe("03:04 · La ocasión");
+  });
+});
