@@ -90,3 +90,27 @@ def test_prompt_prefix_is_stable():
     msgs = render_prompt(req)
     assert msgs[0]["content"] == SYSTEM_PROMPT
     assert '"slot":"xg"' in msgs[1]["content"]
+
+
+def test_check_template_wants_spanish_drawn_nouns():
+    with pytest.raises(TemplateError, match="Spanish"):
+        check_template("El [[k1]]gap es de {gap_m} metros.", {"gap_m"}, {"k1"}, lang="es-ES")
+    check_template("El [[k1]]hueco es de {gap_m} metros.", {"gap_m"}, {"k1"}, lang="es-ES")
+    check_template("The [[k1]]gap is {gap_m} metres.", {"gap_m"}, {"k1"}, lang="en-GB")
+
+
+@pytest.mark.parametrize(
+    ("template", "lang"),
+    [
+        ("A high [[k1]]chance, {xg} expected goals.", "en-GB"),
+        ("Un [[k1]]disparo peligroso de {xg} goles esperados.", "es-ES"),
+    ],
+)
+def test_check_template_rejects_rated_xg(template, lang):
+    with pytest.raises(TemplateError, match="rate the chance"):
+        check_template(template, {"xg"}, {"k1"}, lang=lang, xg_slot="xg")
+
+
+def test_rating_words_elsewhere_are_fine():
+    template = "A big [[k1]]gap, {gap_m} metres. The [[k2]]shot carried {xg} xG."
+    check_template(template, {"gap_m", "xg"}, {"k1", "k2"}, xg_slot="xg")

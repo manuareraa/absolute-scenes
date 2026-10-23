@@ -31,6 +31,15 @@ def format_value(value: float | int | str | bool, unit: str | None, lang: str | 
 
 
 IDENTIFIER = re.compile(r"\b[A-Za-z]+_[A-Za-z_]+\b")  # tool or slot names like line_gap
+# English drawn nouns from the prompt's list; a Spanish script must name the stroke in Spanish.
+ENGLISH_NOUNS = frozenset({"shot", "chance", "gap", "zone", "press", "pass", "line", "block"})
+CUED_WORD = re.compile(r"\[\[[A-Za-z0-9_-]+\]\]\s*([^\W\d_]+)")
+# Words that rate a chance. The writer never sees the xG value, so it must not judge it.
+RATING_WORDS = re.compile(
+    r"\b(high|big|huge|great|good|golden|clear|dangerous|real|alta|gran|grande|enorme|clara|"
+    r"buena|peligros[ao]s?|ocasionaza)\b",
+    re.IGNORECASE,
+)
 
 
 class TemplateError(ValueError):
@@ -58,8 +67,19 @@ def fix_slot_names(template: str, slots: set[str]) -> str:
     return template
 
 
-def check_template(template: str, slots: set[str], cues: set[str]) -> None:
-    """Reject free digits, raw names, unknown or unspoken slots, and missing or repeated cues."""
+def check_template(
+    template: str,
+    slots: set[str],
+    cues: set[str],
+    *,
+    lang: str = "en-GB",
+    xg_slot: str | None = None,
+) -> None:
+    """Reject free digits, raw names, unknown or unspoken slots, and missing or repeated cues.
+
+    Spanish scripts must name drawn things in Spanish, and the sentence that speaks ``xg_slot``
+    must not rate the chance ("high", "peligroso"): the number says how good it was.
+    """
     bare = TOKEN.sub(" ", template)
     if NUMBER.search(bare):
         raise TemplateError(f"template has a number outside a slot: {bare!r}")
@@ -75,6 +95,16 @@ def check_template(template: str, slots: set[str], cues: set[str]) -> None:
         raise TemplateError("a cue must sit before the drawn noun, not before a number slot")
     if sorted(seen_cues) != sorted(cues):
         raise TemplateError(f"cues {seen_cues} must be exactly {sorted(cues)}, once each")
+    if lang.startswith("es"):
+        english = [w for w in CUED_WORD.findall(template) if w.lower() in ENGLISH_NOUNS]
+        if english:
+            raise TemplateError(f"write the drawn nouns in Spanish, not {english}")
+    if xg_slot and f"{{{xg_slot}}}" in template:
+        for sentence in re.split(r"(?<=[.!?;])\s+", template):
+            if f"{{{xg_slot}}}" in sentence and (word := RATING_WORDS.search(sentence)):
+                raise TemplateError(
+                    f"do not rate the chance ({word.group(0)!r}); just give its expected goals"
+                )
 
 
 def render(template: str, values: dict[str, str], *, lang: str, voice: str) -> Rendered:
