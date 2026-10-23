@@ -345,3 +345,28 @@ button.logo:hover .wordmark b, button.logo:focus-visible .wordmark b { color: va
 .tour-dots i.on { background: var(--signal); }
 .bar .tour-btn { width: auto; padding: 0 10px; font-size: 13px; font-weight: 600; }
 @media (prefers-reduced-motion: reduce) { .tour-spot { transition: none; } }
+
+/* Catch me up and My player: one bar under the board. */
+.viewer-bar { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; margin: 8px 0; }
+.catch-up { background: var(--signal); color: #17140c; border: 0; border-radius: 8px; padding: 7px 14px; font: 700 14px var(--font-display); letter-spacing: 0.02em; text-transform: uppercase; }
+.catch-up:hover, .catch-up:focus-visible { filter: brightness(1.08); }
+.my-line { display: flex; flex-wrap: wrap; align-items: center; gap: 2px 10px; margin: 0; flex: 1; min-width: 0; font-size: 13px; }
+.my-line.muted { color: var(--muted); }
+.my-line .my-name { font-family: var(--font-display); color: var(--signal); }
+.my-line .gap { color: var(--muted); font-size: 12px; }
+.my-stop { background: transparent; border: 1px solid var(--border); border-radius: 99px; width: 24px; height: 24px; padding: 0; line-height: 1; color: var(--muted); }
+.notice { position: absolute; left: 50%; bottom: 12px; transform: translateX(-50%); background: #000d; border: 1px solid var(--signal); border-radius: 8px; padding: 6px 12px; font-size: 13px; max-width: 86%; text-align: center; animation: notice-in 0.2s ease-out; }
+@keyframes notice-in { from { opacity: 0; } }
+@media (prefers-reduced-motion: reduce) { .notice { animation: none; } }
+.picker { background: var(--panel-2); color: var(--ink); border: 1px solid var(--border); border-radius: 8px; padding: 4px 8px; font: inherit; max-width: 12em; }
+.player.pickable { cursor: pointer; }
+.player circle.mine-ring { fill: none; stroke: var(--signal); stroke-width: 0.35; filter: none; }
+.player text.mine-label { font: 600 1.6px var(--font-ui); fill: var(--signal); stroke: #000c; stroke-width: 0.3px; }
+.mine-dot { display: inline-block; width: 7px; height: 7px; border-radius: 50%; background: var(--signal); margin-left: 6px; vertical-align: 1px; }
+@media (max-width: 700px) {
+  .viewer-bar { margin: 6px 0; }
+  .catch-up { width: 100%; padding: 10px 14px; }
+  .my-line { font-size: 12px; }
+  .picker { max-width: none; flex: 1; margin-left: 12px; }
+  .notice { position: static; transform: none; max-width: none; margin-top: 6px; }
+}

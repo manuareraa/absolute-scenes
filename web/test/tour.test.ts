@@ -20,7 +20,7 @@ describe("tour text", () => {
     const en = tr("en-GB").tour.steps;
     const es = tr("es-ES").tour.steps;
     expect(es.map((st) => st.at)).toEqual(en.map((st) => st.at));
-    expect(en.length).toBe(5);
+    expect(en.length).toBe(6);
     for (const st of [...en, ...es]) expect(st.title && st.body).toBeTruthy();
   });
 });
