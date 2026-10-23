@@ -28,19 +28,20 @@ CHALKTALK_AGENTS=foundry CHALKTALK_AGENT_VERSION=1 CHALKTALK_MAX_TOKENS=300 CHAL
 
 # 2. Show fixture and producer queue from those overlays (stream A's builder, no Azure)
 env -u CHALKTALK_CREW_BACKEND uv run python web/scripts/show_fixture.py --cache $C --half-minutes 5 \
-  --out /tmp/show-sim-7.json --queue web/public/fixtures/queue-sim-7.json
+  --out /tmp/show-sim-7.json --queue /tmp/queue-sim-7.json
 
 # 3. Audio into the fixture: the 4 tool-chapter syntheses (Speech F0, no tokens)
 CHALKTALK_SPEECH_BACKEND=azure uv run --with azure-cognitiveservices-speech \
-  python -m chalktalk_crew voice-show --fixture /tmp/show-sim-7.json --cache $C \
-  --half-minutes 5 --out web/public/fixtures
+  python -m chalktalk_crew voice-show --fixture /tmp/show-sim-7.json --queue /tmp/queue-sim-7.json \
+  --cache $C --half-minutes 5 --out web/public/fixtures
 ```
 
-Step 3 writes `web/public/fixtures/show-sim-7.json` and `web/public/fixtures/show-sim-7/audio/*.mp3`. It prints a JSON log with these fields:
+Step 3 writes `web/public/fixtures/show-sim-7.json`, `web/public/fixtures/queue-sim-7.json` and `web/public/fixtures/show-sim-7/audio/*.mp3`. Its input must be step 2's unvoiced fixture, never an already voiced one. It prints a JSON log with these fields:
 - `copied`, `synthesized`, `reused` and `missing`: overlay ids;
 - `speech_characters`;
 - `files`, `total_bytes` and `largest_bytes`;
-- `cue_word_gap_max_ms`: the largest distance from a cue to a word start, which must be 0.
+- `cue_word_gap_max_ms`: the largest distance from a cue to a word start, which must be 0;
+- `cues_moved` and `queue_cues_moved`: cues the writer put after their word, moved back onto it.
 
 The tool refuses to write if any MP3 is over the 25 MiB Workers static-asset cap.
 
@@ -57,3 +58,14 @@ The tool refuses to write if any MP3 is over the 25 MiB Workers static-asset cap
 ## Cost estimate
 - **Tokens:** 72 overlays × about $0.0012 (about 5 agent runs each, as measured in M10) ≈ $0.09. The `--budget-usd 0.50` cap stops the run long before $1.
 - **Speech:** about 76 syntheses of about 400 characters each ≈ 30k characters. F0 includes 0.5M characters a month, so this is free.
+
+## First live run (coordinator, after B's #46): cues written after their word
+- The first run reported `cue_word_gap_max_ms = 800`.
+- **Cause:** in 15 of 234 cues, the writer put the cue after its word, before punctuation (for example `esas ocasiones [[k2]].`), instead of right before it.
+  - 4 were at the very end of a script, with no word after them. They stayed at the end of the audio, which is the 563–800 ms gap: the length of the last word.
+  - The other 11 measured 0, but they had snapped to the first word of the next clause, so they were late.
+- **Fix:**
+  - `snap_bookmarks` now sends a cue that is followed by punctuation or by the end of the script back to the start of the word before it.
+  - `voice-show` applies the same rule to cached overlays (`resnap_trailing`, which works from the text and is idempotent). The run is not repeated.
+  - On the coordinator's fixture, all 15 cues moved, and the largest gap went to 0.
+- **Re-run:** steps 2 and 3 only, which cost nothing. The crew MP3s are copied from `$C`, and the ghost and VAR audio comes from `$C/.../voiced/`.

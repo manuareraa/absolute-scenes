@@ -4,7 +4,7 @@ import json
 from dataclasses import replace
 
 from chalktalk_crew import FakeSpeechClient
-from chalktalk_crew.voice import cue_word_gap_ms, voice_show
+from chalktalk_crew.voice import cue_word_gap_ms, resnap_trailing, voice_show
 
 SSML = (
     "<speak><voice name='en-GB-RyanNeural'>Look <bookmark mark='c1'/>here, then there.</voice>"
@@ -94,3 +94,24 @@ def test_no_audio_from_fake_speech_leaves_no_url(tmp_path):
     voice_show(fx, tmp_path / "root", tmp_path / "audio", FakeSpeechClient())
     assert "audio_url" not in fx["shows"][0]["segments"][1]["overlay"]["script"]
     json.dumps(fx)
+
+
+def test_resnap_moves_a_cue_written_after_its_word_back_onto_it():
+    # Cached before snap_bookmarks learned this: the trailing cue sat at the end of the audio,
+    # the mid-text one on the first word of the next clause.
+    ov = {
+        "id": "ov",
+        "script": {
+            "ssml": "<speak><voice>Un espacio <bookmark mark='k1'/>. Esas ocasiones, "
+            "y ocasiones <bookmark mark='k2'/>.</voice></speak>",
+            "cues": [{"cue_id": "k1", "offset_ms": 900}, {"cue_id": "k2", "offset_ms": 3100}],
+            "words": [
+                {"text": t, "offset_ms": o, "duration_ms": 100}
+                for t, o in [("Un", 0), ("espacio", 200), ("Esas", 900), ("ocasiones", 1200),
+                             ("y", 2000), ("ocasiones", 2300)]
+            ],
+        },
+    }  # fmt: skip
+    assert resnap_trailing(ov) == 2
+    assert [c["offset_ms"] for c in ov["script"]["cues"]] == [200, 2300]
+    assert resnap_trailing(ov) == 0  # idempotent

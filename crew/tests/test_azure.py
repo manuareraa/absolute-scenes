@@ -9,6 +9,7 @@ from chalktalk_crew.azure import (
     AzureFoundryLLMClient,
     AzureSpeechClient,
     clean_template,
+    names_previous,
     snap_bookmarks,
 )
 from chalktalk_crew.crew import Crew
@@ -119,6 +120,21 @@ def test_snap_bookmarks_by_text_position():
     offsets = [ssml.index(w.text) for w in words]
     snapped = snap_bookmarks({"k1": 260, "k2": 745}, words, ssml=ssml, text_offsets=offsets)
     assert snapped == {"k1": 400, "k2": 760}
+
+
+def test_snap_bookmark_written_after_its_word_goes_back_to_it():
+    # The writer sometimes ends a clause with the cue: "esas ocasiones [[k2]]." names "ocasiones".
+    ssml = (
+        "<speak><voice>Un espacio <bookmark mark='k1'/>. Esas ocasiones <bookmark mark='k2'/>."
+        "</voice></speak>"
+    )
+    words = [WordTiming("Un", 50, 100), WordTiming("espacio", 160, 400)]
+    words += [WordTiming("Esas", 900, 200), WordTiming("ocasiones", 1110, 800)]
+    offsets = [ssml.index(w.text) for w in words]
+    raw = {"k1": 570, "k2": 1915}
+    assert snap_bookmarks(raw, words, ssml=ssml, text_offsets=offsets) == {"k1": 160, "k2": 1110}
+    assert snap_bookmarks(raw, words, ssml=ssml) == {"k1": 160, "k2": 1110}  # by time
+    assert names_previous(ssml, "k2") and not names_previous("a <bookmark mark='k1'/>b", "k1")
 
 
 def test_speech_locale_from_voice():

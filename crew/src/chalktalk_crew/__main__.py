@@ -46,6 +46,7 @@ def main(argv: list[str] | None = None) -> int:
     p.add_argument(
         "--out", type=Path, required=True, help="write the voiced fixture and audio here"
     )
+    p.add_argument("--queue", type=Path, help="also fix the cues of this producer queue")
     p.add_argument("--cache", type=Path, default=Path(".chalktalk-cache"))
     p.add_argument("--seed", type=int, default=7)
     p.add_argument("--half-minutes", type=float, required=True)
