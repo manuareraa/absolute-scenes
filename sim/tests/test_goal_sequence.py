@@ -69,6 +69,8 @@ def test_keeper_holds_after_a_save(demo):
     for sv in saves:
         gk = idx[sv["actors"][0]]
         f0 = sv["t"] // FRAME_MS + 1
+        if f0 + 50 > len(demo.ball):
+            continue  # saved in the last two seconds; the whistle ends the hold
         held = demo.ball[f0 : f0 + 50, BOWNER] == gk
         assert held.all()  # two seconds in hand
         moved = np.linalg.norm(demo.players[f0 + 49, gk, [PX, PY]] - demo.players[f0, gk, [PX, PY]])

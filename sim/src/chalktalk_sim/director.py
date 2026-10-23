@@ -749,7 +749,8 @@ class _Director:
                 in_box or xn > cal.beat_shot_min_xn or late > cal.beat_any_shot_s
             )
             boost = cal.shot_box_boost if in_box else 0.0
-            if take or self.rng.random() < min(0.9, xg * cal.shot_appetite + boost):
+            p_shot = min(xg, cal.shot_xg_cap) * cal.shot_appetite + boost
+            if take or self.rng.random() < min(0.9, p_shot):
                 if beat is not None:
                     self.used_beats.add(beat)
                 self.shoot(c, forced=beat is not None)

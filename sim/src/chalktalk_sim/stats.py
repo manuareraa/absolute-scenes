@@ -25,8 +25,11 @@ PPDA_ZONE_X = -HALF_LENGTH + 0.4 * PITCH_LENGTH  # in the pressing team's attack
 REFERENCE = {
     "shots_per90": (20.0, 32.0),  # both teams; PL 25.3 (2022/23), 27.2 (2023/24)
     "xg_per_team_per90": (0.6, 2.4),
+    "xg_per_shot": (0.07, 0.15),  # PL conversion 11.9% of shots (2023/24)
     "ppda": (6.0, 16.0),  # PL team range, about 8.6 (high press) to 15+ (low block)
     "pass_completion": (0.70, 0.90),
+    # Team pressing intensity, as measured by the same core function on IDSSE (DFL) play.
+    "pressing": (0.45, 0.70),
 }
 
 
