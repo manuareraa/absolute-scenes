@@ -67,6 +67,89 @@ def fix_slot_names(template: str, slots: set[str]) -> str:
     return template
 
 
+# The words that can name each tool's stroke, for putting back a cue the writer left out.
+DRAWN_NOUNS: dict[str, dict[str, tuple[str, ...]]] = {
+    "en": {
+        "line_gap": ("gap", "gaps", "space", "hole"),
+        "pitch_control": ("zone", "area", "space", "territory"),
+        "pressing_intensity": ("press", "pressure", "pressing"),
+        "pass_options": ("pass", "passes", "lane", "lanes", "options"),
+        "offside_line": ("line",),
+        "shape_compactness": ("block", "shape"),
+        "xg": ("shot", "chance", "strike", "effort"),
+    },
+    "es": {
+        "line_gap": ("hueco", "espacio", "pasillo"),
+        "pitch_control": ("zona", "área", "espacio", "terreno"),
+        "pressing_intensity": ("presión", "presiona", "pressing"),
+        "pass_options": ("pase", "pases", "línea", "opciones"),
+        "offside_line": ("línea",),
+        "shape_compactness": ("bloque", "forma", "dibujo"),
+        "xg": ("disparo", "ocasión", "tiro", "remate"),
+    },
+}
+SENTENCE = re.compile(r"[^.!?;]+[.!?;]*")
+
+
+def fix_cues(template: str, beats: list[tuple[str, str, str]], lang: str) -> str:
+    """Put back cue marks the writer left out: before the first word naming the beat's stroke in
+    the sentence that speaks its slot (else anywhere). ``beats`` are (tool, slot, cue_id)."""
+    nouns = DRAWN_NOUNS[lang.split("-")[0]]
+    for tool, slot, cue in beats:
+        if f"[[{cue}]]" in template:
+            continue
+        word = re.compile(
+            r"(?<![\w\]])(" + "|".join(map(re.escape, nouns.get(tool, ()))) + r")\b", re.I
+        )
+        spans = [m.span() for m in SENTENCE.finditer(template) if f"{{{slot}}}" in m.group(0)]
+        for a, b in [*spans, (0, len(template))]:
+            if m := word.search(template, a, b):
+                template = template[: m.start()] + f"[[{cue}]]" + template[m.start() :]
+                break
+    return template
+
+
+# Possessives that put a measured gap or block on the wrong team, per (lang, team_ref kind).
+SHAPE_WORDS = r"(?:own\s+)?(?:lines?|defen\w*|back\s+(?:line|four|five)|block|shape|midfield)"
+WRONG_TEAM = {
+    ("en", "ours"): re.compile(
+        rf"\b(?:their\s+{SHAPE_WORDS}|we(?:'ve)?\s+(?:\w+\s+)?exploit\w*)", re.I
+    ),
+    ("en", "theirs"): re.compile(rf"\bour\s+{SHAPE_WORDS}", re.I),
+    ("es", "ours"): re.compile(
+        r"\b(?:aprovechamos|sus\s+líneas|su\s+defensa|líneas\s+del\s+rival|defensa\s+rival)", re.I
+    ),
+    ("es", "theirs"): re.compile(r"\bnuestr[oa]s?\s+(?:líneas?|defensa|bloque|zaga)", re.I),
+}
+MAJORITY = re.compile(
+    r"\b(?:in\s+favou?r|dominat\w*|own(?:s|ed)?\s+(?:the|this|that)|controls?\s+most|"
+    r"a\s+favor|domin\w*)",
+    re.I,
+)
+
+
+def check_perspective(template: str, beats: list[dict[str, str]], lang: str) -> None:
+    """Reject sentences that give a measured gap or block to the wrong team, or call a minority
+    share a majority. ``beats``: tool, slot, ours ("ours"/"theirs"/"neutral"), minority ("1")."""
+    base = lang.split("-")[0]
+    for b in beats:
+        said = [m.group(0) for m in SENTENCE.finditer(template) if f"{{{b['slot']}}}" in m.group(0)]
+        for sentence in said:
+            wrong = WRONG_TEAM.get((base, b["ours"]))
+            if b["tool"] in ("line_gap", "shape_compactness") and wrong:
+                if hit := wrong.search(sentence):
+                    whose = "our own" if b["ours"] == "ours" else "the other team's"
+                    raise TemplateError(
+                        f"the {b['tool'].split('_')[0]} is in {whose} defensive shape; "
+                        f"{hit.group(0)!r} gives it to the wrong team"
+                    )
+            if b.get("minority") and (hit := MAJORITY.search(sentence)):
+                raise TemplateError(
+                    f"that share is under half, so {hit.group(0)!r} is wrong: the other team "
+                    "holds most of the zone"
+                )
+
+
 def check_template(
     template: str,
     slots: set[str],
