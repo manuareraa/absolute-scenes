@@ -38,6 +38,8 @@ from .teams import lineup
 DT = FRAME_MS / 1000.0
 TEAMS = ("home", "away")
 GOAL_KICK_X = HALF_LENGTH - 5.5
+BOX_DEPTH = 16.5
+BOX_HALF_WIDTH = 20.16
 
 
 @dataclass(frozen=True)
@@ -59,8 +61,17 @@ class MatchConfig:
     calibration: Calibration = field(default=DEFAULT)
 
 
-# The compressed demo match: a home goal mid-way through the first half, sent to VAR.
-DEMO_BEATS = (Beat(150_000, "var_check"), Beat(150_000, "goal", "home"))
+# The compressed demo match (2 x 5 min): a home goal mid-way through the first half, sent to
+# VAR; an away equaliser after the break; a late home winner.
+DEMO_BEATS = (
+    Beat(150_000, "var_check"),
+    Beat(150_000, "goal", "home"),
+    Beat(390_000, "goal", "away"),
+    Beat(510_000, "goal", "home"),
+)
+CELEBRATE_MS = 9000  # scorer to the corner flag, team-mates pile on
+KICKOFF_WALK_MS = 9000  # longest walk back to kick-off positions
+KEEPER_HOLD_S = 2.5  # a keeper with the ball in hand holds it this long
 
 
 def config_from_meta(seed: int, meta: dict[str, Any]) -> MatchConfig:
@@ -124,10 +135,15 @@ class _Director:
         self.last_touch = 0
         self.run_until = np.zeros(n)
         self.run_x = np.zeros(n)
+        self.run_y = np.full(n, np.nan)
+        self.scorer = -1
+        self.celebrate_until = 0
         self.cooldown = np.zeros(n)
         self.last_press = np.full(n, -1e9)
         self.score = [0, 0]
         self.beats = sorted(config.beats, key=lambda b: b.t_ms)
+        # With scripted goals the score is the script: other shots on target are saved.
+        self.scripted = any(b.kind == "goal" for b in self.beats)
         self.used_beats: set[int] = set()
         self.events: list[dict[str, Any]] = []
         self.seq = 0
@@ -182,6 +198,21 @@ class _Director:
                 return i
         return None
 
+    def in_own_box(self, team: int, point: np.ndarray) -> bool:
+        xn = float(point[0]) * self.sign(team)
+        return xn < -HALF_LENGTH + BOX_DEPTH and abs(float(point[1])) < BOX_HALF_WIDTH
+
+    def in_attacking_box(self, team: int, point: np.ndarray) -> bool:
+        return self.in_own_box(1 - team, point)
+
+    def chasing_beat(self, team: int) -> bool:
+        """A scripted goal for this team is due: they play forward and win the ball back."""
+        return self.beat_due("goal", team) is not None
+
+    def overdue_s(self, team: int) -> float:
+        i = self.beat_due("goal", team)
+        return -1.0 if i is None else (self.t - self.beats[i].t_ms) / 1000.0
+
     # ------------------------------------------------------------------ setup
     def kickoff_layout(self, kicker: int) -> np.ndarray:
         tgt = np.zeros((self.n, 2))
@@ -234,10 +265,11 @@ class _Director:
         cap = self.vmax * cal.jog_speed_frac
         self.gain = np.full(self.n, cal.arrive_gain)
         bx, by = float(self.ball[0]), float(self.ball[1])
-        dead = self.state in ("goal", "kickoff")
-        if dead:
+        if self.state == "goal" and self.t < self.celebrate_until:
+            tgt, cap = self.celebration()
+        elif self.state in ("goal", "kickoff"):
             tgt = self.kickoff_layout(self.kickoff_team)
-            cap = self.vmax * 0.45
+            cap = self.vmax * 0.7
         else:
             for k in (0, 1):
                 s = self.sign(k)
@@ -260,6 +292,8 @@ class _Director:
                     line = self.offside_line(k)
                     running = self.run_until[idx] > self.t
                     xn = np.where(running, self.run_x[idx], np.minimum(xn, line - 0.4))
+                    ry = self.run_y[idx]
+                    y = np.where(running & ~np.isnan(ry), ry, y)
                 tgt[idx, 0] = xn * s
                 tgt[idx, 1] = y
                 gk = self.gk[k]
@@ -272,6 +306,36 @@ class _Director:
         tgt[:, 1] = np.clip(tgt[:, 1], -HALF_WIDTH - 1.0, HALF_WIDTH + 1.0)
         return tgt, cap
 
+    def celebration(self) -> tuple[np.ndarray, np.ndarray]:
+        """The scorer wheels away to the corner flag, team-mates chase him, the others trudge."""
+        tgt = self.kickoff_layout(self.kickoff_team)
+        cap = self.vmax * 0.3
+        sc = self.scorer
+        team = int(self.team[sc])
+        s = self.sign(team)
+        side = 1.0 if self.pos[sc, 1] >= 0 else -1.0
+        flag = np.array([s * (HALF_LENGTH - 6.0), side * (HALF_WIDTH - 5.0)])
+        tgt[sc] = flag
+        cap[sc] = self.vmax[sc] * 0.8
+        self.gain[sc] = 4.0
+        mates = [i for i in self.members[team] if i != sc and not self.is_gk[i]]
+        for n, i in enumerate(mates):
+            ang = 2 * math.pi * n / len(mates)
+            r = 1.2 if n < 5 else 2.4
+            # Head for where the scorer is going, not where he is.
+            meet = self.pos[sc] + 0.5 * (flag - self.pos[sc])
+            tgt[i] = meet + r * np.array([math.cos(ang), math.sin(ang)])
+            cap[i] = self.vmax[i]
+            self.gain[i] = 3.0
+        gk = self.gk[team]
+        tgt[gk] = (s * -(HALF_LENGTH - 14.0), 0.0)
+        cap[gk] = self.vmax[gk] * 0.5
+        # The conceding keeper picks the ball out of the net.
+        ogk = self.gk[1 - team]
+        tgt[ogk] = self.ball[:2]
+        tgt[self.ref] = (0.0, -6.0)
+        return tgt, cap
+
     def ball_targets(self, tgt: np.ndarray, cap: np.ndarray) -> None:
         cal = self.cal
         b = self.ball[:2]
@@ -281,6 +345,12 @@ class _Director:
             tgt[tk] = self.restart["spot"]
             cap[tk] = self.vmax[tk] * 0.7
             self.gain[tk] = 4.0
+            return
+        if self.owner >= 0 and self.is_gk[self.owner]:
+            # Ball in hand: the keeper stands still and the opponents drop off.
+            c = self.owner
+            tgt[c] = self.pos[c]
+            self.gain[c] = 4.0
             return
         if self.owner >= 0:
             c = self.owner
@@ -336,9 +406,10 @@ class _Director:
                 cap[gk] = self.vmax[gk]
                 self.gain[gk] = 4.0
             return
-        # Loose ball: the nearest player of each team chases it.
+        # Loose ball: the nearest player of each team chases it (a keeper only in his box).
         for k in (0, 1):
-            ch = self.nearest(k, b, exclude_gk=False)
+            in_box = self.in_own_box(k, b)
+            ch = self.nearest(k, b, exclude_gk=not in_box)
             tgt[ch] = b
             cap[ch] = self.vmax[ch]
             self.gain[ch] = 4.0
@@ -382,7 +453,17 @@ class _Director:
             self.bvel[:2] = self.vel[c]
             self.bvel[2] = 0.0
             return
-        if self.state in ("restart", "kickoff"):
+        if self.state == "kickoff":
+            # The ball is played back to the centre spot, not teleported.
+            d = -self.ball[:2]
+            dist = float(np.linalg.norm(d))
+            speed = min(14.0, dist * 1.5)
+            self.bvel[:2] = d / (dist + 1e-9) * speed
+            self.bvel[2] = 0.0
+            self.ball[:2] += self.bvel[:2] * DT
+            self.ball[2] = 0.0
+            return
+        if self.state == "restart":
             self.bvel[:] = 0
             return
         if self.ball[2] > 0 or self.bvel[2] > 0:
@@ -493,7 +574,21 @@ class _Director:
         self.last_touch = team
         self.poss = team
 
-    def choose_pass(self, c: int, max_len: float = 50.0) -> tuple[int, float]:
+    def cross_target(self, c: int) -> int:
+        """The team-mate in the box closest to goal, for a cross from a wide area."""
+        team = int(self.team[c])
+        s = self.sign(team)
+        best, best_x = -1, -1e9
+        for j in self.members[team]:
+            if j == c or self.is_gk[j]:
+                continue
+            if self.in_attacking_box(team, self.pos[j]) and abs(self.pos[j, 1]) < 12.0:
+                xj = float(self.pos[j, 0]) * s
+                if xj > best_x:
+                    best, best_x = int(j), xj
+        return best
+
+    def choose_pass(self, c: int, max_len: float = 50.0, urgent: bool = False) -> tuple[int, float]:
         team = int(self.team[c])
         s = self.sign(team)
         opp = self.pos[self.members[1 - team]]
@@ -516,7 +611,7 @@ class _Director:
             space = float(np.min(np.linalg.norm(opp - pj, axis=1)))
             progress = (pj[0] - p0[0]) * s / 20.0
             score = (
-                1.2 * progress
+                (2.2 if urgent else 1.2) * progress
                 + 1.4 * min(lane / 4.0, 1.0)
                 + 1.0 * min(space / 6.0, 1.0)
                 - abs(d - 18.0) / 40.0
@@ -541,7 +636,7 @@ class _Director:
             outcome = "goal"
         else:
             on = rng.random() < 0.45
-            p_goal = min(0.9, max(0.05, xg / 0.4))
+            p_goal = 0.0 if self.scripted else min(0.8, max(0.03, xg / 0.5))
             outcome = ("goal" if rng.random() < p_goal else "saved") if on else "off_target"
         side = 1.0 if rng.random() < 0.5 else -1.0
         if outcome == "goal":
@@ -619,25 +714,47 @@ class _Director:
         dmin = float(np.min(np.linalg.norm(self.pos[opp] - self.pos[c], axis=1)))
         pressed = dmin < cal.press_radius_m
         hold = (self.t - self.reception_t) / 1000.0
+        if self.is_gk[c]:
+            # Ball in hand: hold it, then roll or kick it out to a team-mate.
+            if hold < KEEPER_HOLD_S:
+                return
+            recv, _ = self.choose_pass(c, max_len=60.0)
+            if recv < 0:
+                recv = self.nearest(team, self.pos[c])
+            self.kick_pass(c, recv, lofted=None)
+            return
         if hold < 0.35:
             return
         rate = 1.0 / (cal.pressed_hold_s if pressed else cal.mean_hold_s)
         if self.rng.random() >= rate * DT:
             return
         xn = float(self.pos[c, 0]) * s
+        y = float(self.pos[c, 1])
         beat = self.beat_due("goal", team)
-        if xn > 18.0:
-            xg = xg_of(float(self.pos[c, 0]), float(self.pos[c, 1]), s)
+        in_box = self.in_attacking_box(team, self.pos[c])
+        late = self.overdue_s(team)
+        central = abs(y) < 20.0
+        if xn > 18.0 and (central or late < 0):
+            xg = xg_of(float(self.pos[c, 0]), y, s)
             boost = 0.5 if beat is not None and xn > 25.0 else 0.0
-            if self.rng.random() < min(0.85, xg * 2.2 + boost):
+            if in_box:
+                boost += 0.12 if beat is None else 1.0
+            if late > 25.0:
+                boost += 0.6
+            if self.rng.random() < min(0.9, xg * 2.2 + boost):
                 if beat is not None:
                     self.used_beats.add(beat)
                 self.shoot(c, forced=beat is not None)
                 return
+        if xn > 28.0 and abs(y) > 16.0 and self.rng.random() < 0.45:
+            recv = self.cross_target(c)
+            if recv >= 0:
+                self.kick_pass(c, recv, lofted=True)
+                return
         if self.is_def[c] and xn < -28.0 and pressed and self.rng.random() < 0.35:
             self.clear(c)
             return
-        recv, score = self.choose_pass(c)
+        recv, score = self.choose_pass(c, urgent=beat is not None)
         if recv < 0 or (score < 0.6 and not pressed and self.rng.random() < 0.5):
             self.reception_t = self.t - 200
             return
@@ -648,6 +765,11 @@ class _Director:
         c = self.owner
         team = int(self.team[c])
         opp = self.members[1 - team]
+        if self.is_gk[c]:
+            return
+        hungry = 3.0 if self.chasing_beat(1 - team) else 1.0
+        if self.chasing_beat(team):
+            hungry /= 4.0
         d = np.linalg.norm(self.pos[opp] - self.pos[c], axis=1)
         closing = -np.sum((self.pos[opp] - self.pos[c]) * (self.vel[opp] - self.vel[c]), axis=1)
         closing /= d + 1e-9
@@ -658,7 +780,7 @@ class _Director:
         for k, dk in zip(opp, d, strict=True):
             if dk > cal.tackle_radius_m or self.cooldown[k] > self.t or self.is_gk[k]:
                 continue
-            if self.rng.random() >= cal.tackle_rate_hz * DT:
+            if self.rng.random() >= cal.tackle_rate_hz * hungry * DT:
                 continue
             self.cooldown[k] = self.t + 1500
             r = self.rng.random()
@@ -698,7 +820,12 @@ class _Director:
             if d[k] >= self.cal.control_radius_m:
                 break
             same = int(self.team[k]) == f["team"]
-            if not same and self.rng.random() >= self.cal.intercept_per_tick:
+            grab = self.cal.intercept_per_tick
+            if self.chasing_beat(int(self.team[k])):
+                grab *= 3.0
+            elif self.chasing_beat(f["team"]):
+                grab /= 4.0
+            if not same and self.rng.random() >= grab:
                 continue
             ev = f["event"]
             if f["kind"] == "pass":
@@ -746,7 +873,9 @@ class _Director:
         self.bvel[:2] *= 0.3
         self.state = "goal"
         self.kickoff_team = 1 - team
-        wait = 14000
+        self.scorer = scorer
+        self.celebrate_until = self.t + CELEBRATE_MS
+        wait = CELEBRATE_MS + KICKOFF_WALK_MS
         vb = self.beat_due("var_check", None)
         if vb is not None:
             self.used_beats.add(vb)
@@ -754,7 +883,7 @@ class _Director:
                 (self.t + 3000, "var_check", scorer, team, {"reason": "possible offside"}),
                 (self.t + 14000, "var_decision", scorer, team, {"decision": "goal_stands"}),
             ]
-            wait = 22000
+            wait = CELEBRATE_MS + KICKOFF_WALK_MS + 6000
         self.resume_t = self.t + wait
 
     def out_of_play(self) -> None:
@@ -829,10 +958,20 @@ class _Director:
         att = self.poss
         idx = self.members[att][self.is_fwd[self.members[att]]]
         line = self.offside_line(att)
+        final_third = float(self.ball[0]) * self.sign(att) > 20.0
         for i in idx:
-            if self.run_until[i] < self.t and self.rng.random() < 0.25 * DT:
+            if (
+                self.run_until[i] < self.t
+                and self.rng.random() < (0.6 if final_third else 0.25) * DT
+            ):
                 self.run_until[i] = self.t + 2500
-                self.run_x[i] = min(line + self.rng.uniform(6, 14), HALF_LENGTH - 8)
+                if final_third:
+                    # Attack the box: near post, far post or penalty spot.
+                    self.run_x[i] = HALF_LENGTH - self.rng.uniform(5, 12)
+                    self.run_y[i] = self.rng.uniform(-8, 8)
+                else:
+                    self.run_x[i] = min(line + self.rng.uniform(6, 14), HALF_LENGTH - 8)
+                    self.run_y[i] = np.nan
 
     def step(self) -> None:
         tgt, cap = self.targets()
@@ -859,10 +998,13 @@ class _Director:
                     self.pending.remove(p)
             if self.t >= self.resume_t - 6000:
                 self.state = "kickoff"
-                self.ball[:] = 0
+                self.ball[2] = 0.0
                 self.bvel[:] = 0
         elif self.state == "kickoff":
-            if self.t >= self.resume_t:
+            lay = self.kickoff_layout(self.kickoff_team)
+            spread = float(np.max(np.linalg.norm(self.pos - lay, axis=1)))
+            ready = spread < 3.0 and float(np.linalg.norm(self.ball[:2])) < 0.3
+            if (self.t >= self.resume_t and ready) or self.t >= self.resume_t + 6000:
                 st = self.nearest(self.kickoff_team, np.zeros(2))
                 self.pos[st] = (-0.4 * self.sign(self.kickoff_team), 0.3)
                 self.do_kickoff(self.kickoff_team)
@@ -898,6 +1040,10 @@ class _Director:
             if self.flight is not None and self.flight["kind"] == "pass":
                 self.flight["event"]["attrs"].setdefault("outcome", "incomplete")
             self.flight = None
+            # VAR still running at the whistle: settle it before the period ends.
+            for q in self.pending:
+                self.emit(q[1], [q[2]], q[3], **q[4])
+            self.pending = []
             self.emit("period_end", [], None, period=p)
             self.tick += 1
         self.events.sort(key=lambda e: (e["t"], e["_seq"]))
