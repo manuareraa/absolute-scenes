@@ -3,6 +3,7 @@
 // banner, as a broadcast shows a check in progress. Meta comes from `show_fixture.py`, by the
 // VAR claim's output hash.
 import type { Overlay } from "@chalktalk/contracts";
+import { tr } from "./i18n";
 
 export interface VarMeta {
   check_t: number;
@@ -36,9 +37,8 @@ export function varGraphics(meta: VarMeta, o: Overlay, audioMs: number): Overlay
   };
 }
 
-const DECISIONS: Record<string, string> = { goal_stands: "Goal stands", goal_disallowed: "No goal" };
-
-export function varBanner(meta: VarMeta, provisional: boolean): { title: string; detail: string } {
-  if (provisional) return { title: "VAR check · provisional", detail: meta.reason ? `Checking: ${meta.reason}` : "Checking" };
-  return { title: `VAR · ${DECISIONS[meta.decision] ?? meta.decision.replaceAll("_", " ")}`, detail: meta.offside === "onside" ? "Onside" : "Offside" };
+export function varBanner(meta: VarMeta, provisional: boolean, lang = "en-GB"): { title: string; detail: string } {
+  const v = tr(lang).var;
+  if (provisional) return { title: v.check, detail: meta.reason ? v.checkingFor(meta.reason) : v.checking };
+  return { title: `VAR · ${v.decisions[meta.decision] ?? meta.decision.replaceAll("_", " ")}`, detail: meta.offside === "onside" ? v.onside : v.offside };
 }

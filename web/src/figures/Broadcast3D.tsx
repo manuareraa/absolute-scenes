@@ -3,7 +3,7 @@
 // six draw calls. Lambert materials, no shadows and a capped pixel ratio unless ?quality=high.
 // Pitch metres map to world as (x, y) -> (x, 0, -y), y up.
 import { Canvas, useFrame, useThree } from "@react-three/fiber";
-import { useMemo, useRef } from "react";
+import { useMemo, useRef, type PointerEvent as RPointerEvent, type WheelEvent as RWheelEvent } from "react";
 import * as THREE from "three";
 import type { Frame } from "@chalktalk/contracts";
 import { HALF_L, HALF_W } from "../pitch";
@@ -90,7 +90,17 @@ function limb(mesh: THREE.InstancedMesh, k: number, a: THREE.Vector3, b: THREE.V
   mesh.setMatrixAt(k, tmp.m);
 }
 
-function Figures({ frame }: { frame: Frame | undefined }) {
+/** Camera on a sphere around the ball's x: azimuth and elevation in radians, distance in metres. */
+interface Orbit {
+  az: number;
+  el: number;
+  r: number;
+  tx: number;
+}
+// A raised broadcast angle from behind the near touchline that frames both touchlines.
+const HOME_ORBIT = { az: 0, el: 0.62, r: 92 };
+
+function Figures({ frame, orbit }: { frame: Frame | undefined; orbit: { current: Orbit } }) {
   const latest = useRef(frame);
   latest.current = frame;
   const gaits = useRef(new Map<string, Gait>());
@@ -150,11 +160,13 @@ function Figures({ frame }: { frame: Frame | undefined }) {
     }
     ball.current?.position.set(f.ball.x, 0.11 + f.ball.z, -f.ball.y);
 
-    // Elevated side camera that pans with the ball, eased.
+    // Raised side camera that pans with the ball, eased; a drag orbits it around that point.
+    const o = orbit.current;
     const tx = THREE.MathUtils.clamp(f.ball.x * 0.8, -HALF_L + 20, HALF_L - 20);
-    const e = 1 - Math.exp(-delta * 1.5);
-    camera.position.x += (tx - camera.position.x) * e;
-    camera.lookAt(camera.position.x, 0, 12); // frames both touchlines
+    o.tx += (tx - o.tx) * (1 - Math.exp(-delta * 1.5));
+    const flat = o.r * Math.cos(o.el);
+    camera.position.set(o.tx + flat * Math.sin(o.az), o.r * Math.sin(o.el), flat * Math.cos(o.az));
+    camera.lookAt(o.tx, 0, 0);
   });
 
   const cyl = useMemo(() => new THREE.CylinderGeometry(0.075, 0.06, 1, 6), []);
@@ -176,15 +188,36 @@ function Figures({ frame }: { frame: Frame | undefined }) {
         <meshLambertMaterial />
       </instancedMesh>
       <mesh ref={ball} castShadow>
-        <sphereGeometry args={[0.22, 10, 8]} />
+        <sphereGeometry args={[0.32, 12, 10]} />
         <meshLambertMaterial color="#ffffff" />
       </mesh>
     </group>
   );
 }
 
-export default function Broadcast3D({ frame, active, quality }: { frame: Frame | undefined; active: boolean; quality: "light" | "high" }) {
+export default function Broadcast3D(props: { frame: Frame | undefined; active: boolean; quality: "light" | "high"; label?: string }) {
+  const { frame, active, quality, label = "Synthetic broadcast view" } = props;
   const high = quality === "high";
+  const orbit = useRef<Orbit>({ ...HOME_ORBIT, tx: 0 });
+  const drag = useRef<{ x: number; y: number } | null>(null);
+  const onDown = (e: RPointerEvent) => {
+    drag.current = { x: e.clientX, y: e.clientY };
+    (e.target as Element).setPointerCapture?.(e.pointerId);
+  };
+  const onMove = (e: RPointerEvent) => {
+    const d = drag.current;
+    if (!d) return;
+    const o = orbit.current;
+    o.az = THREE.MathUtils.clamp(o.az - (e.clientX - d.x) * 0.006, -1.4, 1.4);
+    o.el = THREE.MathUtils.clamp(o.el + (e.clientY - d.y) * 0.004, 0.12, 1.45);
+    drag.current = { x: e.clientX, y: e.clientY };
+  };
+  const onUp = () => (drag.current = null);
+  const onWheel = (e: RWheelEvent) => {
+    orbit.current.r = THREE.MathUtils.clamp(orbit.current.r * Math.exp(e.deltaY * 0.001), 40, 150);
+  };
+  // Double-click returns to the broadcast angle.
+  const onReset = () => Object.assign(orbit.current, HOME_ORBIT);
   return (
     <Canvas
       className="pitch3d"
@@ -192,8 +225,16 @@ export default function Broadcast3D({ frame, active, quality }: { frame: Frame |
       dpr={[1, high ? 2 : 1.5]}
       shadows={high}
       gl={{ antialias: high, powerPreference: high ? "high-performance" : "low-power" }}
-      camera={{ position: [0, 30, 70], fov: 30, near: 1, far: 400 }}
-      aria-label="Synthetic broadcast view"
+      camera={{ position: [0, 57, 73], fov: 30, near: 1, far: 400 }}
+      aria-label={label}
+      title={label}
+      onPointerDown={onDown}
+      onPointerMove={onMove}
+      onPointerUp={onUp}
+      onPointerCancel={onUp}
+      onWheel={onWheel}
+      onDoubleClick={onReset}
+      style={{ touchAction: "none", cursor: "grab" }}
     >
       <color attach="background" args={["#0d1410"]} />
       <hemisphereLight args={["#dfe9ff", "#24402a", 1.4]} />
@@ -201,7 +242,7 @@ export default function Broadcast3D({ frame, active, quality }: { frame: Frame |
         <orthographicCamera attach="shadow-camera" args={[-60, 60, 40, -40, 1, 200]} />
       </directionalLight>
       <Pitch />
-      <Figures frame={frame} />
+      <Figures frame={frame} orbit={orbit} />
     </Canvas>
   );
 }
