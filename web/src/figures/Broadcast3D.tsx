@@ -12,8 +12,9 @@ import { armSwing, bodyPose, footPose, stepGait, type Gait } from "./gait";
 const MAX = 32;
 const HIP_Y = 0.92;
 const TORSO_H = 0.55;
-const SHIRT = { home: "#e5484d", away: "#3e8ef7", ref: "#f5d90a" } as const;
-const SHORTS = { home: "#f4f1e6", away: "#14284a", ref: "#1b1b1b" } as const;
+// The sim's kits (sim/teams.py): home blue with white shorts, away red with black shorts.
+const SHIRT = { home: "#3e8ef7", away: "#e5484d", ref: "#f5d90a" } as const;
+const SHORTS = { home: "#f4f1e6", away: "#1b1b1b", ref: "#1b1b1b" } as const;
 const UP = new THREE.Vector3(0, 1, 0);
 
 /** Pitch markings as one LineSegments geometry, with goal frames. */

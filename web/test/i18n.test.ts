@@ -27,9 +27,9 @@ describe("summary headlines", () => {
   const chance = { kind: "chance", team: "home", headline: "Chance, home: xG 0.01, saved", xg: 0.0123 } as unknown as Moment;
 
   it("rebuild goals and chances with team names, in the UI language", () => {
-    expect(momentHeadline(goal, "en-GB")).toMatch(/^Goal, Reds: 1-0 \(VAR: goal stands\)$/i);
-    expect(momentHeadline(chance, "en-GB")).toBe("Chance, Reds: xG 0.01, saved");
-    expect(momentHeadline(chance, "es-ES")).toMatch(/^Ocasión, Rojos: xG 0,01, parada$/);
+    expect(momentHeadline(goal, "en-GB")).toMatch(/^Goal, Northbridge: 1-0 \(VAR: goal stands\)$/i);
+    expect(momentHeadline(chance, "en-GB")).toBe("Chance, Northbridge: xG 0.01, saved");
+    expect(momentHeadline(chance, "es-ES")).toMatch(/^Ocasión, Northbridge: xG 0,01, parada$/);
   });
 });
 
