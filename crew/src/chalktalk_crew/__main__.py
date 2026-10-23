@@ -1,4 +1,5 @@
 """``python -m chalktalk_crew run``: generate and cache verified overlays for a seeded sim match.
+``python -m chalktalk_crew voice-show``: put the crew's audio into a Show fixture (``voice.py``).
 
 Backends come from env (``CHALKTALK_CREW_BACKEND=azure`` plus the Azure keys); the default is
 the fakes, which cost nothing.
@@ -40,7 +41,18 @@ def main(argv: list[str] | None = None) -> int:
     p = sub.add_parser("live", help="generate, then post each overlay as the live clock nears it")
     _common(p)
     p.add_argument("--ahead-s", type=float, default=8.0, help="post this long before the moment")
+    p = sub.add_parser("voice-show", help="give a Show fixture the crew's audio, voice the rest")
+    p.add_argument("--fixture", type=Path, required=True, help="web/public/fixtures/show-*.json")
+    p.add_argument("--cache", type=Path, default=Path(".chalktalk-cache"))
+    p.add_argument("--seed", type=int, default=7)
+    p.add_argument("--half-minutes", type=float, required=True)
     args = parser.parse_args(argv)
+    if args.cmd == "voice-show":
+        from .voice import main as voice_main
+
+        json.dump(voice_main(args), sys.stdout, indent=2)
+        print()
+        return 0
 
     opts = RunOptions(
         seed=args.seed,
