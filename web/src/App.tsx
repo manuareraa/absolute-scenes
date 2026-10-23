@@ -33,7 +33,16 @@ const DEMO = params.get("demo") !== "off";
 /** The 2D board is the GPU-light default; `?view=3d` opens the broadcast view, `?quality=high` adds AA and shadows. */
 const VIEWS = ["2d", "3d"] as const;
 type View = (typeof VIEWS)[number];
-const START_VIEW: View = params.get("view") === "3d" ? "3d" : "2d";
+// Without WebGL (some locked-down or headless browsers) the 3D view cannot start; offer 2D only.
+const WEBGL = (() => {
+  try {
+    return !!document.createElement("canvas").getContext("webgl2");
+  } catch {
+    return false;
+  }
+})();
+const VIEW_OPTIONS: readonly View[] = WEBGL ? VIEWS : ["2d"];
+const START_VIEW: View = WEBGL && params.get("view") === "3d" ? "3d" : "2d";
 const QUALITY = params.get("quality") === "high" ? "high" : "light";
 /** Deep links: `?surface=show&lens=analyst&side=away&lang=es-ES`; the URL follows every change. */
 const pick = <T extends string>(key: string, options: readonly T[], fallback: T): T => {
@@ -308,7 +317,7 @@ export function App() {
           <Segmented s={s} group="lens" value={lens} options={LENSES} onChange={setLens} />
           <Segmented s={s} group="side" value={side} options={SIDES} onChange={setSide} />
           {langs.length > 1 && <Segmented s={s} group="lang" value={langs.includes(lang) ? lang : "en-GB"} options={langs} onChange={setLang} />}
-          <Segmented s={s} group="view" value={view} options={VIEWS} onChange={setView} />
+          <Segmented s={s} group="view" value={view} options={VIEW_OPTIONS} onChange={setView} />
         </div>
         <span className={`badge ${isLive ? "live" : mode.mode}`} title={isLive ? s.liveHint : mode.mode === "fixture" ? (mode.detail ?? s.recordedHint) : undefined} role="status">
           {isLive ? (ended ? s.fullTime : s.live) : mode.mode === "fixture" ? s.recorded : s.connecting}

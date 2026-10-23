@@ -4,12 +4,16 @@ import raw from "../public/fixtures/queue-sim-7.json?raw";
 import { frameAt } from "../src/playback";
 import {
   SECRET_HEADER,
+  airLabel,
   applyDecisions,
   approvalFor,
+  broadcastUrl,
+  byMoment,
   counts,
   gateRows,
   mergeQueue,
   momentTellings,
+  nextMoment,
   postDecision,
   queueOrder,
   restartMatch,
@@ -111,5 +115,38 @@ describe("approving a whole moment", () => {
     const back = withdrawn({ ...first, approval: approvalFor(first, "approve", "ed", AT) });
     expect(back.approval).toEqual({ state: "pending", by: null, at: null });
     expect(validate("overlay", back).errors).toEqual([]);
+  });
+});
+
+describe("against the live clock", () => {
+  const times = [...new Set(fx.overlays.map((o) => o.match_tc))].sort((a, b) => a - b);
+
+  it("puts moments still ahead of the clock first, grouped by moment", () => {
+    const liveT = times[1];
+    const q = queueOrder(fx.overlays, true, liveT);
+    expect(q[0].match_tc).toBe(times[2]);
+    const groups = byMoment(q);
+    expect(groups.map((g) => g.at)).toEqual([...times.slice(2), ...times.slice(0, 2)]);
+    expect(groups[0].overlays.every((o) => o.match_tc === times[2])).toBe(true);
+  });
+
+  it("labels a row airs in, aired once approved, or missed when left open", () => {
+    expect(airLabel(first, first.match_tc - 1500)).toEqual({ kind: "airs-in", s: 2 });
+    expect(airLabel(first, first.match_tc + 1)).toEqual({ kind: "missed" });
+    expect(airLabel({ ...first, approval: approvalFor(first, "approve", "p", AT) }, first.match_tc + 1)).toEqual({ kind: "aired" });
+    expect(airLabel({ ...first, approval: approvalFor(first, "reject", "p", AT) }, 0)).toBeNull();
+    expect(airLabel(first, null)).toBeNull();
+  });
+
+  it("finds the next moment, skipping rejected ones, and none at the end", () => {
+    expect(nextMoment(fx.overlays, 0)).toBe(times[0]);
+    const rejected = fx.overlays.map((o) => (o.match_tc === times[0] ? { ...o, approval: approvalFor(o, "reject", "p", AT) } : o));
+    expect(nextMoment(rejected, 0)).toBe(times[1]);
+    expect(nextMoment(fx.overlays, times.at(-1)!)).toBeNull();
+  });
+
+  it("links to the broadcast in the row's telling, with the demo off", () => {
+    const q = new URLSearchParams(broadcastUrl(first).slice(2));
+    expect(Object.fromEntries(q)).toMatchObject({ surface: "broadcast", demo: "off", lens: first.lens, side: first.side, lang: first.lang });
   });
 });

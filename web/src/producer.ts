@@ -29,11 +29,56 @@ export function applyDecisions(overlays: Overlay[], decisions: Record<string, Ap
   return overlays.map((o) => (decisions[o.id] ? { ...o, approval: decisions[o.id] } : o));
 }
 
-/** Open overlays first, then by moment, lens and side; `openOnly` hides decided ones. */
-export function queueOrder(overlays: Overlay[], openOnly: boolean): Overlay[] {
+/**
+ * Open overlays first, then by moment, lens and side; `openOnly` hides decided ones. With the live
+ * clock, moments still ahead of it come before the ones it has passed, so the first row is one
+ * that can still air.
+ */
+export function queueOrder(overlays: Overlay[], openOnly: boolean, liveT: number | null = null): Overlay[] {
+  const past = (o: Overlay) => Number(liveT !== null && o.match_tc <= liveT);
   return overlays
     .filter((o) => !openOnly || isOpen(o))
-    .sort((a, b) => Number(isOpen(b)) - Number(isOpen(a)) || a.match_tc - b.match_tc || a.lens.localeCompare(b.lens) || a.side.localeCompare(b.side));
+    .sort(
+      (a, b) =>
+        Number(isOpen(b)) - Number(isOpen(a)) ||
+        past(a) - past(b) ||
+        a.match_tc - b.match_tc ||
+        a.lens.localeCompare(b.lens) ||
+        a.side.localeCompare(b.side),
+    );
+}
+
+/** Rows of one moment together, in queue order: the moment header carries the minute. */
+export function byMoment(queue: Overlay[]): { at: number; overlays: Overlay[] }[] {
+  const groups = new Map<number, Overlay[]>();
+  for (const o of queue) groups.set(o.match_tc, [...(groups.get(o.match_tc) ?? []), o]);
+  return [...groups].map(([at, overlays]) => ({ at, overlays }));
+}
+
+export type AirLabel = { kind: "airs-in"; s: number } | { kind: "aired" } | { kind: "missed" } | null;
+
+/** Where a row stands against the live clock: still ahead, aired (approved), or missed (left open). */
+export function airLabel(o: Overlay, liveT: number | null): AirLabel {
+  if (liveT === null || o.approval.state === "rejected") return null;
+  if (o.match_tc > liveT) return { kind: "airs-in", s: Math.ceil((o.match_tc - liveT) / 1000) };
+  return isOpen(o) ? { kind: "missed" } : { kind: "aired" };
+}
+
+/** The next moment ahead of the live clock that has not been rejected, or null if none is left. */
+export function nextMoment(all: Overlay[], liveT: number): number | null {
+  const ahead = all.filter((o) => o.match_tc > liveT && o.approval.state !== "rejected").map((o) => o.match_tc);
+  return ahead.length ? Math.min(...ahead) : null;
+}
+
+/** The public broadcast in this telling, with the demo off so only approved moments air. */
+export function broadcastUrl(o: Pick<Overlay, "lens" | "side" | "lang"> | null): string {
+  const q = new URLSearchParams({ surface: "broadcast", demo: "off", welcome: "off" });
+  if (o) {
+    q.set("lens", o.lens);
+    q.set("side", o.side);
+    q.set("lang", o.lang);
+  }
+  return `/?${q}`;
 }
 
 /** Gate scores as rows, sorted by name. */
