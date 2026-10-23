@@ -130,7 +130,10 @@ class FoundryRunner:
         if not project_endpoint:
             raise RuntimeError("the foundry crew needs AZURE_AI_PROJECT_ENDPOINT")
         self.project_endpoint = project_endpoint
-        self.version = version
+        # "2" pins every role; "pundit=2" pins one role and leaves the others at version 1.
+        pairs = [p.split("=", 1) for p in version.split(",") if "=" in p]
+        self.versions = {role.strip(): v.strip() for role, v in pairs}
+        self.version = "1" if pairs else version
         self.max_tokens = max_tokens
         self._credential = credential
         self.usage = Usage()
@@ -160,7 +163,7 @@ class FoundryRunner:
             agent = FoundryAgent(
                 project_endpoint=self.project_endpoint,
                 agent_name=agent_name(role),
-                agent_version=self.version,
+                agent_version=self.versions.get(role, self.version),
                 credential=credential,
                 tools=tools or None,
             )
