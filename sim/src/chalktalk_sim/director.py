@@ -45,10 +45,11 @@ BOX_HALF_WIDTH = 20.16
 @dataclass(frozen=True)
 class Beat:
     """A scripted moment. ``goal``: the first shot by ``team`` at or after ``t_ms`` scores.
+    ``save``: the first shot by ``team`` at or after ``t_ms`` is on target and saved.
     ``var_check``: the first goal at or after ``t_ms`` goes to a VAR check (goal stands)."""
 
     t_ms: int
-    kind: Literal["goal", "var_check"]
+    kind: Literal["goal", "save", "var_check"]
     team: str = "home"
 
 
@@ -61,9 +62,10 @@ class MatchConfig:
     calibration: Calibration = field(default=DEFAULT)
 
 
-# The compressed demo match (2 x 5 min): a home goal mid-way through the first half, sent to
-# VAR; an away equaliser after the break; a late home winner.
+# The compressed demo match (2 x 5 min): an early away chance saved; a home goal mid-way
+# through the first half, sent to VAR; an away equaliser after the break; a late home winner.
 DEMO_BEATS = (
+    Beat(60_000, "save", "away"),
     Beat(150_000, "var_check"),
     Beat(150_000, "goal", "home"),
     Beat(390_000, "goal", "away"),
@@ -635,9 +637,14 @@ class _Director:
         if forced:
             outcome = "goal"
         else:
-            on = rng.random() < 0.45
-            p_goal = 0.0 if self.scripted else min(0.8, max(0.03, xg / 0.5))
+            on = rng.random() < cal.shot_on_target
+            # Unscripted, goals per shot follow xG: P(goal | on target) = xG / P(on target).
+            p_goal = 0.0 if self.scripted else min(0.95, xg / cal.shot_on_target)
             outcome = ("goal" if rng.random() < p_goal else "saved") if on else "off_target"
+            save = self.beat_due("save", team)
+            if save is not None:
+                self.used_beats.add(save)
+                outcome = "saved"
         side = 1.0 if rng.random() < 0.5 else -1.0
         if outcome == "goal":
             ty, tz = side * rng.uniform(1.6, GOAL_WIDTH / 2 - 0.4), rng.uniform(0.2, 2.1)
@@ -736,12 +743,14 @@ class _Director:
         central = abs(y) < 20.0
         if xn > 18.0 and (central or late < 0):
             xg = xg_of(float(self.pos[c, 0]), y, s)
-            boost = 0.5 if beat is not None and xn > 25.0 else 0.0
-            if in_box:
-                boost += 0.12 if beat is None else 1.0
-            if late > 25.0:
-                boost += 0.6
-            if self.rng.random() < min(0.9, xg * 2.2 + boost):
+            # A due scripted goal is taken from the first decent position, not from distance.
+            # Once it is overdue by ``beat_any_shot_s``, any shot in range will do.
+            take = beat is not None and (
+                in_box or xn > cal.beat_shot_min_xn or late > cal.beat_any_shot_s
+            )
+            boost = cal.shot_box_boost if in_box else 0.0
+            p_shot = min(xg, cal.shot_xg_cap) * cal.shot_appetite + boost
+            if take or self.rng.random() < min(0.9, p_shot):
                 if beat is not None:
                     self.used_beats.add(beat)
                 self.shoot(c, forced=beat is not None)
@@ -837,7 +846,7 @@ class _Director:
                 ev["attrs"]["outcome"] = "complete" if same else "incomplete"
                 if same and k != recv:
                     ev["attrs"]["receiver"] = self.ids[k]
-            if not same:
+            if not same and np.hypot(*self.bvel[:2]) >= self.cal.interception_min_speed_ms:
                 self.emit("interception", [k], int(self.team[k]), at=self.r2(*b))
             self.set_owner(k)
             return

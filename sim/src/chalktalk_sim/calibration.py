@@ -56,6 +56,18 @@ class Calibration:
     foul_share: float = 0.14
     card_share: float = 0.12
     intercept_per_tick: float = 0.15
+    # A loose ball won below this speed is a recovery, not an interception (no event).
+    interception_min_speed_ms: float = 8.0
+    # Shots: chance to shoot when a shooting chance comes up is
+    # min(xg, shot_xg_cap) * shot_appetite + boosts. The cap stops close-range chances
+    # from crowding out the long shots real teams also take.
+    shot_appetite: float = 1.4
+    shot_xg_cap: float = 0.08
+    shot_box_boost: float = 0.04
+    shot_on_target: float = 0.45
+    # A due scripted goal waits for a shot from at least this deep (metres past halfway).
+    beat_shot_min_xn: float = 33.0
+    beat_any_shot_s: float = 25.0  # after this long overdue, shoot from anywhere in range
     pass_error_frac: float = 0.04  # sd of the pass end point per metre of pass
     pass_error_pressed_m: float = 1.5
 

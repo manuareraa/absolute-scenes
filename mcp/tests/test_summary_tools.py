@@ -32,9 +32,9 @@ def test_half_time_and_catch_up(store):
     tc = h["tool_call"]
     assert tools.verify("half_time", tc["args"], tc["output_hash"])["verified"]
 
-    before = tools.catch_up(MID, 40_000)  # the scripted goal lands at about 52 s
+    before = tools.catch_up(MID, 40_000)  # the scripted goal lands at about 43 s
     assert before["value"] == "0-0" and all(m["t"] <= 40_000 for m in before["details"]["moments"])
-    late = tools.catch_up(MID, 89_000, since_t=45_000, n=1)
+    late = tools.catch_up(MID, 89_000, since_t=41_000, n=1)
     assert [m["kind"] for m in late["details"]["moments"]] == ["goal"]
     assert late["details"]["stats"]["home"]["goals"] == 1
     with pytest.raises(ValueError):

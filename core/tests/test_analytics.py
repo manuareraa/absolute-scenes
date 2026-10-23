@@ -25,13 +25,16 @@ AWAY = [
 ]  # fmt: skip
 
 
-def frame(t=1000, owner="H08", moves=None, ball=(0.4, 0.0), ball_v=0.0):
+def frame(t=1000, owner="H08", moves=None, ball=(0.4, 0.0), ball_v=0.0, runs=None):
+    """``runs`` maps a player id to (speed m/s, heading degrees); everyone else stands still."""
     moves = moves or {}
+    runs = runs or {}
     players = []
     for team, rows in (("home", HOME), ("away", AWAY)):
         for pid, x, y in rows:
             x, y = moves.get(pid, (x, y))
-            players.append({"id": pid, "team": team, "x": x, "y": y, "v": 0.0, "heading": 0.0})
+            v, heading = runs.get(pid, (0.0, 0.0))
+            players.append({"id": pid, "team": team, "x": x, "y": y, "v": v, "heading": heading})
     players.append({"id": "REF", "team": "ref", "x": 5, "y": 10, "v": 0.0, "heading": 0.0})
     return {
         "t": t,
@@ -73,17 +76,33 @@ def test_line_gap_grows_when_midfield_pushes_up():
         an.line_gap(frame(), "home", between="keeper_defence")
 
 
+CLOSING = {"A11": (2.5, 198.0)}  # A11 running at the carrier on (0, 0)
+
+
 def test_pressure_rises_as_opponent_closes():
     far = an.pressure_on_ball(frame()).value
-    near = an.pressure_on_ball(frame(moves={"A11": (1.5, 0.5)})).value
+    near = an.pressure_on_ball(frame(moves={"A11": (1.5, 0.5)}, runs=CLOSING)).value
     assert 0 <= far < near <= 1
-    d = check(an.pressure_on_ball(frame(moves={"A11": (1.5, 0.5)})))
+    d = check(an.pressure_on_ball(frame(moves={"A11": (1.5, 0.5)}, runs=CLOSING)))
     assert d["details"]["pressers"][0]["id"] == "A11"
     assert an.pressure_on_ball(frame(owner=None)).value == 0.0
 
 
+def test_only_active_pressers_count():
+    # Bekkers (2025): a defender jogging under 2 m/s, or running away, is not pressing...
+    standing = an.pressure_on_ball(frame(moves={"A11": (2.0, 0.5)})).value
+    leaving = an.pressure_on_ball(frame(moves={"A11": (2.0, 0.5)}, runs={"A11": (4.0, 18.0)}))
+    closing = an.pressure_on_ball(frame(moves={"A11": (2.0, 0.5)}, runs=CLOSING)).value
+    assert standing < 0.05 and leaving.value < 0.05 and closing > 0.5
+    # ...unless already in touching distance.
+    touching = an.pressure_on_ball(frame(moves={"A11": (1.0, 0.3)})).value
+    assert touching > 0.5
+
+
 def test_pressing_intensity_window():
-    frames = [frame(t=1000 + 40 * i, moves={"A11": (3 - 0.1 * i, 0.5)}) for i in range(10)]
+    frames = [
+        frame(t=1000 + 40 * i, moves={"A11": (3 - 0.1 * i, 0.5)}, runs=CLOSING) for i in range(10)
+    ]
     r = an.pressing_intensity(frames, "away")
     d = check(r)
     assert d["evidence_window"] == {"start_t": 1000, "end_t": 1360}
@@ -106,6 +125,9 @@ def test_pitch_control_halves():
 def test_xg_and_xt_shape():
     assert an.xg(41.5, 0, 1) > an.xg(30, 0, 1) > an.xg(30, 25, 1)
     assert an.xg(-41.5, 0, -1) == pytest.approx(an.xg(41.5, 0, 1))
+    # Fitted on Wyscout open play: central from 11 m about 0.18, from the box edge about 0.09.
+    assert 0.14 < an.xg(41.5, 0, 1) < 0.25
+    assert 0.06 < an.xg(36.0, 0, 1) < 0.14
     assert an.xt(45, 0, 1) > an.xt(20, 0, 1) > an.xt(-20, 0, 1)
     r = an.xt_added("home", 1, (0, 0), (35, 5))
     assert r.value > 0
