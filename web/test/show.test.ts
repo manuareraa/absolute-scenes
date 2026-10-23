@@ -4,7 +4,7 @@ import raw from "../public/fixtures/show-sim-7.json?raw";
 import { breakdownDurationMs, frameAt } from "../src/playback";
 import { ghostPose } from "../src/components/Ghost";
 import { toVec } from "../src/pitch";
-import { PRE_ROLL_MS, chaptersOf, pickShow, showStateAt, type ShowFixture } from "../src/show";
+import { FIRST_PRE_ROLL_MS, PRE_ROLL_MS, chaptersOf, pickShow, showStateAt, type ShowFixture } from "../src/show";
 
 const fx: ShowFixture = JSON.parse(raw);
 const BASE = "http://x.test/fixtures/show-sim-7/";
@@ -58,12 +58,12 @@ describe("chapters", () => {
     expect(pickShow([], "casual", "home")).toBeUndefined();
   });
 
-  it("runs a pre-roll then the breakdown, back to back, in segment order", () => {
+  it("runs a pre-roll then the breakdown, back to back, in segment order, with a short first run-up", () => {
     expect(chapters.map((c) => c.title)).toEqual(show.segments.map((s) => s.chapter_title));
     let at = 0;
-    for (const c of chapters) {
+    for (const [i, c] of chapters.entries()) {
       expect(c.at).toBe(at);
-      expect(c.preRollMs).toBe(PRE_ROLL_MS);
+      expect(c.preRollMs).toBe(i === 0 ? FIRST_PRE_ROLL_MS : PRE_ROLL_MS);
       expect(c.breakdownMs).toBe(breakdownDurationMs(c.overlay));
       at += c.preRollMs + c.breakdownMs;
     }

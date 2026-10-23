@@ -163,6 +163,8 @@ export function App() {
     setReplay(null);
     setSummary(null);
     setPlaying(true);
+    // The clock ran behind the landing page; start the show from its first moment.
+    seek(0);
     setJump(j.chapter || j.open ? j : null);
     setLanding(false);
     scrollTo(0, 0);
