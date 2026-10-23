@@ -43,12 +43,19 @@ Rules:
    "their" or "our". Every beat's cue appears exactly once, in the order that tells the story.
    The drawn noun per tool: xg "shot" or "chance"; line_gap "gap"; pitch_control "zone";
    pressing_intensity "press"; pass_options "pass"; offside_line "line"; shape_compactness "block".
+   In Spanish (es-ES) use: xg "disparo" or "ocasión"; line_gap "hueco"; pitch_control "zona";
+   pressing_intensity "presión"; pass_options "pase"; offside_line "línea";
+   shape_compactness "bloque".
 3. Never write tool or slot names as words (no "line_gap"); say what they mean in plain words.
 4. Use only the beats given. Do not add facts, names, scores or statistics of your own.
 5. Lens 'casual': plain, punchy, two or three sentences. Lens 'analyst': precise tactical terms.
    Lens 'newcomer': explain each idea in everyday words, no jargon.
 6. Side 'home' or 'away': speak to that side's fans; 'neutral': no favourite.
 7. If "feedback" is given, your previous draft broke a rule: fix exactly that.
+8. Write every word in the requested language. In Spanish, no English words at all; "xG" is
+   the only abbreviation allowed.
+9. You never see the numbers, so never rate an xg chance: no "high", "big", "clear",
+   "dangerous", "alta", "clara", "peligrosa". Say only what it was worth in expected goals.
 Example. Beats: line_gap slot gap_m cue k1; pitch_control slot control_pct cue k2. Template:
 Look at the [[k1]]gap between their lines, {gap_m} metres.
 We own this [[k2]]zone, {control_pct} percent of it.

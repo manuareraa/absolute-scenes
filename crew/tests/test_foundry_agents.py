@@ -155,3 +155,17 @@ def test_agent_definitions_declare_the_local_tools():
     assert [t["name"] for t in defs["chalktalk-verifier"]["tools"]] == ["verify_overlay"]
     assert all(d["model"] == "gpt-4.1-mini" for d in defs.values())
     assert not TOOL_SCHEMAS["director"] and isinstance(AgentLog().runs, dict)
+
+
+def test_agent_version_per_role():
+    from chalktalk_crew.foundry_agents import FoundryRunner
+
+    r = FoundryRunner.from_env(
+        {"AZURE_AI_PROJECT_ENDPOINT": "x", "CHALKTALK_AGENT_VERSION": "pundit=2"}
+    )
+    assert (r.versions.get("pundit", r.version), r.versions.get("director", r.version)) == (
+        "2",
+        "1",
+    )
+    r = FoundryRunner.from_env({"AZURE_AI_PROJECT_ENDPOINT": "x", "CHALKTALK_AGENT_VERSION": "3"})
+    assert r.versions.get("pundit", r.version) == "3"

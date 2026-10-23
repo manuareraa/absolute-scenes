@@ -7,6 +7,7 @@ Claims, values and geometry are built by code from tool outputs; the LLM only wr
 from __future__ import annotations
 
 from dataclasses import dataclass, replace
+from functools import partial
 from typing import Any
 
 from .analyst import TOOL_SPECS
@@ -75,17 +76,19 @@ class Pundit:
         request = DraftRequest(lens=lens, side=side, lang=lang, trigger=moment.trigger, beats=beats)
         slots = {b.slot for b in beats}
         cues = {b.cue_id for b in beats}
+        xg_slot = TOOL_SPECS["xg"].slot if any(b.tool == "xg" for b in beats) else None
+        check = partial(check_template, slots=slots, cues=cues, lang=lang, xg_slot=xg_slot)
         fallback = False
         try:
             template = fix_slot_names(self.llm.draft(request), slots)
-            check_template(template, slots, cues)
+            check(template)
         except TemplateError as err:
             try:  # one repair attempt, told exactly which rule broke
                 template = self.llm.draft(replace(request, feedback=str(err)))
                 template = fix_slot_names(template, slots)
-                check_template(template, slots, cues)
+                check(template)
             except TemplateError:
                 # Still broken (a free number, a lost cue): use the rule-based writer.
                 template, fallback = self._fallback.draft(request), True
-                check_template(template, slots, cues)
+                check(template)
         return Draft(claims, strokes, template, values, fallback)
