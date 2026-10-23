@@ -104,6 +104,7 @@ def test_check_template_wants_spanish_drawn_nouns():
     [
         ("A high [[k1]]chance, {xg} expected goals.", "en-GB"),
         ("Un [[k1]]disparo peligroso de {xg} goles esperados.", "es-ES"),
+        ("Their [[k1]]shot was worth {xg} xG, showing how threatening it was.", "en-GB"),
     ],
 )
 def test_check_template_rejects_rated_xg(template, lang):

@@ -182,6 +182,19 @@ def test_a_gap_in_our_own_lines_is_not_theirs():
         )
 
 
+def test_a_line_gap_is_never_wide():
+    from chalktalk_crew.script import TemplateError, check_perspective
+
+    gap = [{"tool": "line_gap", "slot": "gap_m", "ours": "neutral", "minority": ""}]
+    for bad, lang in (
+        ("The [[k1]]gap between the lines is {gap_m} metres wide.", "en-GB"),
+        ("El [[k1]]hueco tiene {gap_m} metros de ancho.", "es-ES"),
+    ):
+        with pytest.raises(TemplateError, match="between two lines"):
+            check_perspective(bad, gap, lang)
+    check_perspective("The [[k1]]gap between the lines is {gap_m} metres deep.", gap, "en-GB")
+
+
 def test_a_minority_share_is_not_in_anyones_favour():
     from chalktalk_crew.script import TemplateError, check_perspective
 

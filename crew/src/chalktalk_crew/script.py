@@ -36,8 +36,8 @@ ENGLISH_NOUNS = frozenset({"shot", "chance", "gap", "zone", "press", "pass", "li
 CUED_WORD = re.compile(r"\[\[[A-Za-z0-9_-]+\]\]\s*([^\W\d_]+)")
 # Words that rate a chance. The writer never sees the xG value, so it must not judge it.
 RATING_WORDS = re.compile(
-    r"\b(high|big|huge|great|good|golden|clear|dangerous|real|alta|gran|grande|enorme|clara|"
-    r"buena|peligros[ao]s?|ocasionaza)\b",
+    r"\b(high|big|huge|great|good|golden|clear|dangerous|danger|threat\w*|real|alta|gran|grande|"
+    r"enorme|clara|buena|peligros[ao]s?|peligro|amenaz\w*|ocasionaza)\b",
     re.IGNORECASE,
 )
 
@@ -121,6 +121,8 @@ WRONG_TEAM = {
     ),
     ("es", "theirs"): re.compile(r"\bnuestr[oa]s?\s+(?:líneas?|defensa|bloque|zaga)", re.I),
 }
+# A line gap is the depth between two lines, so it is never "wide".
+GAP_WIDTH = re.compile(r"\b(wide|width|across|de\s+ancho|de\s+anchura)\b", re.IGNORECASE)
 MAJORITY = re.compile(
     r"\b(?:in\s+favou?r|dominat\w*|own(?:s|ed)?\s+(?:the|this|that)|controls?\s+most|"
     r"a\s+favor|domin\w*)",
@@ -143,6 +145,11 @@ def check_perspective(template: str, beats: list[dict[str, str]], lang: str) -> 
                         f"the {b['tool'].split('_')[0]} is in {whose} defensive shape; "
                         f"{hit.group(0)!r} gives it to the wrong team"
                     )
+            if b["tool"] == "line_gap" and (hit := GAP_WIDTH.search(sentence)):
+                raise TemplateError(
+                    f"the gap is the distance between two lines, so {hit.group(0)!r} is wrong: "
+                    "say how far apart or how deep it is"
+                )
             if b.get("minority") and (hit := MAJORITY.search(sentence)):
                 raise TemplateError(
                     f"that share is under half, so {hit.group(0)!r} is wrong: the other team "
