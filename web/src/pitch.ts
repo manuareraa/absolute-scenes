@@ -16,6 +16,15 @@ export function toVec(p: readonly unknown[]): Vec {
   return [Number(p[0]), Number(p[1])];
 }
 
+/**
+ * A player's shirt number from their id. The sim names players by squad number (`H09` is home
+ * number 9, `sim/teams.py`) and the M1 fixture by slot (`h7`); the referee has none.
+ */
+export function shirtNumber(id: string): number | null {
+  const m = /^[A-Za-z](\d{1,2})$/.exec(id);
+  return m ? Number(m[1]) : null;
+}
+
 /** Pitch metres to SVG user units. */
 export function toSvg([x, y]: Vec): Vec {
   return [x, -y];

@@ -2,6 +2,7 @@ import { lazy, Suspense, useEffect, useMemo, useRef, useState } from "react";
 import type { Overlay } from "@chalktalk/contracts";
 import { Logo } from "./components/Logo";
 import { OverlayLayer } from "./components/OverlayLayer";
+import { ScoreBug } from "./components/ScoreBug";
 import { airStatus, demoOverlays, withDemo } from "./demo";
 import { claimWords, slotLabel, evidenceFor, evidenceOverlay, eventsSoFar, geometryOverlay, frameBetween, replayMatchT, type EvidenceEntry } from "./evidence";
 import { PitchView } from "./components/PitchView";
@@ -11,6 +12,8 @@ import { applyHubMessage, liveFrame, LiveDirector, liveMatchT, newLiveState } fr
 import { captionTokens, frameAt, playStateAt, selectOverlays, timeline, wordIndexAt } from "./playback";
 import { chaptersOf, langsOf, pickShow, showStateAt, type ShowFixture } from "./show";
 import { decidingMoments, pct, type Moment, type Summary } from "./summary";
+import { Momentum } from "./components/Momentum";
+import { momentum, scoreAt, showEndT, showEvents, type Goal, type Shot } from "./scoreboard";
 import { useOverlayAudio } from "./useOverlayAudio";
 import { isProvisional, varBanner, varFor, varGraphics } from "./var";
 import { Landing, type Jump } from "./Landing";
@@ -88,8 +91,6 @@ function usePlayClock(playing: boolean) {
   return { elapsed, seek, seekGen };
 }
 
-type Goal = { t: number; team: string };
-
 export function App() {
   const [fixture, setFixture] = useState<Fixture | null>(null);
   const [showFx, setShowFx] = useState<ShowFixture | null>(null);
@@ -118,6 +119,7 @@ export function App() {
   const director = useRef(new LiveDirector());
   // Goals seen in the hub's event batches, keyed so a re-sent batch counts once.
   const goals = useRef(new Map<string, Goal>());
+  const shots = useRef(new Map<string, Shot>());
   const [hubReady, setHubReady] = useState(false);
   const isLive = mode.mode === "live" && hubReady;
   // The show is a recorded studio programme: it plays its own fixture on its own clock, live hub
@@ -234,8 +236,9 @@ export function App() {
           if (m.type === "overlay") return setLive((prev) => [...prev.filter((p) => p.id !== m.overlay.id), m.overlay]);
           hub.current = applyHubMessage(hub.current, m, performance.now());
           if (m.type === "frames") {
-            for (const e of m.events as { t: number; type: string; team?: string }[]) {
+            for (const e of m.events as { t: number; type: string; team?: string; xg?: number }[]) {
               if (e?.type === "goal" && e.team) goals.current.set(`${e.t}:${e.team}`, { t: e.t, team: e.team });
+              if (e?.type === "shot" && e.team) shots.current.set(`${e.t}:${e.team}`, typeof e.xg === "number" ? { t: e.t, team: e.team, xg: e.xg } : { t: e.t, team: e.team });
             }
             if (m.frames.length) setHubReady(true);
           }
@@ -251,6 +254,7 @@ export function App() {
   const overlays = useMemo(() => selectOverlays(source, surface, lens, side, lang), [source, surface, lens, side, lang]);
   const langs = useMemo(() => langsOf([...source, ...(showFx?.shows ?? [])]), [source, showFx]);
   const tl = useMemo(() => timeline(matchEnd, overlays), [matchEnd, overlays]);
+  const showEv = useMemo(() => (showFx ? showEvents(showFx) : null), [showFx]);
   const show = useMemo(() => (showFx ? pickShow(showFx.shows, lens, side, lang) : undefined), [showFx, lens, side, lang]);
   const book = useMemo(() => (show ? chaptersOf(show, SHOW_BASE) : null), [show]);
   const titles = useMemo(() => (book ? chapterTitles(book.chapters, lang) : []), [book, lang]);
@@ -314,11 +318,19 @@ export function App() {
   // Breakdowns cut to the 2D chalkboard, as a broadcast cuts to the telestrator; play stays in 3D.
   const show3d = view === "3d" && !state.overlay;
 
-  // Score and goal banner come from goal events, so the sim's goals light them up.
+  // Score and goal banner come from goal events: the hub's live, the show fixture's recorded. The
+  // M1 demo fixture has no goals, so its board honestly stays 0-0.
   const matchT = state.matchT;
-  const scored = isLive ? [...goals.current.values()].filter((g) => g.t <= matchT) : [];
-  const score = { home: scored.filter((g) => g.team === "home").length, away: scored.filter((g) => g.team === "away").length };
-  const lastGoal = scored.filter((g) => matchT - g.t < GOAL_BANNER_MS).sort((a, b) => b.t - a.t)[0];
+  // The board shows the moment on the pitch: a replay's time, or the summary's "as of" time.
+  const boardT = replaying ? replayT : summing ? summary.s.at_t : matchT;
+  const allGoals: Goal[] = isLive ? [...goals.current.values()] : showMode ? showEv!.goals : [];
+  const scored = allGoals.filter((g) => g.t <= boardT);
+  const score = scoreAt(allGoals, boardT);
+  // Momentum strip: the same recorded shots, binned per minute up to the board time.
+  const allShots: Shot[] = isLive ? [...shots.current.values()] : showMode ? showEv!.shots : [];
+  const endT = isLive ? hub.current.durationMs || matchT : showMode ? showEndT(showFx!) : 0;
+  const flow = allShots.length && endT > 0 ? momentum(allShots, endT, boardT) : null;
+  const lastGoal = scored.filter((g) => boardT - g.t < GOAL_BANNER_MS).sort((a, b) => b.t - a.t)[0];
   const ended = isLive && hub.current.ended;
   const status = surface === "broadcast" ? airStatus(overlays, matchT, state.overlay !== null, ended) : null;
   const preRoll = showMode && !replaying && !summing && chapter >= 0 && state.overlay === null;
@@ -432,11 +444,10 @@ export function App() {
                 <OverlayLayer overlay={drawn} frame={frame} audioMs={replaying || summing ? Infinity : audioMs} />
               </PitchView>
             )}
-            {surface === "broadcast" && (
-              <div className="scorebug" role="status" aria-label={`${s.teams.home} ${score.home}, ${s.teams.away} ${score.away}, ${clock(matchT)}`}>
-                <span className="team home">{s.teams.home}</span> <b>{score.home} – {score.away}</b> <span className="team away">{s.teams.away}</span>
-                <span className="tc">{clock(matchT)}</span>
-              </div>
+            {(surface === "broadcast" || showMode) && (
+              <ScoreBug s={s} score={score} clock={clock(boardT)}>
+                {flow && <Momentum m={flow} nowT={boardT} s={s} lang={lang} />}
+              </ScoreBug>
             )}
             {surface === "broadcast" && lastGoal && (
               <div className={`goal-banner ${lastGoal.team}`} role="alert" key={`${lastGoal.t}`}>

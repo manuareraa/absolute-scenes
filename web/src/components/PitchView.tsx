@@ -1,6 +1,6 @@
 import { useEffect, useState, type ReactNode } from "react";
 import type { Frame } from "@chalktalk/contracts";
-import { HALF_L, HALF_W, VIEW_BOX, toSvg } from "../pitch";
+import { HALF_L, HALF_W, VIEW_BOX, shirtNumber, toSvg } from "../pitch";
 
 /** Static pitch markings, 105 x 68 m, in SVG units (metres, y flipped). */
 function Markings() {
@@ -53,11 +53,14 @@ export function PitchView({ frame, children, label = "Synthetic pitch view" }: {
           {frame.players.map((p) => {
             const [x, y] = toSvg([p.x, p.y]);
             const rad = (-p.heading * Math.PI) / 180;
+            const [cx, cy] = [Math.cos(rad), Math.sin(rad)];
+            const n = p.team === "ref" ? null : shirtNumber(p.id);
             return (
               <g key={p.id} className={`player ${p.team}`} transform={`translate(${x.toFixed(2)} ${y.toFixed(2)})${k === 1 ? "" : ` scale(${k})`}`}>
-                <circle r={1.05} />
-                <line x1={0} y1={0} x2={(1.7 * Math.cos(rad)).toFixed(2)} y2={(1.7 * Math.sin(rad)).toFixed(2)} />
-                <text y={0.42}>{p.team === "ref" ? "" : p.id.slice(1)}</text>
+                <circle r={1.25} />
+                {/* The heading tick starts at the disc's edge, so it never crosses the number. */}
+                <line x1={(1.25 * cx).toFixed(2)} y1={(1.25 * cy).toFixed(2)} x2={(2 * cx).toFixed(2)} y2={(2 * cy).toFixed(2)} />
+                {n !== null && <text y={0.5}>{n}</text>}
               </g>
             );
           })}

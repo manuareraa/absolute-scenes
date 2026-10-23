@@ -1,8 +1,15 @@
 import { describe, expect, it } from "vitest";
-import { arrowHead, pathD, polylineLength, toSvg, toVec, truncatePolyline, type Vec } from "../src/pitch";
+import { arrowHead, pathD, polylineLength, shirtNumber, toSvg, toVec, truncatePolyline, type Vec } from "../src/pitch";
 
 describe("pitch geometry", () => {
   const L: Vec[] = [[0, 0], [10, 0], [10, 10]];
+
+  it("reads shirt numbers from player ids", () => {
+    expect(shirtNumber("H09")).toBe(9);
+    expect(shirtNumber("A10")).toBe(10);
+    expect(shirtNumber("h7")).toBe(7);
+    expect(shirtNumber("REF")).toBeNull();
+  });
 
   it("flips y into SVG space", () => {
     expect(toSvg([3, 4])).toEqual([3, -4]);
