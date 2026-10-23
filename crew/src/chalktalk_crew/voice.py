@@ -6,8 +6,10 @@ their SSML is synthesized here, and the new bookmarks and word timings replace t
 words. Each SSML is synthesized once: results are cached under ``<cache root>/voiced/`` by the
 hash of the SSML, so a re-run costs no Speech characters.
 
-Audio lands in ``<fixture without .json>/audio/<overlay id>.mp3``, the folder the web player
-resolves ``script.audio_url`` against (``/fixtures/<show id>/``).
+The input fixture is never changed. ``--out DIR`` gets ``DIR/<fixture name>.json`` and
+``DIR/<fixture name>/audio/<overlay id>.mp3``: copied as is into ``web/public/fixtures/``, the
+audio sits in the folder the web player resolves ``script.audio_url`` against
+(``/fixtures/<show id>/``).
 """
 
 from __future__ import annotations
@@ -139,9 +141,12 @@ def main(args: Any) -> dict[str, Any]:  # pragma: no cover - manual, see the mod
         from .azure import AzureSpeechClient
 
         speech = AzureSpeechClient(config)
-    out_dir = args.fixture.with_suffix("") / "audio"
+    out_json = args.out / args.fixture.name
+    if out_json.resolve() == args.fixture.resolve():
+        raise SystemExit("--out must not be the fixture's own folder")
+    out_dir = out_json.with_suffix("") / "audio"
     log = voice_show(fixture, crew_root, out_dir, speech)
     if log.largest_bytes > STATIC_ASSET_CAP:
         raise SystemExit(f"an MP3 is over the 25 MiB static asset cap: {log.largest_bytes} B")
-    args.fixture.write_text(json.dumps(fixture, separators=(",", ":")))
-    return log.as_dict()
+    out_json.write_text(json.dumps(fixture, separators=(",", ":")))
+    return {"fixture": str(out_json), "audio": str(out_dir), **log.as_dict()}

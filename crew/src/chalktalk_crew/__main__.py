@@ -43,6 +43,9 @@ def main(argv: list[str] | None = None) -> int:
     p.add_argument("--ahead-s", type=float, default=8.0, help="post this long before the moment")
     p = sub.add_parser("voice-show", help="give a Show fixture the crew's audio, voice the rest")
     p.add_argument("--fixture", type=Path, required=True, help="web/public/fixtures/show-*.json")
+    p.add_argument(
+        "--out", type=Path, required=True, help="write the voiced fixture and audio here"
+    )
     p.add_argument("--cache", type=Path, default=Path(".chalktalk-cache"))
     p.add_argument("--seed", type=int, default=7)
     p.add_argument("--half-minutes", type=float, required=True)
