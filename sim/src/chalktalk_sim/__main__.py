@@ -9,7 +9,7 @@ from pathlib import Path
 
 from .director import DEMO_BEATS, MatchConfig, simulate
 from .package import write_package
-from .realism import compare, profile
+from .realism import compare, profile, reference_profile
 
 
 def _config(args: argparse.Namespace) -> MatchConfig:
@@ -26,7 +26,11 @@ def main(argv: list[str] | None = None) -> int:
         p.add_argument("--half-minutes", type=float, default=45.0)
         p.add_argument("--demo", action="store_true", help="add the scripted demo beats")
     sub.choices["generate"].add_argument("--out", type=Path, required=True)
-    sub.choices["realism"].add_argument("--reference", type=Path, help="reference profile JSON")
+    sub.choices["realism"].add_argument(
+        "--reference",
+        type=Path,
+        help="reference profile JSON (default: the committed IDSSE profile)",
+    )
     args = ap.parse_args(argv)
 
     match = simulate(_config(args))
@@ -35,10 +39,9 @@ def main(argv: list[str] | None = None) -> int:
         print(json.dumps({"package": str(root), "score": match.meta["score"]}))
         return 0
     prof = profile(match)
-    if args.reference:
-        report = compare(prof, json.loads(args.reference.read_text())["metrics"])
-    else:
-        report = {k: {"median": v["q"][50], "n": v["n"]} for k, v in prof.items()}
+    ref = json.loads(args.reference.read_text()) if args.reference else reference_profile()
+    report = compare(prof, ref.get("profile", ref.get("metrics")))
+    report["mean_ks"] = round(sum(v["ks"] for v in report.values()) / len(report), 3)
     json.dump(report, sys.stdout, indent=1)
     print()
     return 0
