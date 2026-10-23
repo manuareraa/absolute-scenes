@@ -50,6 +50,36 @@ export function wordIndexAt(overlay: Overlay, audioMs: number): number {
   return idx;
 }
 
+/**
+ * The spoken words as the caption shows them, with the script's punctuation put back: speech
+ * word timings carry bare words ("goals", "Notice"), the script has "goals. Notice". Text between
+ * two words goes to the earlier word, except an opener right before the next word ("¿Qué").
+ * If a word is not found in the script, the bare words are used.
+ */
+export function captionTokens(text: string, words: { text: string }[]): string[] {
+  const lower = text.toLowerCase();
+  const at: number[] = [];
+  let from = 0;
+  for (const w of words) {
+    const p = lower.indexOf(w.text.toLowerCase(), from);
+    if (p < 0) return words.map((x) => x.text);
+    at.push(p);
+    from = p + w.text.length;
+  }
+  const pre = words.map(() => "");
+  const post = words.map(() => "");
+  for (let i = 0; i <= words.length; i++) {
+    const start = i === 0 ? 0 : at[i - 1] + words[i - 1].text.length;
+    const gap = text.slice(start, i < words.length ? at[i] : text.length);
+    const lead = i < words.length && /\s\S+$/.test(gap) ? gap.match(/\S+$/)![0] : i === 0 ? gap.trim() : "";
+    const rest = gap.slice(0, gap.length - lead.length).replace(/\s+/g, "");
+    if (i < words.length) pre[i] = lead;
+    if (i > 0) post[i - 1] = rest;
+    else if (rest) pre[0] = rest + pre[0];
+  }
+  return words.map((w, i) => pre[i] + text.slice(at[i], at[i] + w.text.length) + post[i]);
+}
+
 export interface PlayState {
   matchT: number;
   overlay: Overlay | null;

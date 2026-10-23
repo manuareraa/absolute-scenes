@@ -10,8 +10,8 @@ import "@fontsource/barlow-condensed/latin-700.css";
 import "@fontsource/caveat/latin-700.css";
 import "./styles.css";
 
-// `/producer` or `?page=producer` in local previews. The page is public; only a producer with the
-// hub secret can put an overlay on air, and without it decisions stay in this browser.
+// `/producer` or `?page=producer` in local previews. The page is open to anyone: approvals of
+// queued overlays air on the live match (the edge takes the overlay from the published queue).
 const isProducer = location.pathname.startsWith("/producer") || new URLSearchParams(location.search).get("page") === "producer";
 
 createRoot(document.getElementById("root")!).render(

@@ -48,6 +48,42 @@ const EN = {
     "A fact-check gate re-runs the tools; a producer approves what airs. Without a producer, the demo airs the checked moments on its own.",
     "On the studio show, tap any underlined number to replay the evidence it came from.",
   ],
+  tour: {
+    button: "Tour",
+    count: (n: number, of: number) => `Step ${n} of ${of}`,
+    next: "Next",
+    back: "Back",
+    skip: "Skip tour",
+    done: "Done",
+    steps: [
+      {
+        at: [".screen"],
+        title: "The pundit's board",
+        body: "Every chalk line lands on the word that names it, and the caption follows the voice. The shapes come from the tracking tools, not from the AI.",
+      },
+      {
+        at: [".chapters"],
+        title: "Chapters and evidence",
+        body: "Jump to any moment of the match. Tap an underlined number, here or in the caption, to replay the tracking evidence behind it.",
+      },
+      {
+        at: [".settings-toggle", "#controls"],
+        title: "Make it yours",
+        body: "Pick the surface, the audience (newcomer, casual or analyst), the side the pundit supports, the language, and a flat or 3D view. The script is written for each pick.",
+      },
+      {
+        at: [".transport"],
+        title: "Play and scrub",
+        body: "Pause the show, or drag through all of its chapters.",
+      },
+      {
+        at: [".settings-toggle", "#controls > :first-child"],
+        title: "Live match and producer",
+        body: "Pick Live to follow the match on its shared clock. In the producer console, approve or reject each moment before it airs.",
+        link: { href: "/producer", label: "Open the producer console" },
+      },
+    ] as TourStep[],
+  },
   groups: { surface: "Surface", lens: "Audience", side: "Support", lang: "Language", view: "View" },
   groupHints: {
     surface: "Pick what to watch",
@@ -139,6 +175,14 @@ const EN = {
 
 export type Strings = typeof EN;
 
+/** A tour step spotlights the first of `at` (CSS selectors) that is on screen; the phone-only settings button comes first. */
+export interface TourStep {
+  at: string[];
+  title: string;
+  body: string;
+  link?: { href: string; label: string };
+}
+
 const ES: Strings = {
   tagline:
     "ChalkTalk es un comentarista con IA que dibuja sobre un campo sintético: cada trazo cae en la palabra que lo nombra, y cada número enlaza con la herramienta de seguimiento que lo calculó.",
@@ -185,6 +229,42 @@ const ES: Strings = {
     "Un control de datos vuelve a ejecutar las herramientas; un productor aprueba lo que se emite. Sin productor, la demo emite sola los momentos verificados.",
     "En el programa de estudio, toca un número subrayado para ver de nuevo la jugada de la que sale.",
   ],
+  tour: {
+    button: "Guía",
+    count: (n: number, of: number) => `Paso ${n} de ${of}`,
+    next: "Siguiente",
+    back: "Atrás",
+    skip: "Saltar guía",
+    done: "Hecho",
+    steps: [
+      {
+        at: [".screen"],
+        title: "La pizarra del comentarista",
+        body: "Cada trazo cae en la palabra que lo nombra, y el subtítulo sigue a la voz. Las formas salen de las herramientas de seguimiento, no de la IA.",
+      },
+      {
+        at: [".chapters"],
+        title: "Capítulos y pruebas",
+        body: "Salta a cualquier momento del partido. Toca un número subrayado, aquí o en el subtítulo, para ver de nuevo la jugada de la que sale.",
+      },
+      {
+        at: [".settings-toggle", "#controls"],
+        title: "A tu medida",
+        body: "Elige la pantalla, el público (principiante, aficionado o analista), el equipo que apoya el comentarista, el idioma y la vista plana o en 3D. El guion se escribe para cada opción.",
+      },
+      {
+        at: [".transport"],
+        title: "Reproducir y avanzar",
+        body: "Pausa el programa o arrastra para recorrer todos sus capítulos.",
+      },
+      {
+        at: [".settings-toggle", "#controls > :first-child"],
+        title: "Partido en directo y productor",
+        body: "Elige Directo para seguir el partido con su reloj compartido. En la consola del productor, aprueba o rechaza cada momento antes de que se emita.",
+        link: { href: "/producer", label: "Abrir la consola del productor" },
+      },
+    ],
+  },
   groups: { surface: "Pantalla", lens: "Público", side: "Afición", lang: "Idioma", view: "Vista" },
   groupHints: {
     surface: "Elige qué ver",

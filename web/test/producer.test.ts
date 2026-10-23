@@ -3,7 +3,6 @@ import { validate, type Overlay } from "@chalktalk/contracts";
 import raw from "../public/fixtures/queue-sim-7.json?raw";
 import { frameAt } from "../src/playback";
 import {
-  SECRET_HEADER,
   airLabel,
   applyDecisions,
   approvalFor,
@@ -72,28 +71,27 @@ describe("decisions", () => {
 });
 
 describe("hub", () => {
-  it("re-posts the decided overlay with the hub secret", async () => {
+  it("re-posts the decided overlay, with no key", async () => {
     const fetcher = vi.fn(async () => new Response(null, { status: 204 }));
     const overlay = { ...first, approval: approvalFor(first, "approve", "ana", AT) };
-    expect(await postDecision(fetcher as unknown as typeof fetch, fx.match_id, overlay, "s3")).toEqual({ ok: true, status: 204 });
+    expect(await postDecision(fetcher as unknown as typeof fetch, fx.match_id, overlay)).toEqual({ ok: true, status: 204 });
     const [url, init] = fetcher.mock.calls[0] as unknown as [string, RequestInit];
     expect(url).toBe("/api/overlay");
-    expect((init.headers as Record<string, string>)[SECRET_HEADER]).toBe("s3");
+    expect(init.headers).toEqual({ "content-type": "application/json" });
     expect(JSON.parse(init.body as string)).toEqual({ match_id: fx.match_id, overlay });
   });
 
-  it("restarts the match: reset, then play, with the secret", async () => {
+  it("restarts the match: reset, then play", async () => {
     const fetcher = vi.fn(async () => new Response(null, { status: 200 }));
-    expect(await restartMatch(fetcher as unknown as typeof fetch, fx.match_id, "s3")).toEqual({ ok: true, status: 200 });
+    expect(await restartMatch(fetcher as unknown as typeof fetch, fx.match_id)).toEqual({ ok: true, status: 200 });
     const calls = fetcher.mock.calls as unknown as [string, RequestInit][];
     expect(calls.map(([u]) => u)).toEqual([`/api/match/${fx.match_id}/control`, `/api/match/${fx.match_id}/control`]);
     expect(calls.map(([, i]) => JSON.parse(i.body as string).action)).toEqual(["reset", "play"]);
-    expect((calls[0][1].headers as Record<string, string>)[SECRET_HEADER]).toBe("s3");
   });
 
   it("stops at the first refusal", async () => {
     const fetcher = vi.fn(async () => new Response(null, { status: 401 }));
-    expect(await restartMatch(fetcher as unknown as typeof fetch, fx.match_id, "bad")).toEqual({ ok: false, status: 401 });
+    expect(await restartMatch(fetcher as unknown as typeof fetch, fx.match_id)).toEqual({ ok: false, status: 401 });
     expect(fetcher).toHaveBeenCalledTimes(1);
   });
 });

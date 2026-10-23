@@ -8,12 +8,13 @@ import { PitchView } from "./components/PitchView";
 import { LENSES, SIDES, SURFACES, type Fixture } from "./fixture/synthetic";
 import { chapterTitles, momentHeadline, num, slotWords, tr, type Strings } from "./i18n";
 import { applyHubMessage, liveFrame, LiveDirector, liveMatchT, newLiveState } from "./live";
-import { frameAt, playStateAt, selectOverlays, timeline, wordIndexAt } from "./playback";
+import { captionTokens, frameAt, playStateAt, selectOverlays, timeline, wordIndexAt } from "./playback";
 import { chaptersOf, langsOf, pickShow, showStateAt, type ShowFixture } from "./show";
 import { decidingMoments, pct, type Moment, type Summary } from "./summary";
 import { useOverlayAudio } from "./useOverlayAudio";
 import { isProvisional, varBanner, varFor, varGraphics } from "./var";
 import { Landing, type Jump } from "./Landing";
+import { Tour, tourSeen } from "./Tour";
 import { keepConnected, matchWsUrl, type SourceMode } from "./ws";
 
 type Surface = Overlay["surface"];
@@ -108,6 +109,8 @@ export function App() {
   // A "Show me" link from the front page, applied once the show has loaded.
   const [jump, setJump] = useState<Jump | null>(null);
   const [how, setHow] = useState(false);
+  const [tour, setTour] = useState<{ resume: boolean } | null>(null);
+  const tourAuto = useRef(!tourSeen());
   const [settingsOpen, setSettingsOpen] = useState(false);
   const s = tr(lang);
   // Hub state lives in a ref: frame batches land every second, renders tick at the frame rate.
@@ -163,6 +166,10 @@ export function App() {
     setReplay(null);
     setSummary(null);
     setPlaying(true);
+    // A deep link goes straight to its moment; the tour waits for the button.
+    if ((j.chapter && j.chapter !== "first") || j.open) tourAuto.current = false;
+    // The clock ran behind the landing page; start the show from its first moment.
+    seek(0);
     setJump(j.chapter || j.open ? j : null);
     setLanding(false);
     scrollTo(0, 0);
@@ -316,6 +323,22 @@ export function App() {
   const status = surface === "broadcast" ? airStatus(overlays, matchT, state.overlay !== null, ended) : null;
   const preRoll = showMode && !replaying && !summing && chapter >= 0 && state.overlay === null;
 
+  // The tour opens once per visitor, right after the first moment has aired, with the show paused.
+  const firstAired = showMode && !landing && (chapter > 0 || (chapter === 0 && state.overlay !== null && state.audioMs >= book.chapters[0].breakdownMs - 400));
+  const openTour = () => {
+    setTour({ resume: playing });
+    setPlaying(false);
+  };
+  const closeTour = () => {
+    if (tour?.resume) setPlaying(true);
+    setTour(null);
+  };
+  useEffect(() => {
+    if (!firstAired || !tourAuto.current || replay || summary) return;
+    tourAuto.current = false;
+    openTour();
+  }, [firstAired]);
+
   if (landing) return <Landing s={s} lang={lang} onLang={setLang} onGo={go} />;
   if (error && !isLive) return <main className="app error">Could not load the match fixture: {error}</main>;
 
@@ -336,6 +359,11 @@ export function App() {
         <span className={`badge ${isLive ? "live" : mode.mode}`} title={isLive ? s.liveHint : mode.mode === "fixture" ? (mode.detail ?? s.recordedHint) : undefined} role="status">
           {isLive ? (ended ? s.fullTime : s.live) : mode.mode === "fixture" ? s.recorded : s.connecting}
         </span>
+        {showMode && (
+          <button className="icon tour-btn" onClick={openTour} title={s.tour.button}>
+            {s.tour.button}
+          </button>
+        )}
         <button className="icon" onClick={() => setHow(true)} title={s.howItWorks} aria-label={s.howItWorks}>
           ?
         </button>
@@ -456,6 +484,7 @@ export function App() {
       )}
 
       {how && <HowItWorks s={s} onClose={() => setHow(false)} />}
+      {tour && <Tour s={s} onClose={closeTour} />}
     </main>
   );
 }
@@ -535,6 +564,7 @@ function Caption(props: { overlay: Overlay; audioMs: number; onClaim?: (c: Claim
   const words = overlay.script.words ?? [];
   const at = wordIndexAt(overlay, audioMs);
   const spoken = useMemo(() => claimWords(overlay), [overlay]);
+  const shown = useMemo(() => captionTokens(overlay.script.text, words), [overlay, words]);
   return (
     <p className="caption" aria-live="polite" lang={overlay.lang}>
       {words.map((w, i) => {
@@ -544,13 +574,13 @@ function Caption(props: { overlay: Overlay; audioMs: number; onClaim?: (c: Claim
           return (
             <span key={i} className={cls}>
               <button className="num" title={hint} aria-label={`${w.text}: ${hint}`} onClick={() => onClaim!(c)}>
-                {w.text}
+                {shown[i]}
               </button>{" "}
             </span>
           );
         return (
           <span key={i} className={cls}>
-            {w.text}{" "}
+            {shown[i]}{" "}
           </span>
         );
       })}

@@ -22,6 +22,8 @@ export interface ShowFixture {
 
 /** Play before each moment; the fixture keeps 4 s of frames before every match_tc. */
 export const PRE_ROLL_MS = 4000;
+/** The opening chapter gets a short run-up, so the first drawing lands within about 2 s. */
+export const FIRST_PRE_ROLL_MS = 1200;
 
 export interface Chapter {
   title: string;
@@ -42,10 +44,10 @@ export interface ShowState extends PlayState {
  */
 export function chaptersOf(show: Show, base: string): { chapters: Chapter[]; totalMs: number } {
   let at = 0;
-  const chapters = show.segments.map((seg) => {
+  const chapters = show.segments.map((seg, i) => {
     const url = seg.audio_url ?? seg.overlay.script.audio_url;
     const overlay: Overlay = url ? { ...seg.overlay, script: { ...seg.overlay.script, audio_url: new URL(url, base).href } } : seg.overlay;
-    const preRollMs = Math.min(PRE_ROLL_MS, overlay.match_tc);
+    const preRollMs = Math.min(i === 0 ? FIRST_PRE_ROLL_MS : PRE_ROLL_MS, overlay.match_tc);
     const ch = { title: seg.chapter_title, overlay, at, preRollMs, breakdownMs: breakdownDurationMs(overlay) };
     at += preRollMs + ch.breakdownMs;
     return ch;
