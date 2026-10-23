@@ -210,7 +210,7 @@ const ES: Strings = {
   pitch: "Vista del campo sintético",
   broadcast3d: "Vista de televisión sintética; arrastra para girar, rueda para acercar",
   slots: { gap: "hueco", control: "control", press: "presión", "pass options": "opciones de pase", "pitch control": "control del campo", block: "bloque", margin: "margen" },
-  crewTitles: { "The gap between the lines": "El hueco entre líneas", "Where they should have been": "Dónde debía estar", "VAR check: offside?": "Revisión del VAR: ¿fuera de juego?" },
+  crewTitles: { "The chance": "La ocasión", "The gap between the lines": "El hueco entre líneas", "Where they should have been": "Dónde debía estar", "VAR check: offside?": "Revisión del VAR: ¿fuera de juego?" },
   var: { check: "Revisión del VAR · provisional", checking: "Revisando", checkingFor: (r) => `Revisando: ${r}`, onside: "En posición legal", offside: "Fuera de juego", decisions: { goal_stands: "Gol válido", goal_disallowed: "Gol anulado" } },
   outcomes: { saved: "parada", blocked: "bloqueado", wide: "fuera", post: "al palo", goal: "gol" },
   events: { pass: "pase", carry: "conducción", goal: "gol", free_kick: "tiro libre", shot: "tiro", tackle: "entrada", press: "presión", foul: "falta", interception: "intercepción", offside: "fuera de juego", card: "tarjeta" },
@@ -223,8 +223,9 @@ function cap(s: string) {
 export const tr = (lang: string): Strings => (lang === "es-ES" ? ES : EN);
 
 /** Number in the locale's own format: 11.66 -> "11.7" / "11,7". */
+// Small values keep two decimals, so 0.03 xG does not read as "0 xG".
 export const num = (v: unknown, lang: string) =>
-  typeof v === "number" ? v.toLocaleString(lang, { maximumFractionDigits: 1 }) : String(v);
+  typeof v === "number" ? v.toLocaleString(lang, { maximumFractionDigits: Math.abs(v) < 1 ? 2 : 1 }) : String(v);
 
 const clockOf = (ms: number) => {
   const s = Math.floor(ms / 1000);
