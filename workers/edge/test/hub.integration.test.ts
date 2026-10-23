@@ -71,7 +71,7 @@ beforeAll(async () => {
       },
       durable_objects: { bindings: [{ name: "MATCH_HUB", class_name: "MatchHub" }] },
       migrations: [{ tag: "v1", new_sqlite_classes: ["MatchHub"] }],
-      vars: { BATCH_MS: "250", OVERLAY_SECRET: SECRET },
+      vars: { BATCH_MS: "250", RESTART_MS: "600", OVERLAY_SECRET: SECRET },
     }),
   );
   worker = await unstable_startWorker({
@@ -186,8 +186,33 @@ describe("edge worker", () => {
       const end = await a.next((m) => m.type === "end", 5000);
       expect(end.clock.t).toBe(6000);
       expect(end.clock.playing).toBe(false);
+
+      // Viewers who stay after the final whistle see the match kick off again.
+      const again = await a.next((m) => m.type === "clock" && m.clock.playing && m.clock.t < 1000, 5000);
+      expect(again.clock.t).toBe(0);
+      await a.next((m) => m.type === "frames" && m.clock.t < 2000, 5000);
     } finally {
       a.close();
+    }
+  }, 30_000);
+
+  it("restarts a finished match for a viewer who arrives after full time", async () => {
+    const a = await Client.open(wsUrl(MATCH));
+    try {
+      await a.next((m) => m.type === "hello");
+      await post(`/api/match/${MATCH}/control`, { action: "seek", t: 6000 });
+      await post(`/api/match/${MATCH}/control`, { action: "pause" });
+    } finally {
+      a.close();
+    }
+    const b = await Client.open(wsUrl(MATCH));
+    try {
+      const hello = await b.next((m) => m.type === "hello");
+      expect(hello.clock.t).toBe(0);
+      expect(hello.clock.playing).toBe(true);
+      await b.next((m) => m.type === "frames", 5000);
+    } finally {
+      b.close();
     }
   }, 30_000);
 });

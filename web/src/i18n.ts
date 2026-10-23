@@ -223,8 +223,9 @@ function cap(s: string) {
 export const tr = (lang: string): Strings => (lang === "es-ES" ? ES : EN);
 
 /** Number in the locale's own format: 11.66 -> "11.7" / "11,7". */
+// Small values keep two decimals, so 0.03 xG does not read as "0 xG".
 export const num = (v: unknown, lang: string) =>
-  typeof v === "number" ? v.toLocaleString(lang, { maximumFractionDigits: 1 }) : String(v);
+  typeof v === "number" ? v.toLocaleString(lang, { maximumFractionDigits: Math.abs(v) < 1 ? 2 : 1 }) : String(v);
 
 const clockOf = (ms: number) => {
   const s = Math.floor(ms / 1000);

@@ -5,4 +5,6 @@ export interface Env {
   OVERLAY_SECRET?: string;
   /** Batch length in ms: the hub sends one frames message per batch (default 1000, i.e. 25 frames at 25 fps). */
   BATCH_MS?: string;
+  /** Wait in ms after the final whistle before the match kicks off again for those still watching (default 20000). */
+  RESTART_MS?: string;
 }

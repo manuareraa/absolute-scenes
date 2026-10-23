@@ -32,3 +32,11 @@ describe("summary headlines", () => {
     expect(momentHeadline(chance, "es-ES")).toMatch(/^Ocasión, Rojos: xG 0,01, parada$/);
   });
 });
+
+describe("num", () => {
+  it("keeps two decimals below 1, so a small xG never reads as 0", () => {
+    expect(num(0.03, "en-GB")).toBe("0.03");
+    expect(num(0.03, "es-ES")).toBe("0,03");
+    expect(num(11.64, "en-GB")).toBe("11.6");
+  });
+});

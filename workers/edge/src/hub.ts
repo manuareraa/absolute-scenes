@@ -1,5 +1,5 @@
 import { DurableObject } from "cloudflare:workers";
-import { apply, chunksFor, type ChunkRef, type Clock, ended, matchT, newClock, parseAction, pause, play } from "./clock";
+import { apply, chunksFor, type ChunkRef, type Clock, ended, matchT, newClock, parseAction, pause, play, seek } from "./clock";
 import type { Env } from "./env";
 import { isPackageFile, packageBase } from "./routes";
 
@@ -49,6 +49,11 @@ export class MatchHub extends DurableObject<Env> {
     return Number.isFinite(n) && n >= 200 ? n : 1000;
   }
 
+  private get restartMs(): number {
+    const n = Number(this.env.RESTART_MS ?? 20_000);
+    return Number.isFinite(n) && n >= 0 ? n : 20_000;
+  }
+
   async fetch(request: Request): Promise<Response> {
     const matchId = request.headers.get("x-match-id");
     if (matchId) await this.ctx.storage.put("match_id", matchId);
@@ -74,8 +79,17 @@ export class MatchHub extends DurableObject<Env> {
 
     let clock = await this.clock();
     const now = Date.now();
-    // The first viewer ever kicks off; after that the clock resumes when viewers return.
-    if (!clock.playing && !ended(clock, now)) clock = await this.saveClock(play(clock, now));
+    // The first viewer ever kicks off; after that the clock resumes when viewers return. A
+    // viewer who arrives after the final whistle starts the match again from kick-off, so a late
+    // visitor never lands on a finished match with nothing moving.
+    if (!clock.playing) {
+      if (ended(clock, now)) {
+        clock = await this.saveClock(play(seek(clock, 0, now), now));
+        this.broadcast(JSON.stringify({ type: "clock", clock: this.clockMsg(clock, now) }));
+      } else {
+        clock = await this.saveClock(play(clock, now));
+      }
+    }
 
     server.send(
       JSON.stringify({
@@ -142,10 +156,16 @@ export class MatchHub extends DurableObject<Env> {
       await this.saveClock(pause(clock, now));
       return;
     }
-    if (!clock.playing) return;
-    if (ended(clock, now)) {
+    if (!clock.playing) {
+      // Full time, with viewers still here: kick off again (the final whistle set this alarm).
+      // A producer's pause mid-match is not ended, so it stays paused.
+      if (!ended(clock, now)) return;
+      clock = await this.saveClock(play(seek(clock, 0, now), now));
+      this.broadcast(JSON.stringify({ type: "clock", clock: this.clockMsg(clock, now) }));
+    } else if (ended(clock, now)) {
       clock = await this.saveClock(pause(clock, now));
       this.broadcast(JSON.stringify({ type: "end", clock: this.clockMsg(clock, now) }));
+      await this.ctx.storage.setAlarm(now + this.restartMs);
       return;
     }
     this.broadcast(await this.batch(clock, now));
