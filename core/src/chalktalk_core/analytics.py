@@ -8,6 +8,9 @@ its tool call; the Verifier re-runs the function and checks the value within tol
 Models (all reimplemented here, numpy only):
 - time to intercept (TTI) with a reaction time and a top speed, turned into a probability by
   a logistic curve, after Spearman et al. (2017) and Bekkers (2025);
+- pressure on the ball as pressing intensity (Bekkers 2025, arXiv:2501.04712): only defenders
+  actively pressing (moving at least 2 m/s towards the carrier, or within touching distance)
+  count;
 - pitch control as a softmax over TTI of every player to each grid cell;
 - a parametric xG (distance and goal angle) and a parametric xT surface.
 """
@@ -29,6 +32,11 @@ REACTION_S = 0.7
 PLAYER_VMAX = 7.0
 TTI_SIGMA = 0.45
 PRESS_HORIZON_S = 1.5
+# Active pressing (Bekkers 2025, fig. 2): a defender slower than 2 m/s is not pressing. We
+# also drop defenders moving away from the carrier (a stand-in for the paper's orientation
+# penalty) unless they are already in touching distance.
+ACTIVE_PRESS_SPEED = 2.0
+CONTACT_M = 1.5
 CONTROL_TEMPERATURE_S = 0.35
 PASS_SPEED = 15.0
 
@@ -197,21 +205,36 @@ def distance_between(frame: Frame | Snapshot, a: str, b: str) -> Result:
 
 
 # --------------------------------------------------------------------------- pressure
+def press_probabilities(
+    xy: np.ndarray, vel: np.ndarray, carrier_xy: np.ndarray, carrier_vel: np.ndarray
+) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
+    """Per defender: the chance of reaching the carrier within ``PRESS_HORIZON_S`` while
+    actively pressing, the distance and the closing speed (m/s, positive when closing).
+
+    Works on plain arrays so the sim, the tools and the IDSSE benchmark share one definition.
+    """
+    carrier_next = (carrier_xy + carrier_vel * REACTION_S)[None, :]
+    tti = time_to_intercept(xy, vel, carrier_next)[:, 0]
+    p = _logistic(PRESS_HORIZON_S - tti)
+    rel = xy - carrier_xy
+    d = np.linalg.norm(rel, axis=1)
+    closing = -np.sum(rel * (vel - carrier_vel), axis=1) / (d + 1e-9)
+    speed = np.linalg.norm(vel, axis=1)
+    active = ((speed >= ACTIVE_PRESS_SPEED) & (closing > 0)) | (d < CONTACT_M)
+    return np.where(active, p, 0.0), d, closing
+
+
 def pressure_on_ball(frame: Frame | Snapshot) -> Result:
-    """Probability that at least one opponent reaches the ball carrier within 1.5 s."""
+    """Probability that at least one opponent, actively pressing, reaches the ball carrier
+    within 1.5 s (pressing intensity after Bekkers 2025)."""
     s = _snap(frame)
     if s.owner is None:
         return Result("pressure_on_ball", 0.0, "prob", _window(s.t), details={"carrier": None})
     c = s.index(s.owner)
     team = str(s.team[c])
     opp = s.members(other_team(team))
-    carrier_next = (s.xy[c] + s.vel[c] * REACTION_S)[None, :]
-    tti = time_to_intercept(s.xy[opp], s.vel[opp], carrier_next)[:, 0]
-    p = _logistic(PRESS_HORIZON_S - tti)
+    p, d, closing = press_probabilities(s.xy[opp], s.vel[opp], s.xy[c], s.vel[c])
     pressure = float(1.0 - np.prod(1.0 - p))
-    rel = s.xy[opp] - s.xy[c]
-    d = np.linalg.norm(rel, axis=1)
-    closing = -np.sum(rel * (s.vel[opp] - s.vel[c]), axis=1) / (d + 1e-9)
     order = np.argsort(-p)
     pressers = [
         {
