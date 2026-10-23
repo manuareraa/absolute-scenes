@@ -139,16 +139,82 @@ def test_failed_azure_calls_are_logged_and_left_uncached(tmp_path):
 def test_pundit_repairs_a_broken_draft_once_before_falling_back(core):
     from chalktalk_crew.crew import Crew
 
-    class DropsACue(CountingLLM):
+    class WritesADigit(CountingLLM):
         def draft(self, request):
             good = super().draft(request)
-            return good if request.feedback else good.replace("[[k1]]", "")
+            return good if request.feedback else good + " Seven 7."
 
-    llm = DropsACue()
+    llm = WritesADigit()
     crew = Crew(core, llm, FakeSpeechClient())
     match = simulate(MatchConfig(seed=7, half_minutes=HALF, beats=DEMO_BEATS))
     overlay = crew.breakdown(crew.director.moments(match.events)[0], lens="casual", side="home")
     assert llm.n == 2 and overlay["gate"]["scores"]["template_fallback"] == 0.0
+
+
+def test_lost_cues_are_put_back_before_the_drawn_noun():
+    from chalktalk_crew.script import fix_cues
+
+    beats = [("line_gap", "gap_m", "k1"), ("pitch_control", "control_pct", "k2")]
+    text = "Our zone is busy. The gap opens, {gap_m} metres. We hold {control_pct} percent of it."
+    assert fix_cues(text, beats, "en-GB") == (
+        "Our [[k2]]zone is busy. The [[k1]]gap opens, {gap_m} metres. "
+        "We hold {control_pct} percent of it."
+    )
+    es = "El hueco mide {gap_m} metros."
+    assert fix_cues(es, beats[:1], "es-ES") == "El [[k1]]hueco mide {gap_m} metros."
+
+
+def test_a_gap_in_our_own_lines_is_not_theirs():
+    from chalktalk_crew.script import TemplateError, check_perspective
+
+    ours = [{"tool": "line_gap", "slot": "gap_m", "ours": "ours", "minority": ""}]
+    for bad in (
+        "We exploited a [[k1]]gap in their lines, {gap_m} metres.",
+        "Look at the [[k1]]gap in their defence, {gap_m} metres.",
+    ):
+        with pytest.raises(TemplateError, match="wrong team"):
+            check_perspective(bad, ours, "en-GB")
+    check_perspective("A [[k1]]gap opened in our lines, {gap_m} metres.", ours, "en-GB")
+    theirs = [{**ours[0], "ours": "theirs"}]
+    with pytest.raises(TemplateError):
+        check_perspective(
+            "Nuestras líneas dejan un [[k1]]hueco de {gap_m} metros.", theirs, "es-ES"
+        )
+
+
+def test_a_line_gap_is_never_wide():
+    from chalktalk_crew.script import TemplateError, check_perspective
+
+    gap = [{"tool": "line_gap", "slot": "gap_m", "ours": "neutral", "minority": ""}]
+    for bad, lang in (
+        ("The [[k1]]gap between the lines is {gap_m} metres wide.", "en-GB"),
+        ("El [[k1]]hueco tiene {gap_m} metros de ancho.", "es-ES"),
+    ):
+        with pytest.raises(TemplateError, match="between two lines"):
+            check_perspective(bad, gap, lang)
+    check_perspective("The [[k1]]gap between the lines is {gap_m} metres deep.", gap, "en-GB")
+
+
+def test_a_minority_share_is_not_in_anyones_favour():
+    from chalktalk_crew.script import TemplateError, check_perspective
+
+    share = [{"tool": "pitch_control", "slot": "control_pct", "ours": "neutral", "minority": "1"}]
+    with pytest.raises(TemplateError, match="under half"):
+        check_perspective("The [[k1]]zone: {control_pct} percent in favour of the away side.",
+                          share, "en-GB")  # fmt: skip
+    check_perspective("The away side reach {control_pct} percent of this [[k1]]zone.", share, "en")
+
+
+def test_beats_say_whose_gap_it_is(core):
+    from chalktalk_crew.crew import Crew
+
+    llm = CountingLLM()
+    crew = Crew(core, llm, FakeSpeechClient())
+    match = simulate(MatchConfig(seed=7, half_minutes=HALF, beats=DEMO_BEATS))
+    moment = crew.director.moments(match.events)[0]
+    crew.breakdown(moment, lens="casual", side=moment.defending)
+    gap = next(b for b in llm.requests[-1].beats if b.tool == "line_gap")
+    assert gap.team_ref == "our" and "our own team" in gap.meaning
 
 
 def test_fix_slot_names():

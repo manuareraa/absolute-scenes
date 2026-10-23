@@ -37,11 +37,12 @@ CATCH_UP_T = 600_000  # "you joined late": the catch-up as of 10:00 of the 12-mi
 
 
 def add_chapter(shows: list[dict], build, titles: dict[str, str]) -> None:
-    """``build(lang)`` as a chapter of every show (its lens, side and language), in match order."""
-    by_lang: dict[str, dict] = {}
+    """``build(lang, side)`` as a chapter of every show (its lens, side and language), in match
+    order."""
+    built: dict[tuple[str, str], dict] = {}
     for show in shows:
-        lang = show["lang"]
-        best = by_lang.get(lang) or by_lang.setdefault(lang, build(lang))
+        lang, side = show["lang"], show["side"]
+        best = built.get((lang, side)) or built.setdefault((lang, side), build(lang, side))
         g = {**best, "lens": show["lens"], "side": show["side"]}
         g["id"] = f"{best['id'].rsplit('-', 1)[0]}-{show['lens']}-{show['side']}"
         seg = {"chapter_title": titles[lang], "overlay": g}
@@ -57,7 +58,7 @@ def add_ghost_chapters(shows: list[dict], t, overlays: list[dict]) -> None:
     ghosts = [ghost_overlay(t, m) for m in moments]
     best = max(ghosts, key=lambda g: abs(g["claims"][1]["value"]) * 100 + g["claims"][0]["value"])
     at = moments[ghosts.index(best)]
-    add_chapter(shows, lambda lang: ghost_overlay(t, at, lang=lang), GHOST_TITLE)
+    add_chapter(shows, lambda lang, side: ghost_overlay(t, at, side, lang), GHOST_TITLE)
 
 
 def add_var_chapters(shows: list[dict], t) -> dict[str, dict]:
@@ -69,7 +70,7 @@ def add_var_chapters(shows: list[dict], t) -> dict[str, dict]:
         if not any(c["type"] == "var_check" and 0 <= c["t"] - goal["t"] <= 10_000 for c in evs):
             continue
         ov, meta = var_overlay(t, goal)
-        add_chapter(shows, lambda lang, goal=goal: var_overlay(t, goal, lang)[0], VAR_TITLE)
+        add_chapter(shows, lambda lang, _side, goal=goal: var_overlay(t, goal, lang)[0], VAR_TITLE)
         out[ov["claims"][0]["tool_call"]["output_hash"]] = meta
     return out
 

@@ -19,6 +19,7 @@ class Beat:
     cue_id: str
     unit: str | None
     team_ref: str  # how to name the team the tool measured: "our", "their", "the home"
+    meaning: str = ""  # what the number says and whose it is, in plain words (built by code)
 
 
 @dataclass(frozen=True)
@@ -56,9 +57,15 @@ Rules:
    the only abbreviation allowed.
 9. You never see the numbers, so never rate an xg chance: no "high", "big", "clear",
    "dangerous", "alta", "clara", "peligrosa". Say only what it was worth in expected goals.
+10. Each beat has a "meaning": whose lines, zone or chance the number measures and which team
+   is attacking. Follow it exactly. "team_ref" is how to name that team ("our", "their", "the
+   home side's"). A gap or block belongs to the team that is defending: if that team is ours,
+   it is a gap in OUR lines, a weakness for us; never say we exploited it or that it was in
+   their lines. If the meaning says a share is under half, the other team holds most of it.
+11. A template missing any [[kN]] mark is rejected: put every cue in before you answer.
 Example. Beats: line_gap slot gap_m cue k1; pitch_control slot control_pct cue k2. Template:
 Look at the [[k1]]gap between their lines, {gap_m} metres.
-We own this [[k2]]zone, {control_pct} percent of it.
+We hold {control_pct} percent of this [[k2]]zone.
 Return only the script template text."""
 
 
@@ -82,7 +89,7 @@ _PHRASES: dict[str, dict[str, str]] = {
         "casual": "Look at the [[{cue}]]gap between {team} lines, {{{slot}}} metres of grass.",
         "analyst": "{Team} midfield and back line split: the [[{cue}]]gap is {{{slot}}} metres.",
         "newcomer": "See this [[{cue}]]space between {team} two lines of players? "
-        "It is {{{slot}}} metres wide, room for an attacker to receive.",
+        "It is {{{slot}}} metres deep, room for an attacker to receive.",
     },
     "pass_options": {
         "casual": "And the [[{cue}]]pass is on, one of {{{slot}}} options.",
@@ -92,16 +99,16 @@ _PHRASES: dict[str, dict[str, str]] = {
         "dangerous one.",
     },
     "pitch_control": {
-        "casual": "They own that [[{cue}]]zone, {{{slot}}} percent of it.",
+        "casual": "{Team} share of that [[{cue}]]zone: {{{slot}}} percent.",
         "analyst": "Pitch control in that [[{cue}]]zone sits at {{{slot}}} percent.",
-        "newcomer": "This [[{cue}]]area is where they would win the ball first, {{{slot}}} percent "
-        "of the time.",
+        "newcomer": "In this [[{cue}]]area, {team} players would reach the ball first "
+        "{{{slot}}} percent of the time.",
     },
     "pressing_intensity": {
         "casual": "Then the [[{cue}]]press arrives, {{{slot}}} percent intensity.",
         "analyst": "The [[{cue}]]press: intensity on the carrier at {{{slot}}} percent.",
-        "newcomer": "Watch the [[{cue}]]pressure: how hard they hunt the ball, {{{slot}}} percent "
-        "of the maximum.",
+        "newcomer": "Watch the [[{cue}]]pressure: how hard {team} players hunt the ball, "
+        "{{{slot}}} percent of the maximum.",
     },
     "offside_line": {
         "casual": "The [[{cue}]]line was {{{slot}}} metres from halfway.",

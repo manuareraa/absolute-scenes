@@ -10,8 +10,10 @@ from __future__ import annotations
 
 from typing import Any
 
+from chalktalk_crew.core_tools import CoreToolClient
 from chalktalk_crew.script import check_template, format_value, render
 from chalktalk_crew.speech import FakeSpeechClient
+from chalktalk_crew.tools import output_hash
 from chalktalk_mcp.store import Store
 from chalktalk_mcp.tools import Tools
 
@@ -122,16 +124,32 @@ GHOST_WORDS = {
     "en-GB": {
         "point": "point",
         "points": "points",
-        "ours": "their way",
-        "theirs": "the other way, so the run was the right call",
+        "ours": "our way",
+        "theirs": "the opponents' way",
+        "neutral": "the {team} side's way",
+        "teams": ("home", "away"),
+        "against": "the other way, so the run was the right call",
     },
     "es-ES": {
         "point": "punto",
         "points": "puntos",
-        "ours": "a su favor",
-        "theirs": "en contra, así que la carrera fue acertada",
+        "ours": "a nuestro favor",
+        "theirs": "a favor del rival",
+        "neutral": "a favor del equipo {team}",
+        "teams": ("local", "visitante"),
+        "against": "en contra, así que la carrera fue acertada",
     },
 }
+
+
+def ghost_way(w: dict[str, Any], delta: float, side: str, team: str) -> str:
+    """Which way the ghost swings pitch control, said for the fans of ``side``: towards the
+    ghost's own team (ours, theirs, or the home/away side) or against it."""
+    if delta < 0:
+        return w["against"]
+    if side == "neutral":
+        return w["neutral"].format(team=w["teams"][0 if team == "home" else 1])
+    return w["ours"] if side == team else w["theirs"]
 
 
 def _roster(t: Tools) -> dict[str, dict[str, Any]]:
@@ -161,6 +179,7 @@ def ghost_overlay(
     far = [r for r in runs if r["value"] >= GHOST_MIN_GAP_M] or runs
     best = max(far, key=lambda r: abs(r["details"]["deltas"]["pitch_control"] or 0.0))
     pid = best["details"]["player"]
+    team = next(p["team"] for p in fr["players"] if p["id"] == pid)
     delta = best["details"]["deltas"]["pitch_control"] or 0.0
     pc_pts = round(abs(delta) * 100)
     geo = {g["shape"]: g for g in best["geometry"]}
@@ -173,7 +192,7 @@ def ghost_overlay(
         "shirt": str(roster[pid]["number"]),
         "gap_m": format_value(best["value"], "m", lang),
         "points": w["point"] if pc_pts == 1 else w["points"],
-        "way": w["ours"] if delta >= 0 else w["theirs"],
+        "way": ghost_way(w, delta, side, team),
         "pc_pts": format_value(pc_pts, "points", lang),
     }
     end_ghost = best["details"]["ghost_end"]
@@ -199,12 +218,38 @@ EVIDENCE_PAD_MS = 2000
 EVENT_KEEP = ("t", "type", "team", "actors")
 
 
-def evidence_entry(t: Tools, overlay: dict[str, Any], c: dict[str, Any]) -> dict[str, Any]:
-    """What tapping claim ``c`` replays: B's ``evidence`` tool re-run of its call where that
-    tool can re-run it, else the claim's own evidence window and the strokes bound to it.
+def _window_entry(t: Tools, base: dict[str, Any], w: dict[str, int], own: list) -> dict:
+    src = t.store.get("sim-7")
+    a = max(0, w["start_t"] - EVIDENCE_PAD_MS)
+    b = min(src.duration_ms, w["end_t"] + EVIDENCE_PAD_MS)
+    hits = [x for x in src.events() if a <= x["t"] <= b]
+    return {
+        **base,
+        "check": "window",
+        "rerun_value": None,
+        "hash_match": None,
+        "replay": {"start_t": a, "end_t": b},
+        "geometry": own,
+        "events": [{k: x[k] for k in EVENT_KEEP if k in x} for x in hits],
+    }
 
+
+def _same(v: Any, claimed: Any, tol: float) -> bool:
+    if isinstance(v, int | float) and isinstance(claimed, int | float):
+        return abs(v - claimed) <= tol + 1e-9
+    return v == claimed
+
+
+def evidence_entry(t: Tools, overlay: dict[str, Any], c: dict[str, Any]) -> dict[str, Any]:
+    """What tapping claim ``c`` replays: a re-run of the very tool call behind the claim, with
+    its evidence window and the strokes bound to it.
+
+    A crew claim's call (``line_gap``, ``pitch_control`` over the zone round the ball, ``xg``...)
+    is re-run through the crew's own tool client, so the value is on the claim's own scale; a
+    claim made straight from one of B's tools (ghost, VAR) goes through B's ``evidence`` tool.
     ``check`` says which: ``match`` (same output hash, or the value within the claim's
-    tolerance), ``differs`` (the re-run disagrees; shown, never hidden) or ``window`` (no re-run).
+    tolerance), ``differs`` (the re-run disagrees; shown, never hidden) or ``window`` (the call
+    could not be re-run; nothing is claimed about it).
     """
     tc = c["tool_call"]
     own = [
@@ -213,33 +258,33 @@ def evidence_entry(t: Tools, overlay: dict[str, Any], c: dict[str, Any]) -> dict
         if c["id"] in s.get("claim_ids", [])
     ]
     base = {"tool": tc["name"], "args": tc["args"], "claim_value": c["value"], "unit": c["unit"]}
+    tol = c.get("tolerance") or 0
+    if "match_id" not in tc["args"]:  # a crew tool call
+        try:
+            out = CoreToolClient(t, "sim-7").call(tc["name"], tc["args"])
+        except (ValueError, TypeError, KeyError):
+            return _window_entry(t, base, c["evidence_window"], own)
+        same = output_hash(out) == tc["output_hash"]
+        v = out["value"]
+        entry = _window_entry(t, base, out["evidence_window"], own)
+        return {
+            **entry,
+            "check": "match" if same or _same(v, c["value"], tol) else "differs",
+            "rerun_value": v,
+            "hash_match": same,
+        }
     try:
         args = {"match_id": "sim-7", **tc["args"]}
         e = t.evidence(tc["name"], args, tc["output_hash"], pad_ms=EVIDENCE_PAD_MS)
     except (ValueError, TypeError, KeyError):
-        w = c["evidence_window"]
-        src = t.store.get("sim-7")
-        a, b = (
-            max(0, w["start_t"] - EVIDENCE_PAD_MS),
-            min(src.duration_ms, w["end_t"] + EVIDENCE_PAD_MS),
-        )
-        hits = [x for x in src.events() if a <= x["t"] <= b]
-        return {
-            **base,
-            "check": "window",
-            "rerun_value": None,
-            "hash_match": None,
-            "replay": {"start_t": a, "end_t": b},
-            "geometry": own,
-            "events": [{k: x[k] for k in EVENT_KEEP if k in x} for x in hits],
-        }
+        return _window_entry(t, base, c["evidence_window"], own)
     d = e["details"]
-    v, tol = e["value"], c.get("tolerance") or 0
-    close = isinstance(v, int | float) and isinstance(c["value"], int | float)
-    ok = d["hash_match"] or (close and abs(v - c["value"]) <= tol + 1e-9) or v == c["value"]
+    v = e["value"]
+    if tc["name"] == "var_offside" and isinstance(v, int | float):
+        v = round(abs(v), 2)  # the claim speaks the margin; "behind"/"beyond" says the side
     return {
         **base,
-        "check": "match" if ok else "differs",
+        "check": "match" if d["hash_match"] or _same(v, c["value"], tol) else "differs",
         "rerun_value": v,
         "hash_match": d["hash_match"],
         "replay": d["replay"],
@@ -263,12 +308,12 @@ def evidence_map(t: Tools, overlays: list[dict[str, Any]]) -> dict[str, dict[str
 VAR_TEMPLATES = {
     "en-GB": (
         "VAR is checking the goal for [[v1]]offside. The line is the second-last defender at the "
-        "moment of the shot, and [[v2]]number {shirt} is {margin_m} metres {way}. "
+        "moment of the pass, and [[v2]]number {shirt} is {margin_m} metres {way}. "
         "[[v3]]Check complete: {decision}."
     ),
     "es-ES": (
         "El VAR revisa el gol por [[v1]]fuera de juego. La línea es el penúltimo defensor en el "
-        "momento del disparo, y el [[v2]]número {shirt} está a {margin_m} metros {way}. "
+        "momento del pase, y el [[v2]]número {shirt} está a {margin_m} metros {way}. "
         "[[v3]]Revisión terminada: {decision}."
     ),
 }

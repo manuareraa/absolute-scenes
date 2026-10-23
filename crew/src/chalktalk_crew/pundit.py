@@ -14,8 +14,41 @@ from .analyst import TOOL_SPECS
 from .director import Moment
 from .lang import team_ref
 from .llm import Beat, DraftRequest, FakeLLMClient, LLMClient
-from .script import TemplateError, check_template, fix_slot_names, format_value
+from .script import (
+    TemplateError,
+    check_perspective,
+    check_template,
+    fix_cues,
+    fix_slot_names,
+    format_value,
+)
 from .tools import ToolResult
+
+# What each tool's number says, for the writer; {who} is the team the tool measured.
+MEANINGS = {
+    "line_gap": "the gap between the midfield line and the back line of {who}, who are "
+    "defending. It is space for the attacking team, a weakness in {whose} shape",
+    "shape_compactness": "the area covered by the defensive block of {who}, who are defending",
+    "pressing_intensity": "how hard {who}, defending, press the player on the ball",
+    "offside_line": "the offside line held by the last defender of {who}",
+    "pitch_control": "the share of the zone around the ball that {who}, attacking, would reach "
+    "first; it is {half} half",
+    "pass_options": "how many forward passes the player on the ball for {who} could choose",
+    "xg": "what the chance {who} created was worth in expected goals",
+}
+
+
+def whose(side: str, team: str) -> tuple[str, str]:
+    """(who, whose) for a meaning: our team, the opponents, or the home/away side."""
+    if side == "neutral":
+        return f"the {team} side", f"the {team} side's"
+    return ("our own team", "our own") if side == team else ("the opponents", "the opponents'")
+
+
+def beat_meaning(tool: str, side: str, team: str, value: object) -> str:
+    who, own = whose(side, team)
+    half = "under" if isinstance(value, int | float) and value < 50 else "over"
+    return MEANINGS[tool].format(who=who, whose=own, half=half)
 
 
 @dataclass(frozen=True)
@@ -39,6 +72,7 @@ class Pundit:
         strokes: list[dict[str, Any]] = []
         beats: list[Beat] = []
         values: dict[str, str] = {}
+        sides: list[dict[str, str]] = []
         for i, res in enumerate(results, start=1):
             spec = TOOL_SPECS[res.name]
             team = res.args.get("team", moment.attacking)
@@ -66,10 +100,29 @@ class Pundit:
                     "claim_ids": [claim_id],
                 }
             )
+            value = res.output["value"]
             beats.append(
                 Beat(
-                    res.name, spec.slot, cue_id, res.output.get("unit"), team_ref(side, team, lang)
+                    res.name,
+                    spec.slot,
+                    cue_id,
+                    res.output.get("unit"),
+                    team_ref(side, team, lang),
+                    beat_meaning(res.name, side, team, value),
                 )
+            )
+            minority = res.name == "pitch_control" and isinstance(value, int | float) and value < 50
+            sides.append(
+                {
+                    "tool": res.name,
+                    "slot": spec.slot,
+                    "ours": "neutral"
+                    if side == "neutral"
+                    else "ours"
+                    if side == team
+                    else "theirs",
+                    "minority": "1" if minority else "",
+                }
             )
             values[spec.slot] = format_value(res.output["value"], res.output.get("unit"), lang)
 
@@ -77,18 +130,24 @@ class Pundit:
         slots = {b.slot for b in beats}
         cues = {b.cue_id for b in beats}
         xg_slot = TOOL_SPECS["xg"].slot if any(b.tool == "xg" for b in beats) else None
-        check = partial(check_template, slots=slots, cues=cues, lang=lang, xg_slot=xg_slot)
+        check_rules = partial(check_template, slots=slots, cues=cues, lang=lang, xg_slot=xg_slot)
+        marks = [(b.tool, b.slot, b.cue_id) for b in beats]
+
+        def tidy(text: str) -> str:
+            """Fix misspelt slots and put back lost cue marks, then apply every rule."""
+            text = fix_cues(fix_slot_names(text, slots), marks, lang)
+            check_rules(text)
+            check_perspective(text, sides, lang)
+            return text
+
         fallback = False
         try:
-            template = fix_slot_names(self.llm.draft(request), slots)
-            check(template)
+            template = tidy(self.llm.draft(request))
         except TemplateError as err:
             try:  # one repair attempt, told exactly which rule broke
-                template = self.llm.draft(replace(request, feedback=str(err)))
-                template = fix_slot_names(template, slots)
-                check(template)
+                template = tidy(self.llm.draft(replace(request, feedback=str(err))))
             except TemplateError:
                 # Still broken (a free number, a lost cue): use the rule-based writer.
                 template, fallback = self._fallback.draft(request), True
-                check(template)
+                check_rules(template)
         return Draft(claims, strokes, template, values, fallback)
