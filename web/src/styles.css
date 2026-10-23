@@ -84,12 +84,21 @@ button { font: inherit; color: inherit; cursor: pointer; }
 .ghost-tether text { font-size: 1.2px; text-anchor: middle; font-weight: 700; }
 .stroke.label { font-family: var(--font-chalk); font-size: 3.2px; font-weight: 700; text-anchor: middle; paint-order: stroke; stroke: #0009; stroke-width: 0.4; }
 
-.scorebug { position: absolute; top: 10px; left: 10px; display: flex; gap: 10px; align-items: center; background: #0d0c0bdd; padding: 4px 12px; border-radius: 3px; border-bottom: 2px solid var(--signal); font-family: var(--font-display); font-weight: 600; font-size: 16px; text-transform: uppercase; letter-spacing: 0.04em; }
+.bug-stack { position: absolute; top: 10px; left: 10px; display: flex; flex-direction: column; align-items: stretch; gap: 4px; pointer-events: none; }
+.scorebug { display: flex; gap: 10px; align-items: center; background: #0d0c0bdd; padding: 4px 12px; border-radius: 3px; border-bottom: 2px solid var(--signal); font-family: var(--font-display); font-weight: 600; font-size: 16px; text-transform: uppercase; letter-spacing: 0.04em; }
 .scorebug .team { padding-left: 8px; border-left: 4px solid; }
 .scorebug .team.home { border-color: var(--home); }
 .scorebug .team.away { border-color: var(--away); }
 .scorebug b { font-variant-numeric: tabular-nums; font-size: 16px; }
 .scorebug .tc { margin-left: 4px; font-weight: 400; }
+/* Momentum strip under the score bug: home bars up, away bars down, yellow line at now. */
+.momentum { margin: 0; width: 100%; min-width: 150px; background: #0d0c0bcc; border-radius: 3px; padding: 3px 8px 4px; pointer-events: auto; }
+.momentum figcaption { font: 600 10px var(--font-display); text-transform: uppercase; letter-spacing: 0.08em; color: var(--muted); }
+.momentum svg { display: block; width: 100%; height: 20px; }
+.momentum .mid { stroke: #fff4; stroke-width: 0.4; vector-effect: non-scaling-stroke; }
+.momentum .home { fill: var(--home); }
+.momentum .away { fill: var(--away); }
+.momentum .now { stroke: var(--signal); stroke-width: 2; vector-effect: non-scaling-stroke; }
 .goal-banner { position: absolute; top: 18%; left: 50%; transform: translateX(-50%); padding: 10px 26px; border-radius: 6px; font-family: var(--font-display); font-size: 30px; font-weight: 800; letter-spacing: 0.04em; text-transform: uppercase; background: #000d; border-bottom: 5px solid var(--accent); animation: pop 0.4s ease-out; }
 .goal-banner.home { border-color: var(--home); }
 .goal-banner.away { border-color: var(--away); }
@@ -195,7 +204,10 @@ button { font: inherit; color: inherit; cursor: pointer; }
   .chapters .claims h2 { display: none; }
   .queue { width: 100%; max-height: 240px; }
   .caption { font-size: 13px; position: static; transform: none; max-width: none; margin-top: 8px; }
-  .scorebug { font-size: 12px; top: 6px; left: 6px; padding: 3px 6px; }
+  .bug-stack { top: 6px; left: 6px; }
+  .scorebug { font-size: 12px; padding: 3px 6px; }
+  .momentum { width: 132px; min-width: 0; }
+  .momentum svg { height: 16px; }
   .air-pill { position: static; margin-top: 6px; border-radius: 6px; flex-wrap: wrap; }
   .goal-banner { font-size: 18px; }
   .title-card b { font-size: 16px; }

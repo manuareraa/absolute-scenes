@@ -162,6 +162,14 @@ const EN = {
   teams: { home: "Northbridge", away: "Saltmere" } as Record<string, string>,
   /** Three-letter codes for the score bug. */
   teamCodes: { home: "NBR", away: "SAL" },
+  momentum: {
+    xg: "Chances (xG)",
+    shots: "Shots",
+    hint: (metric: "xg" | "shots"): string =>
+      metric === "xg"
+        ? "Each bar is one minute: the expected goals (xG) of a side's shots. Northbridge above the line, Saltmere below. Only shots with a recorded time are shown."
+        : "Each bar is one minute: a side's shots. Northbridge above the line, Saltmere below.",
+  },
   referee: "Referee",
   ball: "Ball",
   goal: "Goal",
@@ -344,6 +352,14 @@ const ES: Strings = {
   soundOn: "Activar sonido",
   teams: { home: "Northbridge", away: "Saltmere" },
   teamCodes: { home: "NBR", away: "SAL" },
+  momentum: {
+    xg: "Ocasiones (xG)",
+    shots: "Tiros",
+    hint: (metric) =>
+      metric === "xg"
+        ? "Cada barra es un minuto: los goles esperados (xG) de los tiros de un equipo. Northbridge arriba de la línea, Saltmere abajo. Solo se muestran los tiros con hora registrada."
+        : "Cada barra es un minuto: los tiros de un equipo. Northbridge arriba de la línea, Saltmere abajo.",
+  },
   referee: "Árbitro",
   ball: "Balón",
   goal: "Gol",

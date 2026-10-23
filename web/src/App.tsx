@@ -12,7 +12,8 @@ import { applyHubMessage, liveFrame, LiveDirector, liveMatchT, newLiveState } fr
 import { captionTokens, frameAt, playStateAt, selectOverlays, timeline, wordIndexAt } from "./playback";
 import { chaptersOf, langsOf, pickShow, showStateAt, type ShowFixture } from "./show";
 import { decidingMoments, pct, type Moment, type Summary } from "./summary";
-import { scoreAt, showEvents, type Goal } from "./scoreboard";
+import { Momentum } from "./components/Momentum";
+import { momentum, scoreAt, showEndT, showEvents, type Goal, type Shot } from "./scoreboard";
 import { useOverlayAudio } from "./useOverlayAudio";
 import { isProvisional, varBanner, varFor, varGraphics } from "./var";
 import { Landing, type Jump } from "./Landing";
@@ -118,6 +119,7 @@ export function App() {
   const director = useRef(new LiveDirector());
   // Goals seen in the hub's event batches, keyed so a re-sent batch counts once.
   const goals = useRef(new Map<string, Goal>());
+  const shots = useRef(new Map<string, Shot>());
   const [hubReady, setHubReady] = useState(false);
   const isLive = mode.mode === "live" && hubReady;
   // The show is a recorded studio programme: it plays its own fixture on its own clock, live hub
@@ -234,8 +236,9 @@ export function App() {
           if (m.type === "overlay") return setLive((prev) => [...prev.filter((p) => p.id !== m.overlay.id), m.overlay]);
           hub.current = applyHubMessage(hub.current, m, performance.now());
           if (m.type === "frames") {
-            for (const e of m.events as { t: number; type: string; team?: string }[]) {
+            for (const e of m.events as { t: number; type: string; team?: string; xg?: number }[]) {
               if (e?.type === "goal" && e.team) goals.current.set(`${e.t}:${e.team}`, { t: e.t, team: e.team });
+              if (e?.type === "shot" && e.team) shots.current.set(`${e.t}:${e.team}`, typeof e.xg === "number" ? { t: e.t, team: e.team, xg: e.xg } : { t: e.t, team: e.team });
             }
             if (m.frames.length) setHubReady(true);
           }
@@ -323,6 +326,10 @@ export function App() {
   const allGoals: Goal[] = isLive ? [...goals.current.values()] : showMode ? showEv!.goals : [];
   const scored = allGoals.filter((g) => g.t <= boardT);
   const score = scoreAt(allGoals, boardT);
+  // Momentum strip: the same recorded shots, binned per minute up to the board time.
+  const allShots: Shot[] = isLive ? [...shots.current.values()] : showMode ? showEv!.shots : [];
+  const endT = isLive ? hub.current.durationMs || matchT : showMode ? showEndT(showFx!) : 0;
+  const flow = allShots.length && endT > 0 ? momentum(allShots, endT, boardT) : null;
   const lastGoal = scored.filter((g) => boardT - g.t < GOAL_BANNER_MS).sort((a, b) => b.t - a.t)[0];
   const ended = isLive && hub.current.ended;
   const status = surface === "broadcast" ? airStatus(overlays, matchT, state.overlay !== null, ended) : null;
@@ -437,7 +444,11 @@ export function App() {
                 <OverlayLayer overlay={drawn} frame={frame} audioMs={replaying || summing ? Infinity : audioMs} />
               </PitchView>
             )}
-            {(surface === "broadcast" || showMode) && <ScoreBug s={s} score={score} clock={clock(boardT)} />}
+            {(surface === "broadcast" || showMode) && (
+              <ScoreBug s={s} score={score} clock={clock(boardT)}>
+                {flow && <Momentum m={flow} nowT={boardT} s={s} lang={lang} />}
+              </ScoreBug>
+            )}
             {surface === "broadcast" && lastGoal && (
               <div className={`goal-banner ${lastGoal.team}`} role="alert" key={`${lastGoal.t}`}>
                 {s.goal}! {s.teams[lastGoal.team] ?? lastGoal.team} · {score.home} – {score.away}
