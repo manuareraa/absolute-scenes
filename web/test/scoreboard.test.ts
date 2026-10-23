@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import raw from "../public/fixtures/show-sim-7.json?raw";
-import { momentum, scoreAt, showEndT, showEvents } from "../src/scoreboard";
+import { momentum, packageEvents, scoreAt, showEndT, showEvents } from "../src/scoreboard";
 import type { ShowFixture } from "../src/show";
 
 const fx: ShowFixture = JSON.parse(raw);
@@ -61,5 +61,23 @@ describe("momentum", () => {
     const home = m.bins.reduce((a, b) => a + b.home, 0);
     // Every home shot is timed: the total matches the catch-up's home xG.
     expect(home).toBeCloseTo(fx.summaries!.catch_up!.stats.home.xg, 3);
+  });
+});
+
+describe("match package events", () => {
+  it("takes goals and shots, with a shot's xG from its attrs, and skips the rest", () => {
+    const got = packageEvents([
+      { t: 100, type: "shot", team: "home", attrs: { xg: 0.17 } },
+      { t: 200, type: "shot", team: "away" },
+      { t: 300, type: "goal", team: "away" },
+      { t: 400, type: "pass", team: "home" },
+      { t: 500, type: "goal" },
+      null,
+    ]);
+    expect(got.goals).toEqual([{ t: 300, team: "away" }]);
+    expect(got.shots).toEqual([
+      { t: 100, team: "home", xg: 0.17 },
+      { t: 200, team: "away" },
+    ]);
   });
 });

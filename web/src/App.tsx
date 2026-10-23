@@ -13,7 +13,7 @@ import { captionTokens, frameAt, playStateAt, selectOverlays, timeline, wordInde
 import { chaptersOf, langsOf, pickShow, showStateAt, type ShowFixture } from "./show";
 import { decidingMoments, pct, type Moment, type Summary } from "./summary";
 import { Momentum } from "./components/Momentum";
-import { momentum, scoreAt, showEndT, showEvents, type Goal, type Shot } from "./scoreboard";
+import { momentum, packageEvents, scoreAt, showEndT, showEvents, type Goal, type Shot } from "./scoreboard";
 import { useOverlayAudio } from "./useOverlayAudio";
 import { isProvisional, varBanner, varFor, varGraphics } from "./var";
 import { Landing, type Jump } from "./Landing";
@@ -132,7 +132,7 @@ export function App() {
   // Hub state lives in a ref: frame batches land every second, renders tick at the frame rate.
   const hub = useRef(newLiveState());
   const director = useRef(new LiveDirector());
-  // Goals seen in the hub's event batches, keyed so a re-sent batch counts once.
+  // Goals and shots from the hub's batches and the package's events, keyed so a repeat counts once.
   const goals = useRef(new Map<string, Goal>());
   const shots = useRef(new Map<string, Shot>());
   // The hub keeps only seconds of frames, so live player totals are summed as batches arrive.
@@ -262,6 +262,21 @@ export function App() {
     return () => clearTimeout(id);
   }, [notice]);
 
+  const addGoalsAndShots = (events: unknown[]) => {
+    const got = packageEvents(events);
+    for (const g of got.goals) goals.current.set(`${g.t}:${g.team}`, g);
+    for (const x of got.shots) shots.current.set(`${x.t}:${x.team}`, x);
+  };
+
+  // A viewer who joins mid-match missed the earlier batches: the package's own event list (a free
+  // static file) fills in the goals and shots, and the board still shows only those up to its time.
+  useEffect(() => {
+    fetch(`/matches/${encodeURIComponent(MATCH_ID)}/events.json`)
+      .then((r) => (r.ok ? r.json() : []))
+      .then((events) => Array.isArray(events) && addGoalsAndShots(events))
+      .catch(() => {});
+  }, []);
+
   useEffect(
     () =>
       keepConnected(matchWsUrl(MATCH_ID, location), {
@@ -278,11 +293,10 @@ export function App() {
               liveEvents.current.clear();
             }
             ingest(liveTracks.current, m.frames);
-            for (const e of m.events as { t: number; type: string; team?: string; xg?: number; actors?: string[] }[]) {
+            for (const e of m.events as { t: number; type: string; actors?: string[] }[]) {
               if (e?.actors?.length) liveEvents.current.set(`${e.t}:${e.type}:${e.actors[0]}`, e);
-              if (e?.type === "goal" && e.team) goals.current.set(`${e.t}:${e.team}`, { t: e.t, team: e.team });
-              if (e?.type === "shot" && e.team) shots.current.set(`${e.t}:${e.team}`, typeof e.xg === "number" ? { t: e.t, team: e.team, xg: e.xg } : { t: e.t, team: e.team });
             }
+            addGoalsAndShots(m.events);
             if (m.frames.length) setHubReady(true);
           }
         },
