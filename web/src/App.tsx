@@ -1,5 +1,6 @@
 import { lazy, Suspense, useEffect, useMemo, useRef, useState } from "react";
 import type { Overlay } from "@chalktalk/contracts";
+import { Logo } from "./components/Logo";
 import { OverlayLayer } from "./components/OverlayLayer";
 import { airStatus, demoOverlays, withDemo } from "./demo";
 import { claimWords, slotLabel, evidenceFor, evidenceOverlay, eventsSoFar, geometryOverlay, frameBetween, replayMatchT, type EvidenceEntry } from "./evidence";
@@ -12,6 +13,7 @@ import { chaptersOf, langsOf, pickShow, showStateAt, type ShowFixture } from "./
 import { decidingMoments, pct, type Moment, type Summary } from "./summary";
 import { useOverlayAudio } from "./useOverlayAudio";
 import { isProvisional, varBanner, varFor, varGraphics } from "./var";
+import { Landing, type Jump } from "./Landing";
 import { keepConnected, matchWsUrl, type SourceMode } from "./ws";
 
 type Surface = Overlay["surface"];
@@ -51,21 +53,8 @@ const pick = <T extends string>(key: string, options: readonly T[], fallback: T)
 };
 // Player stays reachable by `?surface=player`; the header offers the two a judge needs.
 const HEADER_SURFACES: Surface[] = ["show", "broadcast"];
-const WELCOME_KEY = "chalktalk.welcome";
-const welcomeSeen = () => {
-  try {
-    return localStorage.getItem(WELCOME_KEY) === "1";
-  } catch {
-    return false;
-  }
-};
-const rememberWelcome = () => {
-  try {
-    localStorage.setItem(WELCOME_KEY, "1");
-  } catch {
-    // Private mode or blocked storage: the card shows again next visit.
-  }
-};
+/** A bare link (no `surface`) opens the front page; any pick or deep link goes straight to the app. */
+const LANDING = !params.has("surface") && !params.has("demo") && params.get("welcome") !== "off";
 // three.js only loads when the 3D view is first opened.
 const Broadcast3D = lazy(() => import("./figures/Broadcast3D"));
 const GOAL_BANNER_MS = 8000;
@@ -115,7 +104,9 @@ export function App() {
   const [live, setLive] = useState<Overlay[]>([]);
   const [playing, setPlaying] = useState(true);
   const [view, setView] = useState<View>(START_VIEW);
-  const [welcome, setWelcome] = useState(() => !welcomeSeen() && params.get("welcome") !== "off" && !params.has("demo"));
+  const [landing, setLanding] = useState(LANDING);
+  // A "Show me" link from the front page, applied once the show has loaded.
+  const [jump, setJump] = useState<Jump | null>(null);
   const [how, setHow] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const s = tr(lang);
@@ -164,25 +155,29 @@ export function App() {
     setReplay(null);
     setSummary(null);
   };
-  const closeWelcome = () => {
-    rememberWelcome();
-    setWelcome(false);
+  const go = (j: Jump) => {
+    setSurface(j.surface);
+    if (j.lens) setLens(j.lens);
+    if (j.side) setSide(j.side);
+    setLang(j.lang ?? lang);
+    setReplay(null);
+    setSummary(null);
+    setPlaying(true);
+    setJump(j.chapter || j.open ? j : null);
+    setLanding(false);
+    scrollTo(0, 0);
   };
-  const watchShow = () => {
-    setSurface("show");
-    setLens("analyst");
-    setSide("away");
-    closeWelcome();
-  };
-  const watchLive = () => {
-    setSurface("broadcast");
-    closeWelcome();
+  const home = () => {
+    setReplay(null);
+    setSummary(null);
+    setHow(false);
+    setLanding(true);
+    history.replaceState(history.state, "", location.pathname);
   };
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if (e.key !== "Escape") return;
       if (how) return setHow(false);
-      if (welcome) return closeWelcome();
       if (settingsOpen) return setSettingsOpen(false);
       if (replay) closeEvidence();
       else if (summary) closeSummary();
@@ -193,10 +188,11 @@ export function App() {
 
   // The URL follows the picks, so a reload or a shared link opens the same view.
   useEffect(() => {
+    if (landing) return;
     const q = new URLSearchParams(location.search);
     for (const [k, v] of [["surface", surface], ["lens", lens], ["side", side], ["lang", lang], ["view", view]]) q.set(k, v);
     history.replaceState(history.state, "", `${location.pathname}?${q}${location.hash}`);
-  }, [surface, lens, side, lang, view]);
+  }, [landing, surface, lens, side, lang, view]);
 
   useEffect(() => {
     fetch(`/fixtures/${FIXTURE_ID}.json`)
@@ -252,6 +248,21 @@ export function App() {
   const book = useMemo(() => (show ? chaptersOf(show, SHOW_BASE) : null), [show]);
   const titles = useMemo(() => (book ? chapterTitles(book.chapters, lang) : []), [book, lang]);
   const showMode = wantShow && book !== null && showFx !== null;
+  useEffect(() => {
+    if (!jump || landing || !showMode) return;
+    setJump(null);
+    const prefix = jump.chapter === "ghost" ? "ov-ghost" : jump.chapter === "var" ? "ov-var" : null;
+    const target = prefix ? book.chapters.find((c) => c.overlay.id.startsWith(prefix)) : book.chapters[0];
+    if (jump.chapter && target) seek(target.at);
+    if (jump.open === "summary") {
+      const sm = Object.values(showFx.summaries ?? {})[0];
+      if (sm) openSummary(sm);
+    } else if (jump.open === "evidence") {
+      const claim = book.chapters.flatMap((c) => c.overlay.claims).find((c) => evidenceFor(showFx.evidence, c) !== undefined);
+      if (claim) openEvidence(claim);
+    }
+    // Runs once the show for the jump's picks has loaded; the handlers read current state.
+  }, [jump, landing, showMode, show]);
   const loopMs = showMode ? book.totalMs : tl.loopMs;
   const loopPos = loopMs ? ((elapsed % loopMs) + loopMs) % loopMs : 0;
 
@@ -305,13 +316,16 @@ export function App() {
   const status = surface === "broadcast" ? airStatus(overlays, matchT, state.overlay !== null, ended) : null;
   const preRoll = showMode && !replaying && !summing && chapter >= 0 && state.overlay === null;
 
+  if (landing) return <Landing s={s} lang={lang} onLang={setLang} onGo={go} />;
   if (error && !isLive) return <main className="app error">Could not load the match fixture: {error}</main>;
 
   const surfaces = surface === "player" ? [...HEADER_SURFACES, "player" as Surface] : HEADER_SURFACES;
   return (
     <main className={`app surface-${surface}`} lang={lang}>
       <header className="bar">
-        <h1>ChalkTalk</h1>
+        <h1>
+          <Logo size={26} onClick={home} title={s.landing.backHome} />
+        </h1>
         <div id="controls" className={`controls${settingsOpen ? " open" : ""}`}>
           <Segmented s={s} group="surface" value={surface} options={surfaces} onChange={setSurface} />
           <Segmented s={s} group="lens" value={lens} options={LENSES} onChange={setLens} />
@@ -441,7 +455,6 @@ export function App() {
         </footer>
       )}
 
-      {welcome && !how && <Welcome s={s} onShow={watchShow} onLive={watchLive} onHow={() => setHow(true)} onClose={closeWelcome} />}
       {how && <HowItWorks s={s} onClose={() => setHow(false)} />}
     </main>
   );
@@ -455,33 +468,6 @@ function clock(ms: number): string {
 const claimTitle = (c: Claim, lang: string) => `${cap(slotWords(slotLabel(c.text_slot), lang))}: ${num(c.value, lang)}${c.unit ? ` ${c.unit}` : ""}`;
 const cap = (x: string) => x.charAt(0).toUpperCase() + x.slice(1);
 const summaryName = (sm: Summary, s: Strings) => (sm.kind === "half_time" ? s.halfTime : s.catchUp(clock(sm.at_t)));
-
-function Welcome({ s, onShow, onLive, onHow, onClose }: { s: Strings; onShow(): void; onLive(): void; onHow(): void; onClose(): void }) {
-  return (
-    <div className="sheet-backdrop" onClick={onClose}>
-      <section className="sheet welcome" role="dialog" aria-modal="true" aria-labelledby="welcome-title" onClick={(e) => e.stopPropagation()}>
-        <h2 id="welcome-title">{s.welcomeTitle}</h2>
-        <p>{s.tagline}</p>
-        <div className="choices">
-          <button className="primary" onClick={onShow} autoFocus>
-            <b>{s.watchShow}</b>
-            <small>{s.watchShowHint}</small>
-          </button>
-          <button onClick={onLive}>
-            <b>{s.watchLive}</b>
-            <small>{s.watchLiveHint}</small>
-          </button>
-          <button onClick={onHow}>
-            <b>{s.howItWorks}</b>
-          </button>
-        </div>
-        <button className="close" onClick={onClose} aria-label={s.close} title={s.close}>
-          ×
-        </button>
-      </section>
-    </div>
-  );
-}
 
 function HowItWorks({ s, onClose }: { s: Strings; onClose(): void }) {
   return (

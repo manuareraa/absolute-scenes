@@ -30,7 +30,7 @@ import {
 } from "./producer";
 import { keepConnected, matchWsUrl } from "./ws";
 
-/** `/producer?queue=queue-sim-7`; the page sits behind Cloudflare Access once deployed. */
+/** `/producer?queue=queue-sim-7`; public, but airing needs the hub secret (decisions stay local without it). */
 const QUEUE_ID = new URLSearchParams(location.search).get("queue") ?? "queue-sim-7";
 const INTRO_KEY = "chalktalk.producer.intro";
 
