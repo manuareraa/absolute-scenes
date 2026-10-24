@@ -14,7 +14,7 @@ The Azure subscription has **$100 of credit for the whole project**. Overspendin
   - `chalktalk-speech`: Speech **F0 (free)**.
 - **Never:** ACR (use GHCR), GPU or dedicated workload profiles, provisioned (PTU) deployments, premium SKUs, always-on replicas (`minReplicas` must be 0), or Log Analytics/App Insights beyond the free ingest.
 - **Spend tokens carefully:** tests and CI use the fake clients, never live Azure. Live calls only in manual smoke tests and demos. Cap `max_tokens` and cache outputs (overlays, audio) so a moment is generated once.
-- A $60/month budget (`chalktalk-cap`) emails at 10/25/50/80% and at forecast 100%.
+- A ₹5,000/month budget (`chalktalk-cap`; billing is in INR, about $57) emails at 10/25/50/80/100%.
 - **Keys** live in `~/.config/chalktalk/azure.env`, outside the repo (mode 600). Load them with `set -a; . ~/.config/chalktalk/azure.env; set +a`. Never commit them, print them or paste them into notes.
 
 ## Worktrees (enforced)
