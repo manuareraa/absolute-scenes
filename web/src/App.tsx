@@ -383,7 +383,8 @@ export function App() {
   const boardT = replaying ? replayT : summing ? summary.s.at_t : matchT;
   const allGoals: Goal[] = isLive ? [...goals.current.values()] : showMode ? showEv!.goals : [];
   const scored = allGoals.filter((g) => g.t <= boardT);
-  const score = scoreAt(allGoals, boardT);
+  // A VAR chapter reviews a goal already scored, so the score counts it from the check's time.
+  const score = scoreAt(allGoals, vm ? Math.max(boardT, vm.check_t) : boardT);
   // Momentum strip: the same recorded shots, binned per minute up to the board time.
   const allShots: Shot[] = isLive ? [...shots.current.values()] : showMode ? showEv!.shots : [];
   const endT = isLive ? hub.current.durationMs || matchT : showMode ? showEndT(showFx!) : 0;
@@ -574,9 +575,7 @@ export function App() {
               <EvidencePanel title={replay.title} entry={replay.entry} t={replayT} onClose={closeEvidence} back={summary ? s.backToMoments : s.backToShow} s={s} lang={lang} />
             ) : summing ? (
               <SummaryPanel sm={summary.s} onMoment={openMoment} onClose={closeSummary} s={s} lang={lang} mine={myId} />
-            ) : (
-              state.overlay && <Caption overlay={state.overlay} audioMs={audioMs} onClaim={showMode ? openEvidence : undefined} tappable={tappable} hint={s.replayEvidence} />
-            )}
+            ) : null}
             {audio.blocked && state.overlay && (
               <button className="sound-on" onClick={audio.unblock} aria-label={s.soundOn} title={s.soundOn}>
                 {s.soundOn}
@@ -588,6 +587,9 @@ export function App() {
               </div>
             )}
           </div>
+          {!replaying && !summing && state.overlay && (
+            <Caption overlay={state.overlay} audioMs={audioMs} onClaim={showMode ? openEvidence : undefined} tappable={tappable} hint={s.replayEvidence} />
+          )}
           <div className="viewer-bar">
             <button className="catch-up" onClick={catchMeUp} title={s.catchMeUpHint} aria-keyshortcuts="c">
               {s.catchMeUp}
