@@ -1,0 +1,532 @@
+{
+  "run": "2026-10-24 Foundry evaluation of the show made by Foundry agents",
+  "foundry_evaluation_id": "f5cbcbf2-8b57-4c14-8992-e563eb5c3694",
+  "project": "chalktalk",
+  "items": 64,
+  "live_items": [
+    "ov-m176800-analyst-away-en-GB",
+    "ov-m176800-analyst-away-es-ES",
+    "ov-m176800-analyst-home-en-GB",
+    "ov-m176800-analyst-home-es-ES",
+    "ov-m176800-analyst-neutral-en-GB",
+    "ov-m176800-analyst-neutral-es-ES",
+    "ov-m176800-casual-away-en-GB",
+    "ov-m176800-casual-away-es-ES",
+    "ov-m176800-casual-home-en-GB",
+    "ov-m176800-casual-home-es-ES",
+    "ov-m176800-casual-neutral-en-GB",
+    "ov-m176800-casual-neutral-es-ES",
+    "ov-m176800-newcomer-away-en-GB",
+    "ov-m176800-newcomer-away-es-ES",
+    "ov-m176800-newcomer-home-en-GB",
+    "ov-m176800-newcomer-home-es-ES",
+    "ov-m176800-newcomer-neutral-en-GB",
+    "ov-m176800-newcomer-neutral-es-ES",
+    "ov-m448840-analyst-away-en-GB",
+    "ov-m448840-analyst-away-es-ES",
+    "ov-m448840-analyst-home-en-GB",
+    "ov-m448840-analyst-home-es-ES",
+    "ov-m448840-analyst-neutral-en-GB",
+    "ov-m448840-analyst-neutral-es-ES",
+    "ov-m448840-casual-away-en-GB",
+    "ov-m448840-casual-away-es-ES",
+    "ov-m448840-casual-home-en-GB",
+    "ov-m448840-casual-home-es-ES",
+    "ov-m448840-casual-neutral-en-GB",
+    "ov-m448840-casual-neutral-es-ES",
+    "ov-m448840-newcomer-away-en-GB",
+    "ov-m448840-newcomer-away-es-ES",
+    "ov-m448840-newcomer-home-en-GB",
+    "ov-m448840-newcomer-home-es-ES",
+    "ov-m448840-newcomer-neutral-en-GB",
+    "ov-m448840-newcomer-neutral-es-ES",
+    "ov-m531600-analyst-away-en-GB",
+    "ov-m531600-analyst-away-es-ES",
+    "ov-m531600-analyst-home-en-GB",
+    "ov-m531600-analyst-home-es-ES",
+    "ov-m531600-analyst-neutral-en-GB",
+    "ov-m531600-analyst-neutral-es-ES",
+    "ov-m531600-casual-away-en-GB",
+    "ov-m531600-casual-away-es-ES",
+    "ov-m531600-casual-home-en-GB",
+    "ov-m531600-casual-home-es-ES",
+    "ov-m531600-casual-neutral-en-GB",
+    "ov-m531600-casual-neutral-es-ES",
+    "ov-m531600-newcomer-away-en-GB",
+    "ov-m531600-newcomer-away-es-ES",
+    "ov-m531600-newcomer-home-en-GB",
+    "ov-m531600-newcomer-home-es-ES",
+    "ov-m531600-newcomer-neutral-en-GB",
+    "ov-m531600-newcomer-neutral-es-ES"
+  ],
+  "judge_model": "gpt-4.1-mini",
+  "est_judge_cost_usd": 0.0481,
+  "metrics": {
+    "claim_groundedness.claim_groundedness": 1.0,
+    "claim_groundedness.unsupported_numbers": 0.0,
+    "claim_groundedness.claims_backed_by_tool": 1.0,
+    "numeric_tolerance.numeric_tolerance": 1.0,
+    "numeric_tolerance.max_abs_error": 0.0,
+    "cue_timing.cue_timing": 1.0,
+    "cue_timing.cue_bound_rate": 1.0,
+    "cue_timing.cue_word_align_p95_ms": 0.0,
+    "cue_timing.negative_starts": 0.0,
+    "llm_groundedness.groundedness": 4.9375,
+    "llm_groundedness.groundedness_score": 4.9375,
+    "llm_groundedness.groundedness_passed": 1.0,
+    "claim_groundedness.binary_aggregate": 1.0,
+    "numeric_tolerance.binary_aggregate": 1.0,
+    "cue_timing.binary_aggregate": 1.0,
+    "llm_groundedness.binary_aggregate": 1.0
+  },
+  "rows": [
+    {
+      "id": "ov-m605600-casual-home-en-GB",
+      "llm_groundedness": 5.0,
+      "claim_groundedness": "pass",
+      "numeric_tolerance": "pass",
+      "cue_timing": "pass"
+    },
+    {
+      "id": "ov-m1833500-casual-home-en-GB",
+      "llm_groundedness": 5.0,
+      "claim_groundedness": "pass",
+      "numeric_tolerance": "pass",
+      "cue_timing": "pass"
+    },
+    {
+      "id": "ov-m2401200-casual-home-en-GB",
+      "llm_groundedness": 5.0,
+      "claim_groundedness": "pass",
+      "numeric_tolerance": "pass",
+      "cue_timing": "pass"
+    },
+    {
+      "id": "ov-m3504000-casual-home-en-GB",
+      "llm_groundedness": 5.0,
+      "claim_groundedness": "pass",
+      "numeric_tolerance": "pass",
+      "cue_timing": "pass"
+    },
+    {
+      "id": "ov-m605600-analyst-away-en-GB",
+      "llm_groundedness": 5.0,
+      "claim_groundedness": "pass",
+      "numeric_tolerance": "pass",
+      "cue_timing": "pass"
+    },
+    {
+      "id": "ov-m1833500-analyst-away-en-GB",
+      "llm_groundedness": 5.0,
+      "claim_groundedness": "pass",
+      "numeric_tolerance": "pass",
+      "cue_timing": "pass"
+    },
+    {
+      "id": "ov-m2401200-analyst-away-en-GB",
+      "llm_groundedness": 5.0,
+      "claim_groundedness": "pass",
+      "numeric_tolerance": "pass",
+      "cue_timing": "pass"
+    },
+    {
+      "id": "ov-m3504000-analyst-away-en-GB",
+      "llm_groundedness": 5.0,
+      "claim_groundedness": "pass",
+      "numeric_tolerance": "pass",
+      "cue_timing": "pass"
+    },
+    {
+      "id": "ov-m605600-newcomer-neutral-en-GB",
+      "llm_groundedness": 5.0,
+      "claim_groundedness": "pass",
+      "numeric_tolerance": "pass",
+      "cue_timing": "pass"
+    },
+    {
+      "id": "ov-m1833500-newcomer-neutral-en-GB",
+      "llm_groundedness": 5.0,
+      "claim_groundedness": "pass",
+      "numeric_tolerance": "pass",
+      "cue_timing": "pass"
+    },
+    {
+      "id": "ov-m176800-analyst-away-en-GB",
+      "llm_groundedness": 5.0,
+      "claim_groundedness": "pass",
+      "numeric_tolerance": "pass",
+      "cue_timing": "pass"
+    },
+    {
+      "id": "ov-m176800-analyst-away-es-ES",
+      "llm_groundedness": 5.0,
+      "claim_groundedness": "pass",
+      "numeric_tolerance": "pass",
+      "cue_timing": "pass"
+    },
+    {
+      "id": "ov-m176800-analyst-home-en-GB",
+      "llm_groundedness": 5.0,
+      "claim_groundedness": "pass",
+      "numeric_tolerance": "pass",
+      "cue_timing": "pass"
+    },
+    {
+      "id": "ov-m176800-analyst-home-es-ES",
+      "llm_groundedness": 4.0,
+      "claim_groundedness": "pass",
+      "numeric_tolerance": "pass",
+      "cue_timing": "pass"
+    },
+    {
+      "id": "ov-m176800-analyst-neutral-en-GB",
+      "llm_groundedness": 5.0,
+      "claim_groundedness": "pass",
+      "numeric_tolerance": "pass",
+      "cue_timing": "pass"
+    },
+    {
+      "id": "ov-m176800-analyst-neutral-es-ES",
+      "llm_groundedness": 5.0,
+      "claim_groundedness": "pass",
+      "numeric_tolerance": "pass",
+      "cue_timing": "pass"
+    },
+    {
+      "id": "ov-m176800-casual-away-en-GB",
+      "llm_groundedness": 5.0,
+      "claim_groundedness": "pass",
+      "numeric_tolerance": "pass",
+      "cue_timing": "pass"
+    },
+    {
+      "id": "ov-m176800-casual-away-es-ES",
+      "llm_groundedness": 5.0,
+      "claim_groundedness": "pass",
+      "numeric_tolerance": "pass",
+      "cue_timing": "pass"
+    },
+    {
+      "id": "ov-m176800-casual-home-en-GB",
+      "llm_groundedness": 5.0,
+      "claim_groundedness": "pass",
+      "numeric_tolerance": "pass",
+      "cue_timing": "pass"
+    },
+    {
+      "id": "ov-m176800-casual-home-es-ES",
+      "llm_groundedness": 5.0,
+      "claim_groundedness": "pass",
+      "numeric_tolerance": "pass",
+      "cue_timing": "pass"
+    },
+    {
+      "id": "ov-m176800-casual-neutral-en-GB",
+      "llm_groundedness": 5.0,
+      "claim_groundedness": "pass",
+      "numeric_tolerance": "pass",
+      "cue_timing": "pass"
+    },
+    {
+      "id": "ov-m176800-casual-neutral-es-ES",
+      "llm_groundedness": 5.0,
+      "claim_groundedness": "pass",
+      "numeric_tolerance": "pass",
+      "cue_timing": "pass"
+    },
+    {
+      "id": "ov-m176800-newcomer-away-en-GB",
+      "llm_groundedness": 5.0,
+      "claim_groundedness": "pass",
+      "numeric_tolerance": "pass",
+      "cue_timing": "pass"
+    },
+    {
+      "id": "ov-m176800-newcomer-away-es-ES",
+      "llm_groundedness": 5.0,
+      "claim_groundedness": "pass",
+      "numeric_tolerance": "pass",
+      "cue_timing": "pass"
+    },
+    {
+      "id": "ov-m176800-newcomer-home-en-GB",
+      "llm_groundedness": 5.0,
+      "claim_groundedness": "pass",
+      "numeric_tolerance": "pass",
+      "cue_timing": "pass"
+    },
+    {
+      "id": "ov-m176800-newcomer-home-es-ES",
+      "llm_groundedness": 5.0,
+      "claim_groundedness": "pass",
+      "numeric_tolerance": "pass",
+      "cue_timing": "pass"
+    },
+    {
+      "id": "ov-m176800-newcomer-neutral-en-GB",
+      "llm_groundedness": 5.0,
+      "claim_groundedness": "pass",
+      "numeric_tolerance": "pass",
+      "cue_timing": "pass"
+    },
+    {
+      "id": "ov-m176800-newcomer-neutral-es-ES",
+      "llm_groundedness": 5.0,
+      "claim_groundedness": "pass",
+      "numeric_tolerance": "pass",
+      "cue_timing": "pass"
+    },
+    {
+      "id": "ov-m448840-analyst-away-en-GB",
+      "llm_groundedness": 5.0,
+      "claim_groundedness": "pass",
+      "numeric_tolerance": "pass",
+      "cue_timing": "pass"
+    },
+    {
+      "id": "ov-m448840-analyst-away-es-ES",
+      "llm_groundedness": 5.0,
+      "claim_groundedness": "pass",
+      "numeric_tolerance": "pass",
+      "cue_timing": "pass"
+    },
+    {
+      "id": "ov-m448840-analyst-home-en-GB",
+      "llm_groundedness": 5.0,
+      "claim_groundedness": "pass",
+      "numeric_tolerance": "pass",
+      "cue_timing": "pass"
+    },
+    {
+      "id": "ov-m448840-analyst-home-es-ES",
+      "llm_groundedness": 5.0,
+      "claim_groundedness": "pass",
+      "numeric_tolerance": "pass",
+      "cue_timing": "pass"
+    },
+    {
+      "id": "ov-m448840-analyst-neutral-en-GB",
+      "llm_groundedness": 5.0,
+      "claim_groundedness": "pass",
+      "numeric_tolerance": "pass",
+      "cue_timing": "pass"
+    },
+    {
+      "id": "ov-m448840-analyst-neutral-es-ES",
+      "llm_groundedness": 5.0,
+      "claim_groundedness": "pass",
+      "numeric_tolerance": "pass",
+      "cue_timing": "pass"
+    },
+    {
+      "id": "ov-m448840-casual-away-en-GB",
+      "llm_groundedness": 5.0,
+      "claim_groundedness": "pass",
+      "numeric_tolerance": "pass",
+      "cue_timing": "pass"
+    },
+    {
+      "id": "ov-m448840-casual-away-es-ES",
+      "llm_groundedness": 5.0,
+      "claim_groundedness": "pass",
+      "numeric_tolerance": "pass",
+      "cue_timing": "pass"
+    },
+    {
+      "id": "ov-m448840-casual-home-en-GB",
+      "llm_groundedness": 5.0,
+      "claim_groundedness": "pass",
+      "numeric_tolerance": "pass",
+      "cue_timing": "pass"
+    },
+    {
+      "id": "ov-m448840-casual-home-es-ES",
+      "llm_groundedness": 5.0,
+      "claim_groundedness": "pass",
+      "numeric_tolerance": "pass",
+      "cue_timing": "pass"
+    },
+    {
+      "id": "ov-m448840-casual-neutral-en-GB",
+      "llm_groundedness": 5.0,
+      "claim_groundedness": "pass",
+      "numeric_tolerance": "pass",
+      "cue_timing": "pass"
+    },
+    {
+      "id": "ov-m448840-casual-neutral-es-ES",
+      "llm_groundedness": 5.0,
+      "claim_groundedness": "pass",
+      "numeric_tolerance": "pass",
+      "cue_timing": "pass"
+    },
+    {
+      "id": "ov-m448840-newcomer-away-en-GB",
+      "llm_groundedness": 5.0,
+      "claim_groundedness": "pass",
+      "numeric_tolerance": "pass",
+      "cue_timing": "pass"
+    },
+    {
+      "id": "ov-m448840-newcomer-away-es-ES",
+      "llm_groundedness": 5.0,
+      "claim_groundedness": "pass",
+      "numeric_tolerance": "pass",
+      "cue_timing": "pass"
+    },
+    {
+      "id": "ov-m448840-newcomer-home-en-GB",
+      "llm_groundedness": 5.0,
+      "claim_groundedness": "pass",
+      "numeric_tolerance": "pass",
+      "cue_timing": "pass"
+    },
+    {
+      "id": "ov-m448840-newcomer-home-es-ES",
+      "llm_groundedness": 5.0,
+      "claim_groundedness": "pass",
+      "numeric_tolerance": "pass",
+      "cue_timing": "pass"
+    },
+    {
+      "id": "ov-m448840-newcomer-neutral-en-GB",
+      "llm_groundedness": 5.0,
+      "claim_groundedness": "pass",
+      "numeric_tolerance": "pass",
+      "cue_timing": "pass"
+    },
+    {
+      "id": "ov-m448840-newcomer-neutral-es-ES",
+      "llm_groundedness": 5.0,
+      "claim_groundedness": "pass",
+      "numeric_tolerance": "pass",
+      "cue_timing": "pass"
+    },
+    {
+      "id": "ov-m531600-analyst-away-en-GB",
+      "llm_groundedness": 5.0,
+      "claim_groundedness": "pass",
+      "numeric_tolerance": "pass",
+      "cue_timing": "pass"
+    },
+    {
+      "id": "ov-m531600-analyst-away-es-ES",
+      "llm_groundedness": 5.0,
+      "claim_groundedness": "pass",
+      "numeric_tolerance": "pass",
+      "cue_timing": "pass"
+    },
+    {
+      "id": "ov-m531600-analyst-home-en-GB",
+      "llm_groundedness": 5.0,
+      "claim_groundedness": "pass",
+      "numeric_tolerance": "pass",
+      "cue_timing": "pass"
+    },
+    {
+      "id": "ov-m531600-analyst-home-es-ES",
+      "llm_groundedness": 5.0,
+      "claim_groundedness": "pass",
+      "numeric_tolerance": "pass",
+      "cue_timing": "pass"
+    },
+    {
+      "id": "ov-m531600-analyst-neutral-en-GB",
+      "llm_groundedness": 5.0,
+      "claim_groundedness": "pass",
+      "numeric_tolerance": "pass",
+      "cue_timing": "pass"
+    },
+    {
+      "id": "ov-m531600-analyst-neutral-es-ES",
+      "llm_groundedness": 5.0,
+      "claim_groundedness": "pass",
+      "numeric_tolerance": "pass",
+      "cue_timing": "pass"
+    },
+    {
+      "id": "ov-m531600-casual-away-en-GB",
+      "llm_groundedness": 4.0,
+      "claim_groundedness": "pass",
+      "numeric_tolerance": "pass",
+      "cue_timing": "pass"
+    },
+    {
+      "id": "ov-m531600-casual-away-es-ES",
+      "llm_groundedness": 4.0,
+      "claim_groundedness": "pass",
+      "numeric_tolerance": "pass",
+      "cue_timing": "pass"
+    },
+    {
+      "id": "ov-m531600-casual-home-en-GB",
+      "llm_groundedness": 4.0,
+      "claim_groundedness": "pass",
+      "numeric_tolerance": "pass",
+      "cue_timing": "pass"
+    },
+    {
+      "id": "ov-m531600-casual-home-es-ES",
+      "llm_groundedness": 5.0,
+      "claim_groundedness": "pass",
+      "numeric_tolerance": "pass",
+      "cue_timing": "pass"
+    },
+    {
+      "id": "ov-m531600-casual-neutral-en-GB",
+      "llm_groundedness": 5.0,
+      "claim_groundedness": "pass",
+      "numeric_tolerance": "pass",
+      "cue_timing": "pass"
+    },
+    {
+      "id": "ov-m531600-casual-neutral-es-ES",
+      "llm_groundedness": 5.0,
+      "claim_groundedness": "pass",
+      "numeric_tolerance": "pass",
+      "cue_timing": "pass"
+    },
+    {
+      "id": "ov-m531600-newcomer-away-en-GB",
+      "llm_groundedness": 5.0,
+      "claim_groundedness": "pass",
+      "numeric_tolerance": "pass",
+      "cue_timing": "pass"
+    },
+    {
+      "id": "ov-m531600-newcomer-away-es-ES",
+      "llm_groundedness": 5.0,
+      "claim_groundedness": "pass",
+      "numeric_tolerance": "pass",
+      "cue_timing": "pass"
+    },
+    {
+      "id": "ov-m531600-newcomer-home-en-GB",
+      "llm_groundedness": 5.0,
+      "claim_groundedness": "pass",
+      "numeric_tolerance": "pass",
+      "cue_timing": "pass"
+    },
+    {
+      "id": "ov-m531600-newcomer-home-es-ES",
+      "llm_groundedness": 5.0,
+      "claim_groundedness": "pass",
+      "numeric_tolerance": "pass",
+      "cue_timing": "pass"
+    },
+    {
+      "id": "ov-m531600-newcomer-neutral-en-GB",
+      "llm_groundedness": 5.0,
+      "claim_groundedness": "pass",
+      "numeric_tolerance": "pass",
+      "cue_timing": "pass"
+    },
+    {
+      "id": "ov-m531600-newcomer-neutral-es-ES",
+      "llm_groundedness": 5.0,
+      "claim_groundedness": "pass",
+      "numeric_tolerance": "pass",
+      "cue_timing": "pass"
+    }
+  ]
+}

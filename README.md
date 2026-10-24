@@ -54,7 +54,7 @@ flowchart LR
 
 - **Facts come from tools, never from the model.** Distances, gaps, xG and pitch control are computed by deterministic Python tools. The language model only picks, phrases and orders. Each spoken number is bound to its `tool_call`, and the Verifier re-runs the tools before an overlay is released.
 - **Strokes are timed to words.** Azure AI Speech returns the audio with word boundaries and SSML bookmarks. Each drawing cue is snapped to the start of its word, so a stroke begins as its word is spoken.
-- **Four agents** (Director, Analyst, Pundit, Verifier) are defined as Foundry Agent Service agents and run through Microsoft Agent Framework, with an in-process fallback per role.
+- **Four agents** (Director, Analyst, Pundit, Verifier) run on Foundry Agent Service through Microsoft Agent Framework. The shipped show was made by them end to end; each role has an in-process fallback, which this run never needed.
 - **Cheap by design.** Tracking frames and audio are precomputed into static files. Servers carry only low-rate control messages, so the live site runs on Cloudflare's free plan.
 
 ## Microsoft and Azure technology
@@ -73,10 +73,10 @@ flowchart LR
 |---|---|---|
 | Stroke start vs its word (speech side) | Each cue snapped to its word start; 0 ms gap enforced on every shipped cue | [c-s1-word-timing](docs/notes/c-s1-word-timing.md), [c-real-audio](docs/notes/c-real-audio.md) |
 | Stroke start vs audio (browser side, 33 strokes) | median 10 ms, p95 16 ms | [a-audio-sync](docs/notes/a-audio-sync.md) |
-| Claims verified in the shipped show | 246 of 246; all 108 chapters passed the gate | `web/public/fixtures/show-sim-7.json` |
-| Evidence re-runs that match the claim | 20 of 20 | same file |
-| Foundry evaluation run (11 items) | groundedness 1.0, numeric tolerance 1.0, cue timing 1.0, LLM groundedness 4.91 / 5 | [evals/results](evals/results/2026-10-23-foundry.json) |
-| Cost to write the whole show (72 scripts) | about $0.04 in tokens; speech on the free tier | commit `3cd9c89` |
+| Claims verified in the shipped show | 198 of 198; all 90 chapters passed the gate | `web/public/fixtures/show-sim-7.json` |
+| Evidence re-runs that match the claim | 14 of 14 | same file |
+| Foundry evaluation of the shipped show (54 show overlays + 10 test items) | groundedness 1.0, numeric tolerance 1.0, cue timing 1.0, LLM groundedness 4.94 / 5 | [evals/results](evals/results/2026-10-24-foundry.json) |
+| Cost to make the whole show on Foundry agents (54 overlays, 176 agent runs, 0 fallbacks) | about $0.06 in tokens; speech on the free tier | [coord-foundry-show](docs/notes/coord-foundry-show.md) |
 | Simulated match vs real football | shots 23.7 per 90 (Premier League 25–27); pressing 0.50 (tracking reference 0.48–0.64) | [b-sim-realism](docs/notes/b-sim-realism.md) |
 | Tests | 400+ (Python, web, worker, contracts); CI runs on every push | `.github/workflows/` |
 
