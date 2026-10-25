@@ -81,3 +81,49 @@ export function arrowHead(pts: Vec[], size = 1.6): string | null {
   const r = wing(ang + 0.45);
   return `M${tip[0].toFixed(2)} ${tip[1].toFixed(2)} L${l[0].toFixed(2)} ${l[1].toFixed(2)} L${r[0].toFixed(2)} ${r[1].toFixed(2)} Z`;
 }
+
+/** Discs this far apart (centre to centre, times the disc scale) just touch. */
+export const DISC_GAP = 2.6;
+/** No disc is drawn more than this far (metres) from where the player is. */
+export const MAX_NUDGE = 0.75;
+/** The ball is drawn just outside the nearest disc, so it never covers a shirt number. */
+export const BALL_CLEAR = 1.9;
+
+/**
+ * Where to draw each disc and the ball so no shirt number is hidden. Display only: discs that
+ * overlap are nudged apart (never more than `MAX_NUDGE`), and a ball at a player's feet is drawn
+ * at the edge of their disc, on the side it is on. Everything else stays where it is.
+ */
+export function layoutDiscs(players: Vec[], ball: Vec, k = 1): { players: Vec[]; ball: Vec } {
+  const gap = DISC_GAP * k;
+  const pos = players.map(([x, y]) => [x, y] as Vec);
+  for (let pass = 0; pass < 6; pass++) {
+    for (let i = 0; i < pos.length; i++) {
+      for (let j = i + 1; j < pos.length; j++) {
+        const [dx, dy] = [pos[j][0] - pos[i][0], pos[j][1] - pos[i][1]];
+        const d = Math.hypot(dx, dy);
+        if (d >= gap) continue;
+        // Coincident discs part along x, the same way every frame.
+        const [ux, uy] = d > 1e-6 ? [dx / d, dy / d] : [1, 0];
+        const push = (gap - d) / 2;
+        pos[i] = [pos[i][0] - ux * push, pos[i][1] - uy * push];
+        pos[j] = [pos[j][0] + ux * push, pos[j][1] + uy * push];
+      }
+    }
+    for (let i = 0; i < pos.length; i++) {
+      const [dx, dy] = [pos[i][0] - players[i][0], pos[i][1] - players[i][1]];
+      const d = Math.hypot(dx, dy);
+      if (d > MAX_NUDGE) pos[i] = [players[i][0] + (dx / d) * MAX_NUDGE, players[i][1] + (dy / d) * MAX_NUDGE];
+    }
+  }
+  const clear = BALL_CLEAR * k;
+  let b: Vec = [ball[0], ball[1]];
+  for (let pass = 0; pass < 2; pass++) {
+    const near = pos.reduce((best, p) => (dist(p, b) < dist(best, b) ? p : best), pos[0]);
+    const d = near ? dist(near, ball) : Infinity;
+    if (!near || dist(near, b) >= clear) break;
+    const [ux, uy] = d > 1e-6 ? [(ball[0] - near[0]) / d, (ball[1] - near[1]) / d] : [1, 0];
+    b = [near[0] + ux * clear, near[1] + uy * clear];
+  }
+  return { players: pos, ball: b };
+}

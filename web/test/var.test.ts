@@ -23,6 +23,16 @@ describe("VAR chapter", () => {
     }
   });
 
+  it("holds on the pass, where var_offside measured, with frames running into it", () => {
+    for (const seg of varChapters) {
+      const m = varFor(fx.var, seg!.overlay)!;
+      expect(m.play_t).toBeDefined();
+      expect(m.play_t!).toBeLessThan(seg!.overlay.match_tc);
+      expect(fx.frames.some((f) => Math.abs(f.t - m.play_t!) <= 80)).toBe(true);
+      expect(fx.frames.some((f) => Math.abs(f.t - (m.play_t! - 3000)) <= 80)).toBe(true);
+    }
+  });
+
   it("is provisional (amber dashed line) until the decision cue, then shows the decision", () => {
     const o = varChapters[0]!.overlay;
     const m = varFor(fx.var, o)!;
