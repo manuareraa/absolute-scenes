@@ -212,6 +212,7 @@ const EN = {
   pitch: "Synthetic pitch view",
   broadcast3d: "Synthetic broadcast view; drag to orbit, scroll to zoom",
   slots: { gap: "gap", control: "control", press: "pressing", "pass options": "pass options", "pitch control": "pitch control", block: "block", margin: "margin", xg: "chance" } as Record<string, string>,
+  units: { points: "points" } as Record<string, string>,
   crewTitles: {} as Record<string, string>,
   var: { check: "VAR check · provisional", checking: "Checking", checkingFor: (r: string) => `Checking: ${r}`, onside: "Onside", offside: "Offside", decisions: { goal_stands: "Goal stands", goal_disallowed: "No goal" } as Record<string, string> },
   outcomes: {} as Record<string, string>,
@@ -497,6 +498,7 @@ const ES: Strings = {
   pitch: "Vista del campo sintético",
   broadcast3d: "Vista de televisión sintética; arrastra para girar, rueda para acercar",
   slots: { gap: "hueco", control: "control", press: "presión", "pass options": "opciones de pase", "pitch control": "control del campo", block: "bloque", margin: "margen", xg: "ocasión" },
+  units: { points: "puntos" },
   crewTitles: { "The chance": "La ocasión", Goal: "Gol", "The gap between the lines": "El hueco entre líneas", "Where they should have been": "Dónde debía estar", "VAR check: offside?": "Revisión del VAR: ¿fuera de juego?" },
   var: { check: "Revisión del VAR · provisional", checking: "Revisando", checkingFor: (r) => `Revisando: ${r}`, onside: "En posición legal", offside: "Fuera de juego", decisions: { goal_stands: "Gol válido", goal_disallowed: "Gol anulado" } },
   outcomes: { saved: "parada", blocked: "bloqueado", wide: "fuera", post: "al palo", goal: "gol" },
@@ -594,7 +596,7 @@ export function chapterTitles(chapters: { title: string; overlay: { match_tc: nu
   return chapters.map((c, i) => {
     const repeated = bases.filter((b) => b === bases[i]).length > 1;
     const first = c.overlay.claims.find((k) => typeof k.value === "number");
-    const extra = repeated && first ? `: ${num(first.value, lang)}${first.unit ? ` ${first.unit}` : ""}` : "";
+    const extra = repeated && first ? `: ${num(first.value, lang)}${first.unit ? ` ${s.units[first.unit] ?? first.unit}` : ""}` : "";
     return `${clockOf(c.overlay.match_tc)} · ${bases[i]}${extra}`;
   });
 }
@@ -602,6 +604,11 @@ export function chapterTitles(chapters: { title: string; overlay: { match_tc: nu
 /** The crew's slot as words in the UI language: `pc_pts` -> "pitch control". */
 export function slotWords(label: string, lang: string): string {
   return tr(lang).slots[label] ?? label;
+}
+
+/** A claim's unit in the UI language: "points" is a word; m, %, xG stay as they are. */
+export function unitWord(unit: string | null | undefined, lang: string): string {
+  return unit ? (tr(lang).units[unit] ?? unit) : "";
 }
 
 /**

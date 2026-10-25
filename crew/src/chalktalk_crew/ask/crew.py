@@ -91,6 +91,20 @@ TEAM = {"en": {"home": "home", "away": "away"}, "es": {"home": "local", "away": 
 CF_UNITS = {"pitch_control": "share", "line_gap_m": "m", "pressure": "prob", "obso": "xG"}
 
 
+def _say(c: Call, lang: str) -> str:
+    """The result's spoken form. The offside line's value is a signed pitch coordinate, so it
+    is said as a distance from halfway ("6.3 m from halfway"), never as "-6.3 m"."""
+    value, unit = c.out.get("value"), c.out.get("unit")
+    if c.name == "offside_line" and isinstance(value, int | float):
+        dist = verify.say(abs(value), unit, lang)
+        return (
+            f"a {dist} de la línea de medio campo"
+            if lang.startswith("es")
+            else f"{dist} from halfway"
+        )
+    return verify.say(value, unit, lang)
+
+
 @dataclass(frozen=True)
 class AskRequest:
     show_id: str
@@ -386,7 +400,7 @@ class AskCrew:
         t = int(fr["t"])
         return {
             "t": t,
-            "clock": f"{t // 60000}:{t // 1000 % 60:02d}",
+            "clock": f"{t // 60000:02d}:{t // 1000 % 60:02d}",
             "attacking": attacking,
             "defending": "away" if attacking == "home" else "home",
             "ball_owner": owner or None,
@@ -447,7 +461,7 @@ class AskCrew:
                     "tool": c.name,
                     "label": label,
                     "args": c.args,
-                    "say": verify.say(c.out.get("value"), c.out.get("unit"), lang),
+                    "say": _say(c, lang),
                 }
             )
         return out

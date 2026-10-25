@@ -7,7 +7,7 @@ import { airStatus, demoOverlays, withDemo } from "./demo";
 import { claimWords, slotLabel, evidenceFor, evidenceOverlay, eventsSoFar, geometryOverlay, frameBetween, replayMatchT, type EvidenceEntry } from "./evidence";
 import { PitchView } from "./components/PitchView";
 import { LENSES, SIDES, SURFACES, type Fixture } from "./fixture/synthetic";
-import { chapterTitles, momentHeadline, num, slotWords, tr, type Strings } from "./i18n";
+import { chapterTitles, momentHeadline, num, slotWords, tr, unitWord, type Strings } from "./i18n";
 import { applyHubMessage, liveFrame, LiveDirector, liveMatchT, newLiveState } from "./live";
 import { captionTokens, frameAt, playStateAt, selectOverlays, timeline, wordIndexAt } from "./playback";
 import { chaptersOf, langsOf, pickShow, showStateAt, type ShowFixture } from "./show";
@@ -525,9 +525,12 @@ export function App() {
             </select>
           </div>
         </div>
-        <span className={`badge ${isLive ? "live" : mode.mode}`} title={isLive ? s.liveHint : mode.mode === "fixture" ? (mode.detail ?? s.recordedHint) : undefined} role="status">
-          {isLive ? (ended ? s.fullTime : s.live) : mode.mode === "fixture" ? s.recorded : s.connecting}
-        </span>
+        {/* The show is a recorded programme on its own clock, so the live/recorded badge would mislead there. */}
+        {!showMode && (
+          <span className={`badge ${isLive ? "live" : mode.mode}`} title={isLive ? s.liveHint : mode.mode === "fixture" ? (mode.detail ?? s.recordedHint) : undefined} role="status">
+            {isLive ? (ended ? s.fullTime : s.live) : mode.mode === "fixture" ? s.recorded : s.connecting}
+          </span>
+        )}
         {showMode && (
           <button className="icon tour-btn" onClick={openTour} title={s.tour.button}>
             {s.tour.button}
@@ -572,7 +575,7 @@ export function App() {
                 <h2>{s.tapNumber}</h2>
                 {state.overlay.claims.filter(tappable).map((c) => (
                   <button key={c.id} className={replay?.key === c.id ? "on" : ""} onClick={() => openEvidence(c)} title={s.replayEvidence}>
-                    {slotWords(slotLabel(c.text_slot), lang)} <b>{num(c.value, lang)}</b> {c.unit ?? ""}
+                    {slotWords(slotLabel(c.text_slot), lang)} <b>{num(c.value, lang)}</b> {unitWord(c.unit, lang)}
                   </button>
                 ))}
               </div>
@@ -702,7 +705,7 @@ function clock(ms: number): string {
   return `${String(Math.floor(s / 60)).padStart(2, "0")}:${String(s % 60).padStart(2, "0")}`;
 }
 
-const claimTitle = (c: Claim, lang: string) => `${cap(slotWords(slotLabel(c.text_slot), lang))}: ${num(c.value, lang)}${c.unit ? ` ${c.unit}` : ""}`;
+const claimTitle = (c: Claim, lang: string) => `${cap(slotWords(slotLabel(c.text_slot), lang))}: ${num(c.value, lang)}${c.unit ? ` ${unitWord(c.unit, lang)}` : ""}`;
 const cap = (x: string) => x.charAt(0).toUpperCase() + x.slice(1);
 const summaryName = (sm: Summary, s: Strings) => (sm.kind === "half_time" ? s.halfTime : s.catchUp(clock(sm.at_t)));
 

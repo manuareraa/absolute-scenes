@@ -374,3 +374,15 @@ def test_inline_audio_is_a_data_url():
     from chalktalk_crew.ask.server import AudioStore
 
     assert AudioStore(inline=True)("k", b"mp3") == "data:audio/mpeg;base64,bXAz"
+
+
+def test_offside_line_is_said_as_a_distance_not_a_signed_coordinate():
+    from chalktalk_crew.ask.crew import _say
+    from chalktalk_crew.ask.toolbox import Call
+
+    out = {"value": -6.31, "unit": "m", "tool_call": {"id": "tc_off"}}
+    call = Call("offside_line", {}, out, 1)
+    assert _say(call, "en-GB") == "6.3 m from halfway"
+    assert _say(call, "es-ES") == "a 6,3 m de la línea de medio campo"
+    # The Verifier still accepts the number as spoken.
+    assert verify.check("The line was 6.3 m from halfway.", [call], "en-GB").ok
