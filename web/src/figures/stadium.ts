@@ -70,13 +70,16 @@ export function grassTexture(maxAniso: number): THREE.CanvasTexture {
   return t;
 }
 
-/** A crowd in the stands: muted, mostly dark seats with scattered colour, no banners or marks. */
-export function crowdTexture(): THREE.CanvasTexture {
+/**
+ * A crowd in the stands: muted, mostly dark seats with scattered colour, no banners or marks.
+ * Anisotropic, so the end stands do not shimmer into streaks at a grazing angle.
+ */
+export function crowdTexture(maxAniso = 1): THREE.CanvasTexture {
   const [c, g] = canvas(1024, 256);
   g.fillStyle = "#14181c";
   g.fillRect(0, 0, c.width, c.height);
   const r = rng(11);
-  const tones = ["#2a2f36", "#3a3f46", "#4b4f55", "#5d5a55", "#24324a", "#4a2a2e", "#7c7a72", "#a39d90"];
+  const tones = ["#23272d", "#2e3238", "#3b3e43", "#4a4844", "#1f2a3c", "#3b2426", "#5e5c56", "#7a756b"];
   for (let row = 0; row < 32; row++) {
     // Each row a step: a thin darker lip under it.
     g.fillStyle = "#0c0e10";
@@ -87,7 +90,7 @@ export function crowdTexture(): THREE.CanvasTexture {
       g.fillRect(x + r(), row * 8 + 2 + r() * 2, 3, 4);
     }
   }
-  const t = texture(c);
+  const t = texture(c, maxAniso);
   t.wrapS = THREE.RepeatWrapping;
   return t;
 }

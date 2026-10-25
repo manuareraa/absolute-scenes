@@ -10,8 +10,9 @@ import { Canvas, useFrame, useThree } from "@react-three/fiber";
 import { useMemo, useRef, type MutableRefObject, type PointerEvent as RPointerEvent, type WheelEvent as RWheelEvent } from "react";
 import * as THREE from "three";
 import type { Frame, Overlay } from "@chalktalk/contracts";
-import { HALF_L, HALF_W, shirtNumber, type Vec } from "../pitch";
+import { HALF_L, HALF_W, shirtNumber, toVec, truncatePolyline, type Vec } from "../pitch";
 import { OverlayLayer } from "../components/OverlayLayer";
+import { ghostPose } from "../components/Ghost";
 import { strokeProgress } from "../playback";
 import { armSwing, bodyPose, footPose, stepGait, type Gait } from "./gait";
 import { GRASS_L, GRASS_W, boardTexture, crowdTexture, grassTexture, markingsGeometry, netTexture, shadowTexture } from "./stadium";
@@ -32,7 +33,7 @@ const SIGNAL = "#ffd23f";
 // The camera: vertical field of view, and the main-stand position relative to the halfway line.
 const FOV = 24;
 const STAND = { h: 27, z: 74 };
-const FOLLOW_M = 70;
+const FOLLOW_M = 60;
 
 type Team = keyof typeof SHIRT;
 type Player = Frame["players"][number];
@@ -77,7 +78,7 @@ function Pitch({ high }: { high: boolean }) {
   const gl = useThree((s) => s.gl);
   const grass = useMemo(() => grassTexture(Math.min(high ? 8 : 4, gl.capabilities.getMaxAnisotropy())), [gl, high]);
   const lines = useMemo(() => markingsGeometry(), []);
-  const crowd = useMemo(crowdTexture, []);
+  const crowd = useMemo(() => crowdTexture(Math.min(8, gl.capabilities.getMaxAnisotropy())), [gl]);
   const board = useMemo(boardTexture, []);
   const net = useMemo(netTexture, []);
   const boards: { pos: [number, number, number]; rot: number; len: number }[] = [
@@ -391,8 +392,8 @@ function Scene({ frame, overlay, ghosts, mine, orbit, tele, tags }: SceneProps) 
     c.dist += (dist - c.dist) * ease;
     const o = orbit.current;
     const target = tmp.b.set(c.tx, 0, c.tz);
-    // A fixed camera on the halfway line, a little dolly along the stand, pans to the target.
-    const v = new THREE.Vector3(c.tx * 0.3, STAND.h, STAND.z).sub(target);
+    // A fixed camera on the halfway line, a dolly along the stand, pans to the target.
+    const v = new THREE.Vector3(c.tx * 0.55, STAND.h, STAND.z).sub(target);
     const sph = new THREE.Spherical().setFromVector3(v);
     sph.theta += o.az;
     sph.phi = THREE.MathUtils.clamp(sph.phi - o.el, 0.12, 1.45);
@@ -477,7 +478,20 @@ export interface Broadcast3DProps {
 const NO_GHOSTS: readonly Ghost3D[] = [];
 
 export default function Broadcast3D(props: Broadcast3DProps) {
-  const { frame, active, quality, label = "Synthetic broadcast view", mine, overlay = null, audioMs = Infinity, nameOf, onPick, ghosts = NO_GHOSTS } = props;
+  const { frame, active, quality, label = "Synthetic broadcast view", mine, overlay = null, audioMs = Infinity, nameOf, onPick } = props;
+  // A ghost_path's ghost stands up as a see-through figure where the board draws its disc.
+  const pathGhosts: Ghost3D[] = overlay
+    ? overlay.strokes.flatMap((st) => {
+        if (st.shape !== "ghost_path") return [];
+        const k = strokeProgress(overlay, st, audioMs);
+        if (k === null) return [];
+        const pose = ghostPose(st, frame, truncatePolyline((st.geometry_m.points ?? []).map(toVec), k), k);
+        if (!pose) return [];
+        const team = pose.actual?.team === "away" ? "away" : "home";
+        return [{ id: `ghost-${st.id}`, x: pose.at[0], y: pose.at[1], team, label: pose.actual?.label ? `#${pose.actual.label}` : undefined }];
+      })
+    : [];
+  const ghosts = pathGhosts.length ? [...(props.ghosts ?? []), ...pathGhosts] : (props.ghosts ?? NO_GHOSTS);
   const high = quality === "high";
   const orbit = useRef<Orbit>({ ...HOME_ORBIT });
   const tele = useRef<SVGSVGElement | null>(null);

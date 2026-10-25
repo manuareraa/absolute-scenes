@@ -87,7 +87,8 @@ button { font: inherit; color: inherit; cursor: pointer; }
 .b3-label.c-away { background: var(--stroke-away); }
 .b3-label.c-danger { background: var(--stroke-danger); }
 .b3-label.c-ghost { background: var(--stroke-ghost); }
-.b3-tele text { display: none; }
+/* Labels and ghost numbers stand up as tags instead (Broadcast3D); the rest lies on the grass. */
+.b3-tele text.label, .b3-tele .ghost-body text { display: none; }
 .surface-player .screen { max-width: min(900px, calc((100svh - var(--chrome)) * 113 / 76)); }
 
 .grass { fill: var(--grass); }
