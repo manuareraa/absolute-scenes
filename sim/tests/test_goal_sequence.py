@@ -2,6 +2,7 @@
 
 import numpy as np
 import pytest
+from chalktalk_core import analytics as an
 from chalktalk_core.geometry import FRAME_MS
 from chalktalk_sim import MatchConfig, simulate
 from chalktalk_sim.director import DEMO_BEATS
@@ -37,6 +38,22 @@ def test_the_script_is_the_score(demo):
     # The first goal goes to VAR and the decision comes before the restart.
     var = of(demo, "var_decision")
     assert len(var) == 1 and goals[0]["t"] < var[0]["t"] < of(demo, "kickoff")[1]["t"]
+
+
+def test_key_moments_are_believable(demo):
+    """Every goal comes from a real chance, and the VAR goal is tight but onside."""
+    for s in of(demo, "shot"):
+        if s["attrs"]["outcome"] == "goal":
+            assert s["attrs"]["xg"] >= 0.15
+    check = of(demo, "var_check")[0]
+    goal = max((g for g in of(demo, "goal") if g["t"] <= check["t"]), key=lambda g: g["t"])
+    pas = max(
+        (e for e in of(demo, "pass") if e["team"] == goal["team"] and e["t"] <= goal["t"]),
+        key=lambda e: e["t"],
+    )
+    r = an.var_offside(demo.frame(pas["t"] // FRAME_MS), pas["attrs"]["receiver"])
+    assert -0.3 <= r.value <= 0.0
+    assert r.details["decision"] == "onside"
 
 
 def test_celebration_walk_back_and_kickoff(demo):

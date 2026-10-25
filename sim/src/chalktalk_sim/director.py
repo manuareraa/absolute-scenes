@@ -66,8 +66,8 @@ class MatchConfig:
 # through the first half, sent to VAR; an away equaliser after the break; a late home winner.
 DEMO_BEATS = (
     Beat(60_000, "save", "away"),
-    Beat(150_000, "var_check"),
-    Beat(150_000, "goal", "home"),
+    Beat(115_000, "var_check"),
+    Beat(115_000, "goal", "home"),
     Beat(390_000, "goal", "away"),
     Beat(510_000, "goal", "home"),
 )
@@ -146,6 +146,9 @@ class _Director:
         self.beats = sorted(config.beats, key=lambda b: b.t_ms)
         # With scripted goals the score is the script: other shots on target are saved.
         self.scripted = any(b.kind == "goal" for b in self.beats)
+        # Receiver's distance past the offside line at each team's last open-play pass.
+        self.pass_margin = [math.inf, math.inf]
+        self.pin_player = -1  # the forward holding the line for the VAR goal
         self.used_beats: set[int] = set()
         self.events: list[dict[str, Any]] = []
         self.seq = 0
@@ -287,6 +290,11 @@ class _Director:
         """A scripted goal for this team is due: they play forward and win the ball back."""
         return self.beat_due("goal", team) is not None
 
+    def var_due(self, team: int) -> bool:
+        """The team's next scripted goal goes to a VAR check."""
+        due = self.beat_due("goal", team) is not None
+        return due and self.beat_due("var_check", None) is not None
+
     def overdue_s(self, team: int) -> float:
         i = self.beat_due("goal", team)
         return -1.0 if i is None else (self.t - self.beats[i].t_ms) / 1000.0
@@ -342,6 +350,7 @@ class _Director:
         tgt = np.zeros((self.n, 2))
         cap = self.vmax * cal.jog_speed_frac
         self.gain = np.full(self.n, cal.arrive_gain)
+        pin: tuple[int, float] | None = None
         bx, by = float(self.ball[0]), float(self.ball[1])
         if self.state == "goal" and self.t < self.celebrate_until:
             tgt, cap = self.celebration()
@@ -374,6 +383,15 @@ class _Director:
                     xn = np.where(running, self.run_x[idx], np.minimum(xn, line - 0.4))
                     ry = self.run_y[idx]
                     y = np.where(running & ~np.isnan(ry), ry, y)
+                    if self.var_due(k):
+                        # The goal VAR will check: the most advanced forward holds level
+                        # with the line, waiting for the through ball.
+                        fwd = self.is_fwd[idx] & (idx != self.owner)
+                        if fwd.any():
+                            if self.pin_player not in idx[fwd]:
+                                j = int(np.argmax(np.where(fwd, xn, -np.inf)))
+                                self.pin_player = int(idx[j])
+                            pin = (self.pin_player, (line + 0.2) * s)
                 tgt[idx, 0] = xn * s
                 tgt[idx, 1] = y
                 gk = self.gk[k]
@@ -385,6 +403,10 @@ class _Director:
             tgt[self.gk[0]] -= self.wander[self.gk[0]]
             tgt[self.gk[1]] -= self.wander[self.gk[1]]
             tgt += self.wander
+            if pin is not None:
+                tgt[pin[0], 0] = pin[1]
+                cap[pin[0]] = self.vmax[pin[0]] * 0.9
+                self.gain[pin[0]] = 4.0
             tgt[self.ref] = (bx * 0.8, float(np.clip(by - 13.0 * np.sign(by or 1.0), -30, 30)))
             self.ball_targets(tgt, cap)
         tgt[:, 0] = np.clip(tgt[:, 0], -HALF_LENGTH - 1.0, HALF_LENGTH + 1.0)
@@ -446,6 +468,10 @@ class _Director:
             away = self.pos[c] - self.pos[near]
             away /= np.linalg.norm(away) + 1e-9
             fwd = np.array([s, 0.0])
+            if self.beat_due("goal", att) is not None and self.pos[c, 0] * s > 18.0:
+                # A due scripted goal: drive at goal for a real chance.
+                fwd = np.array([s * HALF_LENGTH, 0.0]) - self.pos[c]
+                fwd /= np.linalg.norm(fwd) + 1e-9
             heading = fwd + 0.6 * away * (d.min() < 6.0)
             heading /= np.linalg.norm(heading) + 1e-9
             dest = self.pos[c] + heading * 8.0
@@ -643,6 +669,7 @@ class _Director:
             line = self.offside_line(team)
             xr = self.pos[recv, 0] * s
             offside = bool(xr > line + 0.3 and xr > 0)
+            self.pass_margin[team] = xr - line
         self.release()
         if lofted:
             vh = cal.lofted_hspeed
@@ -895,6 +922,22 @@ class _Director:
             return
         if hold < 0.35:
             return
+        if self.var_due(team) and float(self.pos[c, 0]) * s > -15.0:
+            # The goal VAR will check: the through ball goes the moment a forward is level
+            # with the line, so the check is tight and the goal stands. Unpressed, the
+            # carrier shields the ball a few seconds while the forward gets there.
+            line = self.offside_line(team)
+            near = -math.inf
+            for j in self.members[team][self.is_fwd[self.members[team]]]:
+                m = float(self.pos[j, 0]) * s - line
+                if j == c:
+                    continue
+                if -cal.var_margin_m <= m <= 0.0:
+                    self.kick_pass(c, int(j), lofted=False)
+                    return
+                near = max(near, m if m < 0 else -math.inf)
+            if not pressed and hold < cal.var_wait_s and near > -6.0:
+                return
         rate = 1.0 / (cal.pressed_hold_s if pressed else cal.mean_hold_s)
         if self.rng.random() >= rate * DT:
             return
@@ -916,11 +959,20 @@ class _Director:
             take = beat is not None and (
                 in_box or xn > cal.beat_shot_min_xn or late > cal.beat_any_shot_s
             )
+            # It must also be a believable goal: a real chance, and for a VAR check a
+            # tight onside call. Short of that the move goes on.
+            tight = self.var_due(team) and -cal.var_margin_m <= self.pass_margin[team] <= 0.0
+            # Very overdue, any shot will do (twice as long for the VAR goal).
+            relaxed = late >= cal.beat_relax_s * (2 if self.var_due(team) else 1)
+            if beat is not None and not relaxed:
+                if xg < cal.beat_goal_min_xg or (self.var_due(team) and not tight):
+                    take = False
+                    if xg < cal.beat_goal_min_xg and (tight or not (pressed or self.var_due(team))):
+                        return  # keep driving at goal (through on goal after the VAR pass)
             boost = cal.shot_box_boost if in_box else 0.0
             p_shot = min(xg, cal.shot_xg_cap) * cal.shot_appetite + boost
-            if (take or self.rng.random() < min(0.9, p_shot)) and self.shoot(
-                c, forced=beat is not None, beat=beat
-            ):
+            chance = (beat is None or relaxed) and self.rng.random() < min(0.9, p_shot)
+            if (take or chance) and self.shoot(c, forced=beat is not None, beat=beat):
                 return
         if xn > 28.0 and abs(y) > 16.0 and self.rng.random() < 0.45:
             recv = self.cross_target(c)
@@ -1187,7 +1239,7 @@ class _Director:
         for i in idx:
             if (
                 self.run_until[i] < self.t
-                and self.rng.random() < (0.6 if final_third else 0.25) * DT
+                and self.rng.random() < (0.6 if final_third or self.var_due(att) else 0.25) * DT
             ):
                 self.run_until[i] = self.t + 2500
                 if final_third:

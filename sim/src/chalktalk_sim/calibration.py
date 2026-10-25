@@ -69,6 +69,13 @@ class Calibration:
     # A due scripted goal waits for a shot from at least this deep (metres past halfway).
     beat_shot_min_xn: float = 33.0
     beat_any_shot_s: float = 15.0  # after this long overdue, shoot from anywhere in range
+    # A scripted goal comes from a real chance (xG at least this) unless it is this overdue.
+    beat_goal_min_xg: float = 0.15
+    beat_relax_s: float = 90.0
+    # A goal sent to VAR is tight but onside: the last pass finds the receiver this close
+    # behind the line (metres).
+    var_margin_m: float = 0.3
+    var_wait_s: float = 4.0  # how long the carrier shields the ball for that pass
     # Believable shots (docs/notes/b-believable-goals.md).
     max_shot_dist_m: float = 32.0  # no shots from further than this from goal centre
     min_shot_angle_rad: float = 0.12  # nor from angles tighter than this (about 7 degrees)
