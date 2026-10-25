@@ -53,7 +53,8 @@ const WEBGL = (() => {
   }
 })();
 const VIEW_OPTIONS: readonly View[] = WEBGL ? VIEWS : ["2d"];
-const START_VIEW: View = WEBGL && params.get("view") === "3d" ? "3d" : "2d";
+// The TV camera is the default; the 2D board stays as the Analyst view (and the no-WebGL fallback).
+const START_VIEW: View = WEBGL && params.get("view") !== "2d" ? "3d" : "2d";
 const QUALITY = params.get("quality") === "high" ? "high" : "light";
 /** Deep links: `?surface=show&lens=analyst&side=away&lang=es-ES`; the URL follows every change. */
 const pick = <T extends string>(key: string, options: readonly T[], fallback: T): T => {
@@ -406,8 +407,8 @@ export function App() {
           : state.overlay;
   const tappable = (c: Claim) => showMode && evidenceFor(showFx.evidence, c) !== undefined;
   const audioMs = audio.audioMs;
-  // Breakdowns cut to the 2D chalkboard, as a broadcast cuts to the telestrator; play stays in 3D.
-  const show3d = view === "3d" && !state.overlay && !answer;
+  // The 3D view draws every overlay (breakdowns and pundit answers) on its own grass.
+  const show3d = view === "3d";
 
   // Score and goal banner come from goal events: the hub's live, the show fixture's recorded. The
   // M1 demo fixture has no goals, so its board honestly stays 0-0.
@@ -589,7 +590,17 @@ export function App() {
             {view === "3d" && (
               <Suspense fallback={show3d ? <PitchView frame={frame} label={s.pitch} /> : null}>
                 <div className="view3d" hidden={!show3d}>
-                  <Broadcast3D frame={frame} active={show3d} quality={QUALITY} label={s.broadcast3d} mine={myId} />
+                  <Broadcast3D
+                    frame={frame}
+                    active={show3d}
+                    quality={QUALITY}
+                    label={s.broadcast3d}
+                    mine={myId}
+                    overlay={drawn}
+                    audioMs={replaying || summing ? Infinity : audioMs}
+                    nameOf={(id) => playerLabel(id, names)}
+                    onPick={(id) => setMyId(id === myId ? null : id)}
+                  />
                 </div>
               </Suspense>
             )}
