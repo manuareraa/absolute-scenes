@@ -41,7 +41,7 @@ The crew speaks through Azure Speech TTS with word boundaries, and the strokes l
 - **Not verified:** whether gpt-4.1-mini is a Voice Live model in koreacentral. Check before relying on it.
 
 ## 5. Dependencies
-- **`what_if` (PR #68, `stream/b-what-if`)** must merge for the Critic's counterfactuals. Until then the crew skips the ghost-stroke stage and still answers.
+- **`what_if` (PR #68)** is merged and ships in this image, so the Critic's counterfactuals run. Without it, the crew would skip the ghost-stroke stage and still answer.
 
 ## 6. Cost
 - **Tokens:** 3 live answers used 8 calls, 11,310 prompt and 689 completion tokens, so **$0.0056 for 3 answers (about $0.002 each)** at gpt-4.1-mini rates.
