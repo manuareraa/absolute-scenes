@@ -68,6 +68,8 @@ export function checkAsk(body: unknown): { ok: true; body: Record<string, unknow
   const keep = ["question", "suggestion", "match_id", "moment_id", "match_tc", "lang", "lens", "side"];
   const out: Record<string, unknown> = {};
   for (const k of keep) if (b[k] !== undefined) out[k] = b[k];
+  // The crew keys its show by show_id (any id naming the match, such as "sim-7"); the web sends match_id.
+  out.show_id = out.match_id;
   for (const k of ["suggestion", "moment_id", "lens", "side"]) {
     if (out[k] !== undefined && (typeof out[k] !== "string" || (out[k] as string).length > 64)) return { ok: false, error: `bad ${k}` };
   }

@@ -78,7 +78,7 @@ describe("/api/ask", () => {
       const lines = (await res.text()).trim().split("\n").map((l) => JSON.parse(l));
       expect(lines.map((e) => e.type)).toEqual(["step", "done"]);
     }
-    expect(seen[0]).toEqual({ secret: CREW_SECRET, body: question });
+    expect(seen[0]).toEqual({ secret: CREW_SECRET, body: { ...question, show_id: question.match_id } });
     const over = await ask(question);
     expect(over.status).toBe(429);
     expect(await over.json()).toEqual({ error: "quota" });

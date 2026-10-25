@@ -16,7 +16,7 @@ describe("ask routes", () => {
 describe("checkAsk", () => {
   it("passes a good question through, keeping only the crew's fields", () => {
     const r = checkAsk({ ...good, extra: "x" });
-    expect(r).toEqual({ ok: true, body: good });
+    expect(r).toEqual({ ok: true, body: { ...good, show_id: "sim-7" } });
   });
   it("rejects what the crew should never see", () => {
     expect(checkAsk(null).ok).toBe(false);
