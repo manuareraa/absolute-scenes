@@ -2,47 +2,15 @@
 // (contracts/schemas/ask-event.schema.json): who is thinking, which tool ran, which claims were
 // rejected and rewritten, then one overlay that plays like a show chapter. Without the backend a
 // rehearsal feed (public/fixtures/ask/*.ndjson) replays the same events at their recorded pace.
-import type { Overlay } from "@chalktalk/contracts";
+import type { AskEvent as WireEvent, Overlay } from "@chalktalk/contracts";
 
-// Mirrors ask-event.schema.json until its generated type lands in @chalktalk/contracts.
-export type Agent = "director" | "analyst" | "tactician" | "critic" | "pundit" | "verifier" | "safety";
-export interface ToolRun {
-  name: string;
-  args: Record<string, unknown>;
-  summary: string;
-  ms?: number;
-}
-export interface Verdict {
-  claim: string;
-  ok: boolean;
-  reason?: string;
-  round: number;
-}
-export interface Metric {
-  name: string;
-  before: number;
-  after: number;
-  tool_call?: string;
-}
-export interface Counterfactual {
-  proposal: string;
-  accepted: boolean;
-  metrics: Metric[];
-}
-export interface AskEvent {
-  type: "step" | "tool" | "verdict" | "counterfactual" | "overlay" | "refusal" | "error" | "done";
-  seq: number;
-  t_ms: number;
-  agent?: Agent;
-  text?: string;
-  tool?: ToolRun;
-  verdict?: Verdict;
-  counterfactual?: Counterfactual;
-  overlay?: Overlay;
-  audio_url?: string;
-  cached?: boolean;
-  trace_id?: string;
-}
+// From the generated contract; the overlay keeps the shared Overlay type the player already plays.
+export type AskEvent = Omit<WireEvent, "overlay"> & { overlay?: Overlay };
+export type Agent = NonNullable<WireEvent["agent"]>;
+export type ToolRun = NonNullable<WireEvent["tool"]>;
+export type Verdict = NonNullable<WireEvent["verdict"]>;
+export type Counterfactual = NonNullable<WireEvent["counterfactual"]>;
+export type Metric = Counterfactual["metrics"][number];
 
 /** The body of POST /api/ask. */
 export interface AskRequest {

@@ -3,7 +3,7 @@ import { join } from "node:path";
 import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
-import type { Overlay } from "@chalktalk/contracts";
+import { validate, type Overlay } from "@chalktalk/contracts";
 import { askMode, AskUnavailable, fakeAsk, idleStudio, liveAsk, pickFeed, readNdjson, startStudio, studioReduce, suggestionsFor, type AskEvent, type AskRequest, type FeedEntry } from "../src/ask";
 import { ControlRoom, ghostStartMs, MetricChip, WhatIf } from "../src/studio/Studio";
 import { tr } from "../src/i18n";
@@ -178,5 +178,11 @@ describe("studio components", () => {
   it("signs points with a real minus and adds the unit", () => {
     const html = renderToStaticMarkup(createElement(MetricChip, { m: { name: "pc_pts", before: 0, after: -3 }, s, lang: "en-GB" }));
     expect(html).toContain("−3 pts");
+  });
+});
+
+describe("rehearsal feeds", () => {
+  it("speak the ask-event contract, line by line", () => {
+    for (const lang of ["en-GB", "es-ES"]) for (const e of events(lang)) expect(validate("ask-event", e).errors).toEqual([]);
   });
 });
