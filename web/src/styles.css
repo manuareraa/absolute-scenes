@@ -58,6 +58,37 @@ button { font: inherit; color: inherit; cursor: pointer; }
 .pitch { display: block; width: 100%; height: auto; border-radius: 6px; }
 .view3d { width: 100%; aspect-ratio: 16 / 9; border-radius: 6px; overflow: hidden; }
 .view3d[hidden] { display: none; }
+/* The broadcast view: canvas, the telestrator laid on the grass, and tags stood over players. */
+.b3 { position: relative; width: 100%; height: 100%; overflow: hidden; touch-action: none; cursor: grab; background: #0b0f0d; }
+.b3:active { cursor: grabbing; }
+.b3 .pitch3d { position: absolute; inset: 0; }
+.b3-tele { position: absolute; left: 0; top: 0; transform-origin: 0 0; pointer-events: none; will-change: transform; }
+.b3-tags { position: absolute; inset: 0; pointer-events: none; }
+.b3-tag, .b3-label { position: absolute; left: 0; top: 0; translate: -50% -100%; visibility: hidden; white-space: nowrap; will-change: transform; }
+.b3-tag {
+  display: inline-flex; align-items: stretch; gap: 0; padding: 0; border: 0; border-radius: 3px; overflow: hidden;
+  font: 700 11px/1 "Barlow Condensed", "Barlow", sans-serif; letter-spacing: 0.02em; color: #fff;
+  background: rgba(8, 12, 18, 0.72); box-shadow: 0 1px 3px rgba(0, 0, 0, 0.45); pointer-events: auto; cursor: pointer;
+}
+.b3-tag .n { min-width: 16px; padding: 2px 3px; text-align: center; }
+.b3-tag.home .n { background: #3e8ef7; }
+.b3-tag.away .n { background: #e5484d; }
+.b3-tag .nm { padding: 2px 6px; text-transform: uppercase; font-size: 12px; }
+.b3-tag:not(.named) { opacity: 0.88; }
+.b3-tag.named { z-index: 2; font-size: 12px; }
+.b3-tag.mine { outline: 2px solid var(--signal); outline-offset: 1px; z-index: 3; }
+.b3-tag.ghost { background: rgba(60, 40, 110, 0.7); color: #efe8ff; cursor: default; pointer-events: none; }
+.b3-tag:focus-visible { outline: 2px solid var(--signal); }
+.b3-label {
+  padding: 3px 8px; border-radius: 3px; font: 700 14px/1.1 "Barlow Condensed", "Barlow", sans-serif; letter-spacing: 0.03em;
+  text-transform: uppercase; color: #0b0f0d; background: var(--stroke-chalk); box-shadow: 0 0 12px rgba(255, 255, 255, 0.35);
+}
+.b3-label.c-home { background: var(--stroke-home); }
+.b3-label.c-away { background: var(--stroke-away); }
+.b3-label.c-danger { background: var(--stroke-danger); }
+.b3-label.c-ghost { background: var(--stroke-ghost); }
+/* Labels and ghost numbers stand up as tags instead (Broadcast3D); the rest lies on the grass. */
+.b3-tele text.label, .b3-tele .ghost-body text { display: none; }
 .surface-player .screen { max-width: min(900px, calc((100svh - var(--chrome)) * 113 / 76)); }
 
 .grass { fill: var(--grass); }
