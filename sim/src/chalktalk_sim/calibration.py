@@ -37,6 +37,7 @@ class Calibration:
     shot_speed_sd: float = 3.0
     gravity: float = 9.81
     control_radius_m: float = 1.2
+    ball_gather_ms: float = 7.5  # how fast a controlled ball is drawn to the feet
 
     # Team shape
     line_gap_m: float = 17.0  # back line to midfield to attack, in possession
@@ -67,7 +68,15 @@ class Calibration:
     shot_on_target: float = 0.45
     # A due scripted goal waits for a shot from at least this deep (metres past halfway).
     beat_shot_min_xn: float = 33.0
-    beat_any_shot_s: float = 25.0  # after this long overdue, shoot from anywhere in range
+    beat_any_shot_s: float = 15.0  # after this long overdue, shoot from anywhere in range
+    # Believable shots (docs/notes/b-believable-goals.md).
+    max_shot_dist_m: float = 32.0  # no shots from further than this from goal centre
+    min_shot_angle_rad: float = 0.12  # nor from angles tighter than this (about 7 degrees)
+    keeper_depth_per_m: float = 0.1  # keeper's distance off his line per metre to the ball
+    keeper_reach_m: float = 1.4  # a goal passes at least this far from the keeper's body
+    keeper_save_reach_m: float = 1.0  # a save is made when the ball comes this close
+    block_radius_m: float = 0.5  # a defender this close to a low shot blocks it
+    shot_lane_margin_m: float = 1.0  # a scripted goal is aimed this far clear of defenders
     pass_error_frac: float = 0.04  # sd of the pass end point per metre of pass
     pass_error_pressed_m: float = 1.5
 
