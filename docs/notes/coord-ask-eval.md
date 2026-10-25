@@ -1,25 +1,27 @@
 # Live ask eval (2026-10-25)
 
-84 questions sent to the deployed `chalktalk-ask` Container App (Foundry agents on gpt-4.1-mini, Azure Speech, Prompt Shields): 78 football questions and 6 attacks. The football questions use 13 moments of the demo match (the 4 chapter times plus 10 evenly spaced times), each with a rotating question, view (analyst/away, casual/home, newcomer/neutral) and language (en-GB, es-ES). Then a Foundry evaluation judged every answer for groundedness and relevance.
+84 questions sent to the live "Ask the pundit" crew (Foundry agents on gpt-4.1-mini, Azure Speech, Prompt Shields): 78 football questions and 6 attacks. The football questions use 13 moments of the demo match (the chapter times plus 10 evenly spaced times), each with a rotating question, view (analyst/away, casual/home, newcomer/neutral) and language (en-GB, es-ES). Then a Foundry evaluation judged every answer for groundedness and relevance.
 
 Results: `evals/results/2026-10-25-ask-live.json`. Code: `evals/src/chalktalk_evals/ask_live.py`.
 
 | What | Result |
 |---|---|
-| Football questions answered with a drawn overlay | 78 of 78; all passed the gate; 0 errors |
-| Verifier, first-round claims | rejected 10 of 147; 0 still wrong after the rewrite |
-| "What should they have done?" | Critic accepted 5 of 32 Tactician proposals (the rest did not improve the measured numbers) |
-| Overlay ready | median 11.9 s, p90 16.2 s |
-| LLM judge (Foundry), 78 answers | groundedness 4.28 / 5 (86% pass), relevance 4.10 / 5 (97% pass) |
+| Football questions answered with a drawn overlay | 77 of 78; all 77 passed the gate; 1 error (deadline, see below) |
+| Verifier, first-round claims | rejected 8 of 156; every answer that went on air passed the gate |
+| "What should they have done?" | Critic accepted 6 of 34 Tactician proposals (the rest did not improve the measured numbers) |
+| Overlay ready | median 12.5 s, p90 18.3 s |
+| LLM judge (Foundry), 77 answers | groundedness 4.62 / 5 (95% pass), relevance 4.23 / 5 (100% pass) |
 | Attack questions | 6 of 6 ended safely: 2 refused by Prompt Shields, 3 declined by the Pundit, 1 ignored the instruction and answered about the moment |
-| Cost | 198 model calls, $0.145 in tokens (about $0.0017 per answer); judge extra |
+| Cost | 201 model calls, $0.148 in tokens (about $0.002 per answer); judge extra |
 
-## What the low scores show
-13 judge scores were below 3. They fall into two groups:
-- The Pundit calls a pitch-control share "pressure" (for example, it says "pressure on the ball is 75%" when the 75% is the away team's pitch control). Every number is right, but the label is wrong. The Verifier checks numbers, not labels.
-- With an empty `events` result, the Pundit says there is "no data" even when other tools returned numbers.
+## What changed since the first run
+The first run (same day, the demo match before the believable-moments rebuild; `evals/results/2026-10-25-ask-live-before-fix.json`) scored groundedness 4.28 / 5 (86% pass) and relevance 4.10 / 5 (97% pass). Its low scores had two causes, both fixed in commit `bb449cf` (Pundit agent version 4):
+- **Wrong labels.** The Pundit called a pitch-control share "pressure". Each result now carries a label in the viewer's language that names the team ("the away team's share of pitch control", "el control del espacio del equipo visitante"), and the prompt says to name each number only with its own label.
+- **"No data" answers.** When the Analyst ran only `events` and a ball nobody held, the general tools were skipped, so the Pundit had nothing to quote. Those calls no longer count as measured, so the general tools run. The Pundit also gets the events found and what could not be measured ("nobody had the ball"), and the prompt forbids saying there is no data.
+- **Spanish answers** now use Spanish terms; the labels and the prompt both ask for them. A scan of all 77 answers found no "no data" phrasing and no English football terms in the Spanish answers.
 
-Both are fixes to the Pundit prompt, not to the tools. Not done yet.
+The two runs use different versions of the match, so the change in scores is the crew and the match together, not the fix alone.
 
-## Caveat
-This run used the demo match as shipped before the believable-moments sim change (same day). The numbers describe the crew, not one fixed match; re-run `ask_live` against the rebuilt show before quoting it as that match's result.
+## What is left
+- 4 judge scores were below 3, all groundedness. Two round a number (2.98 m said as 3.0 m). One says the home team had the ball, which the Pundit read from the moment's ball owner but the judge's context does not include.
+- q052 (Spanish, what-if) hit the 25 s deadline: the Pundit wrote numbers as words ("cincuenta", "por ciento") in all three rounds, and the Verifier sent each one back.
