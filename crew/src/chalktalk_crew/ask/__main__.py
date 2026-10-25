@@ -34,7 +34,9 @@ def main(argv: list[str] | None = None) -> int:
         import uvicorn
 
         uvicorn.run(
-            create_app(crew_from_env()), host="0.0.0.0", port=int(os.environ.get("PORT", 8080))
+            create_app(crew_from_env(), secret=os.environ.get("CHALKTALK_ASK_SECRET")),
+            host="0.0.0.0",
+            port=int(os.environ.get("PORT", 8080)),
         )
         return 0
     if args.cmd == "sync":
