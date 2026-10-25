@@ -18,6 +18,8 @@ export const START_LIVE: Jump = { surface: "broadcast" };
 
 const JUMPS: Record<string, Jump> = {
   strokes: START_SHOW,
+  ask: START_SHOW,
+  whatif: START_SHOW,
   ghost: { surface: "show", lens: "analyst", side: "away", chapter: "ghost" },
   var: { surface: "show", lens: "analyst", side: "away", chapter: "var" },
   evidence: { surface: "show", lens: "analyst", side: "away", chapter: "first", open: "evidence" },

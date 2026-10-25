@@ -1,6 +1,6 @@
 # ChalkTalk
 
-**The AI pundit that draws as it talks.** ChalkTalk turns match tracking data into a studio breakdown. A crew of AI agents picks the moment, measures it with analytics tools, writes and voices a short script, and draws each arrow, line and zone on the pitch at the exact word that names it. Every number on screen links back to the tool call that measured it.
+**The AI pundit that draws as it talks.** ChalkTalk turns match tracking data into a studio breakdown. A crew of AI agents picks the moment, measures it with analytics tools, writes and voices a short script, and draws each arrow, line and zone on the pitch at the exact word that names it. Every number on screen links back to the tool call that measured it. Viewers can **ask the pundit** about any moment, typed or spoken: a live agent crew on Azure measures it, checks every number and answers by drawing on the pitch as it speaks.
 
 Built for Microsoft's "Inside the Game" hackathon. All match data is synthetic: the clubs, players and match are made up.
 
@@ -12,10 +12,14 @@ Built for Microsoft's "Inside the Game" hackathon. All match data is synthetic: 
 2. Pick a chapter on the left. Watch a stroke land on its word, then **tap a number** in the caption to replay the evidence: the match replays the moment the tool measured, with the tool's own drawing, and shows the check made when the show was built (the tool re-run, same number, same data hash).
 3. Switch the **audience** (Casual, Analyst, Newcomer), the **supporter side** (Northbridge, Saltmere, Neutral) or the **language** (English, Español). The crew's chapters are rewritten and redrawn for each. The ghost-run and VAR chapters are drawn straight from their tools' output with a fixed script per language, so they read the same for every audience and side.
 4. Open **Live**: the match clock runs on the server and pundit moments air in the pauses. Open **/producer** to approve or reject a moment before it airs. With no producer on shift, the public demo airs the fact-checked moments on auto-pilot and labels them so.
+5. In the studio show, type or say a question in **Ask the pundit** (or tap a suggestion such as *What should they have done?*). The live crew on Azure Container Apps answers in about 15 s: the control room shows each agent at work, the Verifier's verdicts and, for a what-if, the Critic keeping or rejecting the Tactician's proposal.
 
 | Feature | Where |
 |---|---|
 | Strokes land on their words (arrows, gaps, zones, pitch control) | Studio show, any chapter |
+| Ask the pundit, typed or spoken: a live crew answers by drawing | Ask bar under the pitch |
+| What-if: a Tactician proposes, the sim re-runs it, a Critic keeps it only if the numbers improve | Suggestion "What should they have done?" |
+| Control room: each agent, tool call and verdict as it happens | Opens beside a live answer |
 | Ghost run: where a player should have been, and what it changes (tool output, fixed script) | Chapter "Where they should have been" |
 | VAR offside check: provisional line, then the decision (tool output, fixed script) | Chapter "VAR check: offside?" |
 | Evidence replay: tap any number to replay what its tool measured, with the build-time re-run check | Underlined numbers in the caption |
@@ -50,23 +54,33 @@ flowchart LR
   end
   cf --> web["Web app (React, three.js)<br/>show · live · producer"]
   hub <--> web
+  web -- "ask (typed or spoken)" --> cf
+  cf -- "rate-limited proxy" --> aca
+  subgraph ACA["Azure Container Apps (scale to zero)"]
+    aca["Ask crew: Content Safety → Analyst →<br/>Pundit ⇄ Verifier, Tactician ⇄ Critic"]
+  end
+  aca -- "managed identity" --> llm
+  aca --> tts
 ```
 
 - **Facts come from tools, never from the model.** Distances, gaps, xG and pitch control are computed by deterministic Python tools. The language model only picks, phrases and orders. Each spoken number is bound to its `tool_call`, and the Verifier re-runs the tools before an overlay is released.
 - **Strokes are timed to words.** Azure AI Speech returns the audio with word boundaries and SSML bookmarks. Each drawing cue is snapped to the start of its word, so a stroke begins as its word is spoken.
 - **Four agents** (Director, Analyst, Pundit, Verifier) run on Foundry Agent Service through Microsoft Agent Framework. They made every crew chapter of the shipped show (the ghost-run and VAR chapters are drawn from tool output with a fixed script); each role has an in-process fallback, which this run never needed.
+- **Live answers.** Asked questions go to a second crew on Azure Container Apps: Prompt Shields screen the question, the Analyst picks its own tools, the Pundit drafts, the Verifier sends back any claim whose number does not match a tool result, and for "what should they have done?" a Tactician proposes player moves that the `what_if` tool re-simulates while a Critic keeps them only if the measured numbers improve. The answer streams to the browser as NDJSON and is drawn as it is spoken.
 - **Cheap by design.** Tracking frames and audio are precomputed into static files. Servers carry only low-rate control messages, so the live site runs on Cloudflare's free plan.
 
 ## Microsoft and Azure technology
 | Technology | What it does in ChalkTalk |
 |---|---|
-| Microsoft Foundry: `gpt-4.1-mini` (pay per token, 20K TPM cap) | Writes the Director's picks, the Pundit's scripts and the Verifier's checks |
-| Foundry Agent Service + Microsoft Agent Framework | Hosts the four agents (`chalktalk-director`, `-analyst`, `-pundit`, `-verifier`) |
+| Microsoft Foundry: `gpt-4.1-mini` (pay per token, 20K TPM cap) | Writes the Director's picks, the Pundit's scripts and the Verifier's checks, and the live answers |
+| Foundry Agent Service + Microsoft Agent Framework | Hosts the show agents (`chalktalk-director`, `-analyst`, `-pundit`, `-verifier`) and the live ask agents (Analyst with open tool choice, Pundit, Tactician) |
 | Foundry evaluations | Three custom evaluators (claim groundedness, numeric tolerance, cue timing) plus the built-in `GroundednessEvaluator` |
 | Azure AI Speech (neural voices, en-GB and es-ES) | Voices every chapter and returns the word timings the drawing follows |
 | Model Context Protocol (MCP) | The Analyst's 26 analytics tools, served over stdio or streamable HTTP |
-| Azure Container Apps (Bicep) | Deployment template for the MCP server, consumption plan, scales to zero. A template only: not deployed, the demo serves pre-built shows |
-| GitHub Actions and GHCR | CI on every push; the MCP server image |
+| Azure Container Apps | Runs the live ask crew (`chalktalk-ask`), consumption plan, scales to zero; reaches Foundry with a user-assigned managed identity. Bicep templates in `infra/` |
+| Azure AI Content Safety | Prompt Shields and text analysis screen every question before an agent runs |
+| Azure Monitor OpenTelemetry | Each live answer carries a Foundry trace id |
+| GitHub Actions and GHCR | CI on every push; the MCP server and ask crew images |
 
 ## Measured
 | What | Result | Source |
@@ -77,6 +91,9 @@ flowchart LR
 | Evidence re-runs that match the claim (at build) | 14 of 14 | same file |
 | Foundry evaluation of the shipped show (54 show overlays + 10 test items) | groundedness 1.0, numeric tolerance 1.0, cue timing 1.0, LLM groundedness 4.94 / 5 | [evals/results](evals/results/2026-10-24-foundry.json) |
 | Cost to make the whole show on Foundry agents (54 overlays, 176 agent runs, 0 fallbacks) | about $0.06 in tokens; speech on the free tier | [coord-foundry-show](docs/notes/coord-foundry-show.md) |
+| Live ask, 8 fixed questions (5 en-GB, 3 es-ES) | all 8 passed the gate; Verifier rejected 1 of 16 first-round claims, fixed on rewrite; Critic accepted 1 of 7 what-if proposals | [c-live-crew-evidence](docs/notes/c-live-crew-evidence.md) |
+| Live ask speed and cost | answer ready median 14.2 s, first stroke median 17.8 s; $0.002 per answer | same note |
+| Prompt-injection question | refused by Prompt Shields before any agent ran | same note |
 | Simulated match vs real football | shots 23.7 per 90 (Premier League 25–27); pressing 0.50 (tracking reference 0.48–0.64) | [b-sim-realism](docs/notes/b-sim-realism.md) |
 | Tests | 400+ (Python, web, worker, contracts); CI runs on every push | `.github/workflows/` |
 
