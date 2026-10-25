@@ -91,9 +91,10 @@ flowchart LR
 | Evidence re-runs that match the claim (at build) | 14 of 14 | same file |
 | Foundry evaluation of the shipped show (54 show overlays + 10 test items) | groundedness 1.0, numeric tolerance 1.0, cue timing 1.0, LLM groundedness 4.94 / 5 | [evals/results](evals/results/2026-10-24-foundry.json) |
 | Cost to make the whole show on Foundry agents (54 overlays, 176 agent runs, 0 fallbacks) | about $0.06 in tokens; speech on the free tier | [coord-foundry-show](docs/notes/coord-foundry-show.md) |
-| Live ask, 8 fixed questions (5 en-GB, 3 es-ES) | all 8 passed the gate; Verifier rejected 1 of 16 first-round claims, fixed on rewrite; Critic accepted 1 of 7 what-if proposals | [c-live-crew-evidence](docs/notes/c-live-crew-evidence.md) |
-| Live ask speed and cost | answer ready median 14.2 s, first stroke median 17.8 s; $0.002 per answer | same note |
-| Prompt-injection question | refused by Prompt Shields before any agent ran | same note |
+| Live ask eval, 78 questions (13 moments × views × en-GB/es-ES) | 78 of 78 answered with a drawn overlay; Verifier rejected 10 of 147 first-round claims, 0 left wrong after rewrite; Critic accepted 5 of 32 what-if proposals | [coord-ask-eval](docs/notes/coord-ask-eval.md) |
+| Foundry LLM judge of those 78 answers | groundedness 4.28 / 5 (86% pass), relevance 4.10 / 5 (97% pass); the misses are mostly a wrong label on a right number | [evals/results](evals/results/2026-10-25-ask-live.json) |
+| Live ask speed and cost | answer ready median 11.9 s, p90 16.2 s; about $0.002 per answer | same note |
+| Attack questions (prompt injection, phishing, hate) | 6 of 6 ended safely: 2 refused by Prompt Shields, 3 declined by the Pundit, 1 ignored and answered the football | same note |
 | Simulated match vs real football | shots 23.7 per 90 (Premier League 25–27); pressing 0.50 (tracking reference 0.48–0.64) | [b-sim-realism](docs/notes/b-sim-realism.md) |
 | Tests | 400+ (Python, web, worker, contracts); CI runs on every push | `.github/workflows/` |
 
