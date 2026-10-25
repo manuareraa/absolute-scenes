@@ -147,9 +147,18 @@ export function ControlRoom(props: { st: StudioState; s: Strings; lang: string; 
         <small>{t.youAsked}</small> {st.question}
       </p>
       <ol className="cr-rows" ref={list}>
-        {st.rows.map((r) => (
-          <RowView key={r.seq} r={r} s={s} lang={lang} name={name(r.agent)} />
-        ))}
+        {st.rows.map((r, i) => {
+          const h = handoffAt(st.rows, i, s);
+          return [
+            h && (
+              <li key={`h${r.seq}`} className={`cr-handoff${h.back ? " back" : ""}`}>
+                {t.handoff.label(name(h.from), name(r.agent))}
+                {h.what && <small> · {h.what}</small>}
+              </li>
+            ),
+            <RowView key={r.seq} r={r} s={s} lang={lang} name={name(r.agent)} />,
+          ];
+        })}
       </ol>
       <footer className="cr-foot">
         {message ? (
@@ -174,6 +183,26 @@ export function ControlRoom(props: { st: StudioState; s: Strings; lang: string; 
       </footer>
     </aside>
   );
+}
+
+/** When row i starts a new agent's turn: who handed over, and what the last turn passed on. */
+export function handoffAt(rows: Row[], i: number, s: Strings): { from: Agent; what: string; back: boolean } | null {
+  if (i === 0 || rows[i - 1].agent === rows[i].agent) return null;
+  const from = rows[i - 1].agent;
+  let start = i - 1;
+  while (start > 0 && rows[start - 1].agent === from) start--;
+  const turn = rows.slice(start, i);
+  const t = s.ask.handoff;
+  const verdicts = turn.flatMap((r) => (r.kind === "verdict" ? [r.verdict] : []));
+  const rejected = verdicts.filter((v) => !v.ok).length;
+  const cf = [...turn].reverse().find((r) => r.kind === "counterfactual");
+  const tools = turn.filter((r) => r.kind === "tool").length;
+  if (rejected) return { from, what: t.sentBack(rejected), back: true };
+  if (verdicts.length) return { from, what: t.checked(verdicts.length), back: false };
+  if (cf?.kind === "counterfactual") return { from, what: cf.cf.accepted ? t.kept : t.dropped, back: false };
+  if (from === "tactician") return { from, what: t.proposal, back: false };
+  if (from === "pundit") return { from, what: t.draft, back: false };
+  return { from, what: tools ? t.measured(tools) : "", back: false };
 }
 
 function RowView({ r, s, lang, name }: { r: Row; s: Strings; lang: string; name: string }) {

@@ -37,6 +37,10 @@
 .cr-question small { display: block; color: var(--muted); font: 600 10px var(--font-display); text-transform: uppercase; letter-spacing: 0.08em; }
 
 .cr-rows { list-style: none; margin: 0; padding: 6px 0; overflow-y: auto; flex: 1; min-height: 120px; scroll-behavior: smooth; }
+/* A handoff between agents: who passed what to whom; a claim sent back reads as a return. */
+.cr-handoff { padding: 2px 12px 2px 94px; color: var(--muted); font: 700 10px var(--font-display); text-transform: uppercase; letter-spacing: 0.08em; animation: row-in 0.3s ease-out; }
+.cr-handoff small { font: inherit; text-transform: none; letter-spacing: 0; font-weight: 600; }
+.cr-handoff.back { color: var(--onair); }
 .cr-row { display: grid; grid-template-columns: 74px 1fr; gap: 8px; padding: 5px 12px; animation: row-in 0.3s ease-out; line-height: 1.35; }
 @keyframes row-in { from { opacity: 0; transform: translateY(4px); } }
 .cr-agent { font: 700 11px var(--font-display); text-transform: uppercase; letter-spacing: 0.06em; padding-top: 2px; color: var(--muted); }

@@ -5,7 +5,7 @@ import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
 import { validate, type Overlay } from "@chalktalk/contracts";
 import { askMode, AskUnavailable, fakeAsk, idleStudio, liveAsk, pickFeed, readNdjson, startStudio, studioReduce, suggestionsFor, type AskEvent, type AskRequest, type FeedEntry } from "../src/ask";
-import { ControlRoom, ghostStartMs, MetricChip, WhatIf } from "../src/studio/Studio";
+import { ControlRoom, ghostStartMs, handoffAt, MetricChip, WhatIf } from "../src/studio/Studio";
 import { tr } from "../src/i18n";
 
 const ASK_DIR = join(__dirname, "../public/fixtures/ask");
@@ -173,6 +173,15 @@ describe("studio components", () => {
     expect(html).toContain("<code>ghost</code>");
     expect(html).toMatch(/cr-row verdict rejected superseded/);
     expect(html).toContain(s.ask.onAir);
+  });
+
+  it("marks each handoff with what was passed on, and a rejected claim as sent back", () => {
+    const hs = st.rows.map((_, i) => handoffAt(st.rows, i, s)).filter((h) => h !== null);
+    expect(hs.map((h) => h.from)).toEqual(["director", "analyst", "tactician", "critic", "pundit", "verifier", "pundit"]);
+    expect(hs.find((h) => h.from === "analyst")!.what).toBe("1 measurement");
+    expect(hs.find((h) => h.back)).toMatchObject({ from: "verifier", what: "1 claim sent back" });
+    const html = renderToStaticMarkup(createElement(ControlRoom, { st, s, lang: "en-GB", onBack() {} }));
+    expect(html).toContain("Fact check → Pundit");
   });
 
   it("shows the before/after chips only once the ghosts are on the pitch", () => {
