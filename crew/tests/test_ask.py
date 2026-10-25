@@ -230,6 +230,9 @@ def test_verify_spoken_forms():
     assert verify.numbers_of(15.67, "m", "en-GB") == {"15.7", "16"}
     # a decimal point is not a sentence end: the clause keeps the whole number
     assert verify._clause("The gap was 7.9 m. Then 29%.", 12, 15) == "The gap was 7.9 m"
+    # spelled-out numbers cannot be checked, so they are rejected
+    spelled = verify.check("Controlaba un sesenta y uno por ciento.", [], "es-ES")
+    assert not spelled.ok and "digits" in spelled.feedback()
 
 
 def test_azure_content_safety_shapes_and_fails_closed():

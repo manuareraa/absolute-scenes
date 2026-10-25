@@ -17,6 +17,12 @@ from .toolbox import Call
 
 NUMBER = re.compile(r"(?<![A-Za-z_\d])\d+(?:[.,]\d+)?(?![\d_])")
 CUE = re.compile(r"\[\[([A-Za-z0-9_-]+)\]\]")
+# Numbers spelled out would slip past the check, so they are rejected and rewritten as digits.
+SPELLED = re.compile(
+    r"\b(?:twenty|thirty|forty|fifty|sixty|seventy|eighty|ninety|hundred|per ?cent|veinte|"
+    r"treinta|cuarenta|cincuenta|sesenta|setenta|ochenta|noventa|cien|por ciento)\b",
+    re.IGNORECASE,
+)
 UNIT_WORDS = {"m": "m", "m2": "m²", "xG": "xG", "share": "%", "prob": "%"}
 
 
@@ -108,6 +114,17 @@ def check(text: str, calls: list[Call], lang: str) -> Check:
             continue
         result.findings.append(
             Finding(clause, False, _reason(num, calls, lang), None, num, m.span())
+        )
+    for m in SPELLED.finditer(masked):
+        result.findings.append(
+            Finding(
+                _clause(text, m.start(), m.end()),
+                False,
+                f"write '{m.group(0)}' as digits, exactly as the result's 'say' field",
+                None,
+                m.group(0),
+                m.span(),
+            )
         )
     result.findings.sort(key=lambda f: f.span)
     return result
