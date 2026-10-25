@@ -1,0 +1,70 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "ask-event.schema.json",
+  "title": "AskEvent",
+  "description": "One line of the NDJSON stream that POST /api/ask returns. A live crew answers a viewer's question about a moment: the client shows each step in the control-room strip, then plays the overlay. Order: step/tool/verdict events in any order, then one overlay (or one refusal), then done. error may replace anything after the first line.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["type", "seq", "t_ms"],
+  "properties": {
+    "type": { "type": "string", "enum": ["step", "tool", "verdict", "counterfactual", "overlay", "refusal", "error", "done"] },
+    "seq": { "type": "integer", "minimum": 0, "description": "0-based position in the stream." },
+    "t_ms": { "type": "integer", "minimum": 0, "description": "Milliseconds since the request started." },
+    "agent": { "type": "string", "enum": ["director", "analyst", "tactician", "critic", "pundit", "verifier", "safety"] },
+    "text": { "type": "string", "maxLength": 400, "description": "step: what the agent is doing, one short line for the strip. refusal/error: the reason shown to the viewer." },
+    "tool": { "$ref": "#/$defs/ToolRun" },
+    "verdict": { "$ref": "#/$defs/Verdict" },
+    "counterfactual": { "$ref": "#/$defs/Counterfactual" },
+    "overlay": { "$ref": "overlay.schema.json", "description": "type=overlay: the answer, same contract as a show chapter (surface 'player'). Its script carries audio and word cues." },
+    "audio_url": { "type": "string", "description": "type=overlay: where the client fetches the answer audio, if not played through Voice Live." },
+    "cached": { "type": "boolean", "description": "type=done: true when the whole answer came from the cache." },
+    "trace_id": { "type": "string", "description": "type=done: the Foundry trace id for this run." }
+  },
+  "$defs": {
+    "ToolRun": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["name", "args", "summary"],
+      "properties": {
+        "name": { "type": "string", "description": "MCP tool name, e.g. line_gap." },
+        "args": { "type": "object" },
+        "summary": { "type": "string", "maxLength": 200, "description": "Result in one line, e.g. 'gap 6.4 m between lines'." },
+        "ms": { "type": "integer", "minimum": 0 }
+      }
+    },
+    "Verdict": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["claim", "ok", "round"],
+      "properties": {
+        "claim": { "type": "string", "maxLength": 200, "description": "The claim as the Pundit said it." },
+        "ok": { "type": "boolean" },
+        "reason": { "type": "string", "maxLength": 200, "description": "Why it was rejected, e.g. 'tool says 6.4 m, not 8 m'." },
+        "round": { "type": "integer", "minimum": 1, "description": "Rewrite round; 1 is the first draft." }
+      }
+    },
+    "Counterfactual": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["proposal", "accepted", "metrics"],
+      "properties": {
+        "proposal": { "type": "string", "maxLength": 200, "description": "The Tactician's change, e.g. 'left back holds 4 m deeper'." },
+        "accepted": { "type": "boolean", "description": "The Critic accepts only if the tools show the change helps." },
+        "metrics": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["name", "before", "after"],
+            "properties": {
+              "name": { "type": "string", "description": "e.g. pitch_control_box, line_gap_m, xg." },
+              "before": { "type": "number" },
+              "after": { "type": "number" },
+              "tool_call": { "type": "string", "description": "Id of the tool call that measured 'after'." }
+            }
+          }
+        }
+      }
+    }
+  }
+}

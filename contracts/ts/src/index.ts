@@ -7,19 +7,21 @@ import eventSchema from "../../schemas/event.schema.json";
 import claimSchema from "../../schemas/claim.schema.json";
 import overlaySchema from "../../schemas/overlay.schema.json";
 import showSchema from "../../schemas/show.schema.json";
+import askEventSchema from "../../schemas/ask-event.schema.json";
 
 export type { Frame } from "./generated/frame";
 export type { Event as MatchEvent } from "./generated/event";
 export type { Claim } from "./generated/claim";
 export type { Overlay } from "./generated/overlay";
 export type { Show } from "./generated/show";
+export type { AskEvent } from "./generated/ask-event";
 
-export const SCHEMA_NAMES = ["frame", "event", "claim", "overlay", "show"] as const;
+export const SCHEMA_NAMES = ["frame", "event", "claim", "overlay", "show", "ask-event"] as const;
 export type ContractName = (typeof SCHEMA_NAMES)[number];
 
 const ajv = new Ajv2020({ allErrors: true, strict: false });
 addFormats(ajv);
-for (const s of [claimSchema, frameSchema, eventSchema, overlaySchema, showSchema]) ajv.addSchema(s);
+for (const s of [claimSchema, frameSchema, eventSchema, overlaySchema, showSchema, askEventSchema]) ajv.addSchema(s);
 
 export function validate(name: ContractName, data: unknown): { ok: boolean; errors: string[] } {
   const fn = ajv.getSchema(`${name}.schema.json`);

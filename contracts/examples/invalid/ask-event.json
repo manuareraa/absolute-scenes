@@ -1,0 +1,6 @@
+{
+  "type": "verdict",
+  "seq": 3,
+  "t_ms": 900,
+  "verdict": { "claim": "gap is 8 m", "ok": false, "round": 0 }
+}
