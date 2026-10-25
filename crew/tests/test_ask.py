@@ -203,7 +203,8 @@ def test_agent_failure_uses_the_default_tools(tools):
             return super().run(role, prompt, toolbox)
 
     by = check_stream(ask(make_crew(tools, runner=Down()), "Was there pressure on the ball?"))
-    assert [e["tool"]["name"] for e in by["tool"]] == ["pressure"]
+    # Nobody has the ball at 40 s, so pressure cannot measure and the general tools follow.
+    assert [e["tool"]["name"] for e in by["tool"]] == ["pressure", "line_gap", "pitch_control"]
     assert by["overlay"][0]["overlay"]["gate"]["passed"]
 
 
@@ -215,6 +216,42 @@ def test_falls_back_to_general_tools_when_the_obvious_one_cannot_measure(tools):
     by = check_stream(ask(make_crew(NoBall(tools.store)), "Why was that shot such a poor chance?"))
     assert [e["tool"]["name"] for e in by["tool"]] == ["line_gap", "pitch_control"]
     assert by["overlay"][0]["overlay"]["gate"]["passed"]
+
+
+def test_a_loose_ball_belongs_to_whoever_last_touched_it(tools):
+    """At a goal the ball sits by the beaten keeper; the shooter's team is still the attack."""
+
+    class ShotInFlight(StubWhatIf):
+        def frame(self, match_id, t):  # noqa: ANN001, ANN201
+            out = json.loads(json.dumps(super().frame(match_id, t)))
+            fr = out["details"]["frame"]
+            if t == 40_000:
+                keeper = next(p for p in fr["players"] if p["id"] == "H01")
+                fr["ball"].update(owner=None, x=keeper["x"] + 0.5, y=keeper["y"])
+            elif t == 39_800:
+                fr["ball"]["owner"] = "A09"
+            else:
+                fr["ball"]["owner"] = None
+            return out
+
+    shot = ShotInFlight(tools.store)
+    crew = make_crew(shot)
+    ctx = crew._moment(
+        ToolBox(shot, "sim-11"), AskRequest(SHOW, 40_000, "Who should have stopped it?")
+    )
+    assert (ctx["attacking"], ctx["defending"], ctx["last_touch"]) == ("away", "home", "A09")
+
+
+def test_pressure_with_no_ball_carrier_is_not_quoted():
+    from types import SimpleNamespace
+
+    from chalktalk_crew.ask.crew import _measured
+
+    loose = {"value": 0.0, "unit": "prob", "details": {"carrier": None}}
+    held = {"value": 0.4, "unit": "prob", "details": {"carrier": "H09"}}
+    assert not _measured(SimpleNamespace(out=loose))
+    assert _measured(SimpleNamespace(out=held))
+    assert _measured(SimpleNamespace(out={"value": 6.4, "unit": "m", "details": {}}))
 
 
 def test_toolbox_caps_and_binds_the_match(tools):

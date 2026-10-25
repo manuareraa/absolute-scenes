@@ -45,6 +45,7 @@ log = logging.getLogger(__name__)
 
 MAX_REWRITES = 2
 ANALYST_CALLS = 5
+LOOK_BACK_MS, LOOK_BACK_STEP_MS = 4000, 200  # how far back a loose ball's last touch is sought
 MAX_CALLS = 9  # Analyst calls plus up to two what_if runs and slack
 DEADLINE_S = 25.0
 LEAD_MS = 150
@@ -343,8 +344,11 @@ class AskCrew:
         fr = self.tools.frame(box.match_id, req.match_tc)["details"]["frame"]
         ball = fr["ball"]
         owner = ball.get("owner") or ""
-        attacking = "home" if owner.startswith("H") else "away" if owner.startswith("A") else None
-        if attacking is None:  # loose ball: the team nearer to it
+        # A loose ball (a shot or pass in flight) belongs to whoever last touched it: at a goal the
+        # ball sits by the beaten keeper, so "nearest player" would name the wrong team.
+        touch = owner or self._last_touch(box.match_id, int(fr["t"]))
+        attacking = "home" if touch.startswith("H") else "away" if touch.startswith("A") else None
+        if attacking is None:  # nobody touched it lately: the team nearer to it
             near = min(
                 fr["players"], key=lambda p: (p["x"] - ball["x"]) ** 2 + (p["y"] - ball["y"]) ** 2
             )
@@ -359,6 +363,7 @@ class AskCrew:
             "attacking": attacking,
             "defending": "away" if attacking == "home" else "home",
             "ball_owner": owner or None,
+            "last_touch": touch or None,
             "players": [
                 {
                     "id": p["id"],
@@ -370,6 +375,15 @@ class AskCrew:
                 for p in players[:10]
             ],
         }
+
+    def _last_touch(self, match_id: str, t: int) -> str:
+        for back in range(LOOK_BACK_STEP_MS, LOOK_BACK_MS + 1, LOOK_BACK_STEP_MS):
+            if t - back < 0:
+                break
+            fr = self.tools.frame(match_id, t - back)["details"]["frame"]
+            if fr["ball"].get("owner"):
+                return str(fr["ball"]["owner"])
+        return ""
 
     def _analyse(self, req: AskRequest, box: ToolBox, ctx: dict[str, Any], emit: Emitter) -> None:
         emit.step("analyst", "Choosing which tools to run.")
@@ -386,7 +400,7 @@ class AskCrew:
         # The question's obvious tools, then the general ones if none of those could measure
         # (shot_xg fails when nobody has the ball).
         for question in (req.question, ""):
-            if any(isinstance(c.out.get("value"), int | float | str) for c in box.calls):
+            if any(_measured(c) for c in box.calls):
                 break
             for name, args in default_plan(question, ctx):
                 with contextlib.suppress(ToolCapReached, KeyError, ValueError, TypeError):
@@ -397,7 +411,7 @@ class AskCrew:
     def _results(self, box: ToolBox, lang: str) -> list[dict[str, Any]]:
         out = []
         for c in box.calls:
-            if c.name in ("frame", "events", "match_info", "what_if"):
+            if c.name in ("frame", "events", "match_info", "what_if") or not _measured(c):
                 continue
             label = str(c.out.get("metric") or c.name).replace("_", " ")
             out.append(
@@ -481,8 +495,8 @@ class AskCrew:
             data["feedback"] = feedback
         prompt = (
             f"Question: {req.question}\n"
-            + (f"FEEDBACK: {feedback}\n" if feedback else "")
-            + data_block(data)
+            f"Change the defending team ({ctx['defending']}) unless the question is about the "
+            "attack.\n" + (f"FEEDBACK: {feedback}\n" if feedback else "") + data_block(data)
         )
         return self.runner.run("ask-tactician", prompt)
 
@@ -735,6 +749,15 @@ class AskCrew:
                     fresh[tc["id"]] = False
             claim["verified"] = fresh[tc["id"]]
         return sum(1 for c in claims if c["verified"])
+
+
+def _measured(call: Call) -> bool:
+    """A value the Pundit may quote: pressure with no ball carrier is a default 0, not a reading."""
+    out = call.out
+    if not isinstance(out.get("value"), int | float | str):
+        return False
+    details = out.get("details") or {}
+    return not ("carrier" in details and details["carrier"] is None)
 
 
 def _json(text: str) -> dict[str, Any]:
