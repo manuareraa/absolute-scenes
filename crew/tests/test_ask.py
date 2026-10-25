@@ -401,3 +401,47 @@ def test_the_spanish_suggestion_asks_for_a_what_if():
         assert WHAT_IF_INTENT.search(q), q
     for q in ["¿Quién estaba debajo del balón?", "¿Por qué había tanto espacio?"]:
         assert not WHAT_IF_INTENT.search(q), q
+
+
+def test_each_number_is_named_by_its_own_metric_in_the_viewers_language():
+    from chalktalk_crew.ask.crew import _say, metric_label
+    from chalktalk_crew.ask.toolbox import Call
+
+    pc = Call("pitch_control", {"team": "home"}, {"metric": "pitch_control", "value": 0.54}, 1)
+    assert metric_label(pc, "en-GB") == "the home team's share of pitch control"
+    assert metric_label(pc, "es-ES") == "el control del espacio del equipo local"
+    off = Call("offside_line", {"defending_team": "away"}, {"metric": "offside_line"}, 1)
+    assert metric_label(off, "es-ES") == "la línea del fuera de juego del equipo visitante"
+    var = Call("var_offside", {"player_id": "A11"}, {"metric": "var_offside", "value": 0.06}, 1)
+    var.out["unit"] = "m"
+    assert _say(var, "en-GB") == "offside by 0.1 m"
+    assert _say(var, "es-ES") == "fuera de juego por 0,1 m"
+    assert verify.say(0.007, "xT", "en-GB") == "0.01 xT"
+
+
+def test_the_pundit_gets_measurements_events_and_what_could_not_be_measured(tools):
+    class EventsOnly(FakeAskRunner):
+        prompts: list[str] = []
+
+        def run(self, role, prompt, toolbox=None):  # noqa: ANN001, ANN201
+            if role == "ask-analyst":
+                toolbox.runner("events")(start_t=30_000, end_t=40_000)
+                toolbox.runner("pressure")(t=40_000)
+                return "Measured events"
+            if role == "ask-pundit":
+                self.prompts.append(prompt)
+            return super().run(role, prompt, toolbox)
+
+    runner = EventsOnly()
+    by = check_stream(ask(make_crew(tools, runner=runner), "¿Qué ha pasado aquí?", lang="es-ES"))
+    # Events and a ball nobody holds give nothing to quote, so the general tools still run.
+    assert [e["tool"]["name"] for e in by["tool"]] == [
+        "events",
+        "pressure",
+        "line_gap",
+        "pitch_control",
+    ]
+    data = json.loads(runner.prompts[0].split("DATA: ", 1)[1])
+    assert data["results"][1]["label"].startswith("el control del espacio del equipo ")
+    assert data["not_measured"] == ["presión sobre el balón: nadie tenía el balón en ese momento"]
+    assert "events" in data

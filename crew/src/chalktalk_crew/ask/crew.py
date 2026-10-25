@@ -90,6 +90,72 @@ WHO = {"en": ("{team} number {n}", " and "), "es": ("el número {n} {team}", " y
 VERB = {"en": ("moves", "move"), "es": ("se mueve", "se mueven")}
 TEAM = {"en": {"home": "home", "away": "away"}, "es": {"home": "local", "away": "visitante"}}
 CF_UNITS = {"pitch_control": "share", "line_gap_m": "m", "pressure": "prob", "obso": "xG"}
+# What each tool's number is, in the viewer's language. The Pundit names a number only with its
+# own label, so a pitch-control share is never called "pressure" and Spanish stays Spanish.
+METRIC_LABELS = {
+    "en": {
+        "pitch_control": "the {team} team's share of pitch control",
+        "control_at": "the {team} team's chance to win a ball played there",
+        "pressure_on_ball": "the pressure on the player with the ball",
+        "pressing_intensity": "the {team} team's pressing intensity",
+        "line_gap": "the gap between the {team} team's lines",
+        "team_shape": "the area the {team} team covers",
+        "distance_between": "the distance between {a} and {b}",
+        "shot_xg": "the chance of a goal from a shot here (xG)",
+        "xt_added": "the threat added (xT)",
+        "offside_line": "the {team} team's offside line",
+        "var_offside": "the VAR check on {player}",
+        "pass_options": "the safe passing options",
+        "ball_speed": "the ball's speed",
+        "player_run": "{player}'s top speed",
+        "formation": "the {team} team's formation",
+        "line_breaking_passes": "the {team} team's passes that broke a line",
+        "obso": "the scoring threat (xG)",
+    },
+    "es": {
+        "pitch_control": "el control del espacio del equipo {team}",
+        "control_at": "la probabilidad de que el equipo {team} gane un balón jugado ahí",
+        "pressure_on_ball": "la presión sobre el jugador con el balón",
+        "pressing_intensity": "la intensidad de la presión del equipo {team}",
+        "line_gap": "el hueco entre las líneas del equipo {team}",
+        "team_shape": "el área que cubre el equipo {team}",
+        "distance_between": "la distancia entre {a} y {b}",
+        "shot_xg": "la probabilidad de gol de un disparo desde aquí (xG)",
+        "xt_added": "la amenaza añadida (xT)",
+        "offside_line": "la línea del fuera de juego del equipo {team}",
+        "var_offside": "la revisión del VAR sobre {player}",
+        "pass_options": "las opciones de pase seguras",
+        "ball_speed": "la velocidad del balón",
+        "player_run": "la velocidad máxima de {player}",
+        "formation": "el sistema del equipo {team}",
+        "line_breaking_passes": "los pases del equipo {team} que rompieron una línea",
+        "obso": "la amenaza de gol (xG)",
+    },
+}
+NOT_MEASURED = {
+    "en": {"pressure_on_ball": "pressure on the ball: nobody had the ball at that moment"},
+    "es": {"pressure_on_ball": "presión sobre el balón: nadie tenía el balón en ese momento"},
+}
+# Tools that set the scene but give no number to quote.
+UNQUOTED = ("frame", "events", "match_info", "what_if")
+
+
+def metric_label(c: Call, lang: str) -> str:
+    """The tool's number named in the viewer's language, with the team or players it is about."""
+    metric = str(c.out.get("metric") or c.name)
+    lng = "es" if lang.startswith("es") else "en"
+    template = METRIC_LABELS[lng].get(metric)
+    if template is None:
+        return metric.replace("_", " ")
+    args = c.args
+    team = args.get("team") or args.get("defending_team")
+    names = {
+        "team": TEAM[lng].get(str(team), ""),
+        "a": args.get("a", ""),
+        "b": args.get("b", ""),
+        "player": args.get("player_id", ""),
+    }
+    return " ".join(template.format(**names).split()).replace(" 's", "'s")
 
 
 def _say(c: Call, lang: str) -> str:
@@ -103,6 +169,11 @@ def _say(c: Call, lang: str) -> str:
             if lang.startswith("es")
             else f"{dist} from halfway"
         )
+    if c.name == "var_offside" and isinstance(value, int | float):
+        dist = verify.say(abs(value), unit, lang)
+        if lang.startswith("es"):
+            return f"fuera de juego por {dist}" if value > 0 else f"en posición legal por {dist}"
+        return f"offside by {dist}" if value > 0 else f"onside by {dist}"
     return verify.say(value, unit, lang)
 
 
@@ -442,7 +513,7 @@ class AskCrew:
         # The question's obvious tools, then the general ones if none of those could measure
         # (shot_xg fails when nobody has the ball).
         for question in (req.question, ""):
-            if any(_measured(c) for c in box.calls):
+            if any(_quotable(c) for c in box.calls):
                 break
             for name, args in default_plan(question, ctx):
                 with contextlib.suppress(ToolCapReached, KeyError, ValueError, TypeError):
@@ -453,24 +524,42 @@ class AskCrew:
     def _results(self, box: ToolBox, lang: str) -> list[dict[str, Any]]:
         out = []
         for c in box.calls:
-            if c.name in ("frame", "events", "match_info", "what_if") or not _measured(c):
+            if not _quotable(c):
                 continue
-            label = str(c.out.get("metric") or c.name).replace("_", " ")
             out.append(
                 {
                     "call_id": c.id,
                     "tool": c.name,
-                    "label": label,
+                    "label": metric_label(c, lang),
                     "args": c.args,
                     "say": _say(c, lang),
                 }
             )
         return out
 
+    @staticmethod
+    def _scene(box: ToolBox, lang: str) -> dict[str, list[Any]]:
+        """What the Pundit may say without numbers: the events found, and what could not be
+        measured and why, so an answer never claims there is "no data"."""
+        events: list[dict[str, Any]] = []
+        missing: list[str] = []
+        lng = "es" if lang.startswith("es") else "en"
+        for c in box.calls:
+            if c.name == "events":
+                for e in (c.out.get("details") or {}).get("events", [])[-6:]:
+                    team = TEAM[lng].get(str(e.get("team")), e.get("team"))
+                    events.append({"type": e.get("type"), "team": team})
+            elif not _measured(c):
+                note = NOT_MEASURED[lng].get(str(c.out.get("metric")))
+                if note and note not in missing:
+                    missing.append(note)
+        return {"events": events[-6:], "not_measured": missing}
+
     def _write(self, req: AskRequest, box: ToolBox, ctx: dict[str, Any], emit: Emitter) -> Answer:
         lang = req.lang
         calls = [c for c in box.calls if c.name not in ("frame", "events", "match_info")]
         results = self._results(box, lang)
+        scene = self._scene(box, lang)
         feedback = ""
         for rnd in range(1, MAX_REWRITES + 2):
             emit.step(
@@ -483,8 +572,13 @@ class AskCrew:
                 "lens": req.lens,
                 "side": req.side,
                 "attacking": ctx["attacking"],
+                "ball_owner": ctx.get("ball_owner"),
                 "results": results,
             }
+            if scene["events"]:
+                data["events"] = scene["events"]
+            if scene["not_measured"]:
+                data["not_measured"] = scene["not_measured"]
             if feedback:
                 data["feedback"] = feedback
             prompt = (
@@ -784,6 +878,10 @@ def _measured(call: Call) -> bool:
         return False
     details = out.get("details") or {}
     return not ("carrier" in details and details["carrier"] is None)
+
+
+def _quotable(call: Call) -> bool:
+    return call.name not in UNQUOTED and _measured(call)
 
 
 def _json(text: str) -> dict[str, Any]:

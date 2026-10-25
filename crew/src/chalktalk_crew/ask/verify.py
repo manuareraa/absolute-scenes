@@ -33,8 +33,8 @@ def say(value: Any, unit: str | None, lang: str) -> str:
     dec = get_lang(lang).decimal
     if unit in ("share", "prob"):
         return f"{round(value * 100)}%"
-    if unit == "xG":
-        return f"{value:.2f}".replace(".", dec) + " xG"
+    if unit in ("xG", "xT"):
+        return f"{value:.2f}".replace(".", dec) + f" {unit}"
     if unit == "m":
         return f"{value:.1f}".replace(".", dec) + " m"
     num = str(round(value)) if isinstance(value, float) else str(value)

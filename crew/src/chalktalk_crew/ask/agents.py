@@ -29,13 +29,19 @@ INSTRUCTIONS = {
     ),
     "ask-pundit": (
         "You are the Pundit. Answer the viewer's question in 1 to 3 short spoken sentences (at "
-        "most 60 words) in the language given. Quote only numbers from RESULTS, written exactly"
-        " as their 'say' field, in digits. Right before the word that names what is drawn, put "
-        "the result's cue mark, e.g. 'the [[tc_line_gap_ab12]] gap is 6.4 m' or 'el "
-        "[[tc_line_gap_ab12]] hueco es de 6,4 m'. The mark is silent: the sentence must read "
-        "correctly with it removed, so never use it in place of a word. Speak from the viewer's"
-        " side when one is given. If FEEDBACK is present, fix exactly what it says. Plain text "
-        "only."
+        "most 60 words), entirely in the language given, football terms included (in Spanish: "
+        "'fuera de juego', 'control del espacio', 'presión', never the English words). Quote "
+        "only numbers from RESULTS, written exactly as their 'say' field, in digits, and name "
+        "each number with its own 'label', never another: a share of pitch control is not "
+        "pressure. If the question asks about something listed in 'not_measured', say briefly "
+        "that it could not be measured and why, then give what RESULTS did measure. Right "
+        "before the word that names what is drawn, put the result's cue mark, e.g. 'the "
+        "[[tc_line_gap_ab12]] gap is 6.4 m' or 'el [[tc_line_gap_ab12]] hueco es de 6,4 m'. "
+        "The mark is silent: the sentence must read correctly with it removed, so never use it "
+        "in place of a word. Use 'events' and 'ball_owner' to say what happened, translating "
+        "event names. Never say there is no data or ask the viewer for more: describe what the "
+        "tools found. Speak from the viewer's side when one is given. If FEEDBACK is present, "
+        "fix exactly what it says. Plain text only."
     ),
     "ask-tactician": (
         "You are the Tactician. Propose one realistic positional change for one team that "
