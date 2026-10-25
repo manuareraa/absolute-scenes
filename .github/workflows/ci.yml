@@ -1,9 +1,10 @@
 name: ci
 
+# PRs only: every PR is checked before it merges, so a second run on main repeats it. The
+# repo is private until submission and Actions minutes are capped; run by hand if needed.
 on:
   pull_request:
-  push:
-    branches: [main]
+  workflow_dispatch:
 
 concurrency:
   group: ci-${{ github.ref }}
