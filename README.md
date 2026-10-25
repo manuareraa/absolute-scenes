@@ -89,8 +89,8 @@ flowchart LR
 | Stroke start vs audio (browser side, 33 strokes) | median 10 ms, p95 16 ms | [a-audio-sync](docs/notes/a-audio-sync.md) |
 | Claims verified in the shipped show | 198 of 198; all 90 chapters passed the gate | `web/public/fixtures/show-sim-7.json` |
 | Evidence re-runs that match the claim (at build) | 14 of 14 | same file |
-| Foundry evaluation of the shipped show (54 show overlays + 10 test items) | groundedness 1.0, numeric tolerance 1.0, cue timing 1.0, LLM groundedness 4.94 / 5 | [evals/results](evals/results/2026-10-24-foundry.json) |
-| Cost to make the whole show on Foundry agents (54 overlays, 176 agent runs, 0 fallbacks) | about $0.06 in tokens; speech on the free tier | [coord-foundry-show](docs/notes/coord-foundry-show.md) |
+| Foundry evaluation of the shipped show (54 show overlays + 10 test items) | groundedness 1.0, numeric tolerance 1.0, cue timing 1.0, LLM groundedness 4.98 / 5 | [evals/results](evals/results/2026-10-25-foundry.json) |
+| Cost to make the whole show on Foundry agents (54 overlays, 170 agent runs, 0 agent fallbacks; 3 of 54 scripts from the rule-based writer after a failed rewrite) | about $0.06 in tokens; speech on the free tier | [coord-believable-moments](docs/notes/coord-believable-moments.md) |
 | Live ask eval, 78 questions (13 moments × views × en-GB/es-ES) | 78 of 78 answered with a drawn overlay; Verifier rejected 10 of 147 first-round claims, 0 left wrong after rewrite; Critic accepted 5 of 32 what-if proposals | [coord-ask-eval](docs/notes/coord-ask-eval.md) |
 | Foundry LLM judge of those 78 answers | groundedness 4.28 / 5 (86% pass), relevance 4.10 / 5 (97% pass); the misses are mostly a wrong label on a right number | [evals/results](evals/results/2026-10-25-ask-live.json) |
 | Live ask speed and cost | answer ready median 11.9 s, p90 16.2 s; about $0.002 per answer | same note |
