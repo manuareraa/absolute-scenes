@@ -19,6 +19,7 @@ from __future__ import annotations
 import contextlib
 import hashlib
 import json
+import logging
 import queue
 import re
 import threading
@@ -39,6 +40,8 @@ from . import verify
 from .agents import AskRunner, data_block, default_plan
 from .safety import SafetyClient
 from .toolbox import Call, ToolBox, ToolCapReached, summarise
+
+log = logging.getLogger(__name__)
 
 MAX_REWRITES = 2
 ANALYST_CALLS = 5
@@ -243,6 +246,7 @@ class AskCrew:
             except Cancelled:
                 pass
             except Exception as err:  # noqa: BLE001 - reported to the viewer as an error event
+                log.exception("ask %s failed", req.show_id)
                 with contextlib.suppress(Cancelled):
                     emit("error", text=f"The crew hit a problem: {type(err).__name__}."[:400])
             finally:
@@ -379,8 +383,12 @@ class AskCrew:
             emit.step(
                 "analyst", f"Agent unavailable ({type(err).__name__}); using the default tools."
             )
-        if not any(isinstance(c.out.get("value"), int | float | str) for c in box.calls):
-            for name, args in default_plan(req.question, ctx):
+        # The question's obvious tools, then the general ones if none of those could measure
+        # (shot_xg fails when nobody has the ball).
+        for question in (req.question, ""):
+            if any(isinstance(c.out.get("value"), int | float | str) for c in box.calls):
+                break
+            for name, args in default_plan(question, ctx):
                 with contextlib.suppress(ToolCapReached, KeyError, ValueError, TypeError):
                     box.call(name, args)
         if not box.calls:

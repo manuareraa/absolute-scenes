@@ -207,6 +207,16 @@ def test_agent_failure_uses_the_default_tools(tools):
     assert by["overlay"][0]["overlay"]["gate"]["passed"]
 
 
+def test_falls_back_to_general_tools_when_the_obvious_one_cannot_measure(tools):
+    class NoBall(StubWhatIf):
+        def shot_xg(self, match_id, t, **kw):  # noqa: ANN001, ANN003, ANN201
+            raise ValueError("no player given and nobody has the ball")
+
+    by = check_stream(ask(make_crew(NoBall(tools.store)), "Why was that shot such a poor chance?"))
+    assert [e["tool"]["name"] for e in by["tool"]] == ["line_gap", "pitch_control"]
+    assert by["overlay"][0]["overlay"]["gate"]["passed"]
+
+
 def test_toolbox_caps_and_binds_the_match(tools):
     box = ToolBox(tools, "sim-11", max_calls=1)
     assert "what_if" not in box.offered() and "list_matches" not in box.offered()
