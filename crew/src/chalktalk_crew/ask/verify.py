@@ -23,6 +23,8 @@ SPELLED = re.compile(
     r"treinta|cuarenta|cincuenta|sesenta|setenta|ochenta|noventa|cien|por ciento)\b",
     re.IGNORECASE,
 )
+# "55 por ciento" is the Pundit's digits with the unit spelled out: the same spoken value as "55%".
+PERCENT_WORDS = re.compile(r"(\d+(?:[.,]\d+)?)\s*(?:por ciento|per ?cent)\b", re.IGNORECASE)
 UNIT_WORDS = {"m": "m", "m2": "m²", "xG": "xG", "share": "%", "prob": "%"}
 
 
@@ -39,6 +41,11 @@ def say(value: Any, unit: str | None, lang: str) -> str:
         return f"{value:.1f}".replace(".", dec) + " m"
     num = str(round(value)) if isinstance(value, float) else str(value)
     return num + (f" {UNIT_WORDS.get(unit, unit)}" if unit and unit not in ("ms",) else "")
+
+
+def normalize(text: str) -> str:
+    """Spelled-out percent signs after digits become "%", so they are not sent back."""
+    return PERCENT_WORDS.sub(r"\1%", text)
 
 
 def numbers_of(value: Any, unit: str | None, lang: str) -> set[str]:
@@ -120,7 +127,8 @@ def check(text: str, calls: list[Call], lang: str) -> Check:
             Finding(
                 _clause(text, m.start(), m.end()),
                 False,
-                f"write '{m.group(0)}' as digits, exactly as the result's 'say' field",
+                f"'{m.group(0)}' is a number in words: write it in digits, copied from the "
+                "result's 'say' field (e.g. '55%', '990 m²')",
                 None,
                 m.group(0),
                 m.span(),

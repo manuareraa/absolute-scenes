@@ -593,7 +593,7 @@ class AskCrew:
             except Exception as err:  # noqa: BLE001
                 emit.step("pundit", f"Agent unavailable ({type(err).__name__}).")
                 break
-            text = " ".join(text.replace("*", "").split())[:600]
+            text = verify.normalize(" ".join(text.replace("*", "").split())[:600])
             result = verify.check(text, calls, lang)
             self.stats.drafts += 1
             findings = result.findings or [

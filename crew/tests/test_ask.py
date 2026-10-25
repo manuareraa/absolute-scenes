@@ -445,3 +445,14 @@ def test_the_pundit_gets_measurements_events_and_what_could_not_be_measured(tool
     assert data["results"][1]["label"].startswith("el control del espacio del equipo ")
     assert data["not_measured"] == ["presión sobre el balón: nadie tenía el balón en ese momento"]
     assert "events" in data
+
+
+def test_digits_with_a_spelled_percent_pass_but_number_words_are_sent_back():
+    from chalktalk_crew.ask.toolbox import Call
+
+    pc = Call("pitch_control", {}, {"value": 0.55, "unit": "share", "tool_call": {"id": "tc"}}, 1)
+    text = verify.normalize("El control del espacio es del 55 por ciento.")
+    assert text == "El control del espacio es del 55%."
+    assert verify.check(text, [pc], "es-ES").ok
+    words = verify.check("Es del cincuenta y cinco por ciento.", [pc], "es-ES")
+    assert not words.ok and "55%" in words.feedback()
