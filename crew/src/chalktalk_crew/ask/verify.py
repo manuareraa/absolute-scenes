@@ -68,10 +68,12 @@ class Check:
         return "; ".join(f.reason for f in self.findings if not f.ok)
 
 
+STOP = re.compile(r"[.!?;](?=\s|$)")  # a sentence end, not the point in "7.9 m"
+
+
 def _clause(text: str, start: int, end: int) -> str:
-    left = max(text.rfind(c, 0, start) for c in ".!?;") + 1
-    rights = [i for i in (text.find(c, end) for c in ".!?;") if i >= 0]
-    right = min(rights) if rights else len(text)
+    left = max((m.end() for m in STOP.finditer(text, 0, start)), default=0)
+    right = next((m.start() for m in STOP.finditer(text, end)), len(text))
     return " ".join(CUE.sub("", text[left:right]).split())[:200] or text[start:end]
 
 

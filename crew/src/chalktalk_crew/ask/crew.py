@@ -26,6 +26,7 @@ import time
 import uuid
 from collections import OrderedDict
 from collections.abc import Callable, Iterator
+from concurrent.futures import Future, ThreadPoolExecutor
 from dataclasses import dataclass, field
 from typing import Any
 
@@ -221,8 +222,17 @@ class AskCrew:
 
     # --- streaming ---------------------------------------------------------------------------
 
+    def warm(self, match_id: str) -> None:
+        """Load (or generate) the match outside the deadline: a 45-minute-half sim takes ~27 s
+        to build the first time, which is the store's cost, not the crew's."""
+        store = getattr(self.tools, "store", None)
+        if store is not None:
+            store.get(match_id)
+
     def stream(self, req: AskRequest) -> Iterator[dict[str, Any]]:
         """AskEvents as they happen; past the deadline an ``error`` event ends the stream."""
+        with contextlib.suppress(ValueError, KeyError):
+            self.warm(req.match_id)
         start = time.monotonic()
         q: queue.Queue[dict[str, Any] | None] = queue.Queue()
         emit = Emitter(q.put, start)
@@ -295,9 +305,16 @@ class AskCrew:
                 + ("Explain it, then test a better option." if wants_cf else "Explain it."),
             )
             self._analyse(req, box, ctx, emit)
+            # The Tactician's first proposal needs only the analysis, so it is drafted while the
+            # Pundit writes (one Foundry round trip saved on "what should they have done").
+            first = None
+            if wants_cf and "what_if" in box.available:
+                pool = ThreadPoolExecutor(1, thread_name_prefix="ask-tactician")
+                first = pool.submit(self._propose, req, ctx, "")
+                pool.shutdown(wait=False)
             ans = self._write(req, box, ctx, emit)
             box.max_calls = MAX_CALLS
-            cf = self._counterfactual(req, box, ctx, emit) if wants_cf else None
+            cf = self._counterfactual(req, box, ctx, emit, first) if wants_cf else None
             overlay, audio_url = self._overlay(req, box, ans, cf, ctx)
             emit.step(
                 "verifier",
@@ -450,8 +467,24 @@ class AskCrew:
 
     # --- what should they have done? ---------------------------------------------------------
 
+    def _propose(self, req: AskRequest, ctx: dict[str, Any], feedback: str) -> str:
+        data = {"question": req.question, "side": req.side, **ctx}
+        if feedback:
+            data["feedback"] = feedback
+        prompt = (
+            f"Question: {req.question}\n"
+            + (f"FEEDBACK: {feedback}\n" if feedback else "")
+            + data_block(data)
+        )
+        return self.runner.run("ask-tactician", prompt)
+
     def _counterfactual(
-        self, req: AskRequest, box: ToolBox, ctx: dict[str, Any], emit: Emitter
+        self,
+        req: AskRequest,
+        box: ToolBox,
+        ctx: dict[str, Any],
+        emit: Emitter,
+        first: Future[str] | None = None,
     ) -> Counterfactual | None:
         if "what_if" not in box.available:
             emit.step("critic", "The what-if tool is not deployed yet; skipping the better option.")
@@ -462,16 +495,9 @@ class AskCrew:
                 "tactician",
                 "Proposing a better position." if attempt == 1 else "Trying another change.",
             )
-            data = {"question": req.question, "side": req.side, **ctx}
-            if feedback:
-                data["feedback"] = feedback
-            prompt = (
-                f"Question: {req.question}\n"
-                + (f"FEEDBACK: {feedback}\n" if feedback else "")
-                + data_block(data)
-            )
             try:
-                plan = _json(self.runner.run("ask-tactician", prompt))
+                drafted = first.result() if attempt == 1 and first else None
+                plan = _json(drafted or self._propose(req, ctx, feedback))
                 team, moves = plan["team"], plan["moves"]
                 proposal = str(plan.get("proposal") or "a change of position")[:200]
                 emit.step("critic", "Re-running the frame with the change.")

@@ -228,6 +228,8 @@ def test_verify_spoken_forms():
     assert verify.say(15.67, "m", "es-ES") == "15,7 m"
     assert verify.say(0.025, "xG", "en-GB") == "0.03 xG"
     assert verify.numbers_of(15.67, "m", "en-GB") == {"15.7", "16"}
+    # a decimal point is not a sentence end: the clause keeps the whole number
+    assert verify._clause("The gap was 7.9 m. Then 29%.", 12, 15) == "The gap was 7.9 m"
 
 
 def test_azure_content_safety_shapes_and_fails_closed():

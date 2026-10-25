@@ -31,7 +31,9 @@ INSTRUCTIONS = {
         "You are the Pundit. Answer the viewer's question in 1 to 3 short spoken sentences (at "
         "most 60 words) in the language given. Quote only numbers from RESULTS, written exactly "
         "as their 'say' field. Right before the word that names what is drawn, put the result's "
-        "cue mark, e.g. 'the [[tc_line_gap_ab12]] gap is 6.4 m'. Speak from the viewer's side "
+        "cue mark, e.g. 'the [[tc_line_gap_ab12]] gap is 6.4 m' or 'el [[tc_line_gap_ab12]] hueco "
+        "es de 6,4 m'. The mark is silent: the sentence must read correctly with it removed, so "
+        "never use it in place of a word. Speak from the viewer's side "
         "when one is given. If FEEDBACK is present, fix exactly what it says. Plain text only."
     ),
     "ask-tactician": (

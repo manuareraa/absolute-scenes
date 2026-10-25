@@ -38,7 +38,8 @@ class AudioStore:
 
 
 def create_app(crew: AskCrew, audio: AudioStore | None = None) -> Starlette:
-    audio = audio or AudioStore()
+    if audio is None:
+        audio = crew.audio_store if isinstance(crew.audio_store, AudioStore) else AudioStore()
     if crew.audio_store is None:
         crew.audio_store = audio
 
@@ -80,7 +81,8 @@ def create_app(crew: AskCrew, audio: AudioStore | None = None) -> Starlette:
 
 def crew_from_env(env: dict[str, str] | None = None) -> AskCrew:
     """``CHALKTALK_ASK_BACKEND=azure`` for Foundry agents, Azure Speech and Content Safety;
-    anything else (the default) runs the fakes, so a bare container never spends tokens."""
+    anything else (the default) runs the fakes, so a bare container never spends tokens.
+    ``CHALKTALK_ASK_PRELOAD=sim-7`` builds those matches at start-up, before the first ask."""
     from chalktalk_mcp.store import Store
     from chalktalk_mcp.tools import Tools
 
@@ -96,9 +98,14 @@ def crew_from_env(env: dict[str, str] | None = None) -> AskCrew:
         configure_tracing(env.get("AZURE_AI_PROJECT_ENDPOINT"))
         runner = FoundryAskRunner(FoundryRunner.from_env(env))
         speech = AzureSpeechClient(CrewConfig.from_env(env))
-        return AskCrew(tools, runner, speech, AzureContentSafety.from_env(env))
-    from ..speech import FakeSpeechClient
-    from .agents import FakeAskRunner
-    from .safety import FakeSafety
+        crew = AskCrew(tools, runner, speech, AzureContentSafety.from_env(env))
+    else:
+        from ..speech import FakeSpeechClient
+        from .agents import FakeAskRunner
+        from .safety import FakeSafety
 
-    return AskCrew(tools, FakeAskRunner(), FakeSpeechClient(), FakeSafety())
+        crew = AskCrew(tools, FakeAskRunner(), FakeSpeechClient(), FakeSafety())
+    crew.audio_store = AudioStore()
+    for match_id in filter(None, env.get("CHALKTALK_ASK_PRELOAD", "").split(",")):
+        crew.warm(match_id.strip())
+    return crew
