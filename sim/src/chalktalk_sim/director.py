@@ -207,6 +207,82 @@ class _Director:
     def in_attacking_box(self, team: int, point: np.ndarray) -> bool:
         return self.in_own_box(1 - team, point)
 
+    def keeper_spot(self, team: int) -> np.ndarray:
+        """Where ``team``'s keeper stands: on the line from his goal centre to the ball,
+        further off his line the further away the ball is (a sweeper when it is far)."""
+        s = self.sign(team)
+        goal = np.array([-s * HALF_LENGTH, 0.0])
+        v = self.ball[:2] - goal
+        d = float(np.linalg.norm(v))
+        if d < 1e-6:
+            return goal + np.array([s * 1.0, 0.0])
+        u = v / d
+        if u[0] * s < 0.2:  # ball level with or behind the goal line: hug the near post
+            u = np.array([0.2 * s, math.copysign(0.98, u[1])])
+        depth = float(np.clip(1.0 + self.cal.keeper_depth_per_m * d, 1.0, 9.5))
+        spot = goal + u * min(depth, 0.6 * d)
+        spot[1] = float(np.clip(spot[1], -GOAL_WIDTH / 2, GOAL_WIDTH / 2))
+        return spot
+
+    def shot_path(
+        self, start: np.ndarray, end: np.ndarray, tz: float, speed: float, players: np.ndarray
+    ) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
+        """For each of ``players``: horizontal distance from the shot line, and ball height
+        and flight time where the ball passes them (distance inf where they are not between
+        the ball and the goal)."""
+        seg = end - start[:2]
+        L = float(np.linalg.norm(seg)) + 1e-9
+        T = L / speed
+        vz = (tz + self.cal.gravity * T * T / 2) / T
+        rel = self.pos[players] - start[:2]
+        f = (rel @ seg) / (L * L)
+        lat = np.abs(rel[:, 0] * seg[1] - rel[:, 1] * seg[0]) / L
+        tt = np.clip(f, 0.0, 1.0) * T
+        z = 0.05 + vz * tt - self.cal.gravity * tt * tt / 2
+        lat = np.where((f > 0.0) & (f < 1.0), lat, np.inf)
+        return lat, z, tt
+
+    def keeper_dive(self, t_s: float) -> float:
+        """How far the keeper can travel in ``t_s`` from a set position, within his caps."""
+        a = self.cal.decel_max
+        v = float(self.vmax[self.gk[0]])
+        t_top = v / a
+        if t_s <= t_top:
+            return 0.5 * a * t_s * t_s
+        return 0.5 * a * t_top * t_top + v * (t_s - t_top)
+
+    def aim_goal(
+        self, c: int, speed: float, margin: float, tries: int = 16, strict: bool = True
+    ) -> tuple[float, float] | None:
+        """A (y, z) target in the goal mouth beyond the keeper's reach and clear of the
+        defenders between ball and goal, or None when every sampled aim is covered.
+        ``strict``: the keeper cannot reach it even diving at full acceleration from the
+        moment of the strike; otherwise it only has to start well away from him (he is
+        wrong-footed)."""
+        cal = self.cal
+        team = int(self.team[c])
+        s = self.sign(team)
+        gx = s * HALF_LENGTH
+        dfn = 1 - team
+        gk = self.gk[dfn]
+        outf = np.array([j for j in self.members[dfn] if j != gk])
+        start = self.ball
+        for _ in range(tries):
+            side = 1.0 if self.rng.random() < 0.5 else -1.0
+            ty = side * self.rng.uniform(0.8, GOAL_WIDTH / 2 - 0.3)
+            tz = self.rng.uniform(0.2, 2.1)
+            end = np.array([gx, ty])
+            klat, _, kt = self.shot_path(start, end, tz, speed, np.array([gk]))
+            if np.isfinite(klat[0]):
+                dive = self.keeper_dive(float(kt[0])) if strict else 0.5
+                if klat[0] - dive < cal.keeper_reach_m:
+                    continue
+            lat, z, _ = self.shot_path(start, end, tz, speed, outf)
+            if np.any((lat < margin) & (z < 2.0)):
+                continue
+            return float(ty), float(tz)
+        return None
+
     def chasing_beat(self, team: int) -> bool:
         """A scripted goal for this team is due: they play forward and win the ball back."""
         return self.beat_due("goal", team) is not None
@@ -272,6 +348,8 @@ class _Director:
         elif self.state in ("goal", "kickoff"):
             tgt = self.kickoff_layout(self.kickoff_team)
             cap = self.vmax * 0.7
+            # The kick-off takers walk right up to the ball (no dead zone).
+            self.gain[np.linalg.norm(tgt, axis=1) < 3.0] = 4.0
         else:
             for k in (0, 1):
                 s = self.sign(k)
@@ -299,8 +377,13 @@ class _Director:
                 tgt[idx, 0] = xn * s
                 tgt[idx, 1] = y
                 gk = self.gk[k]
-                gxn = -HALF_LENGTH + 2.5 + 0.07 * (bxn + HALF_LENGTH)
-                tgt[gk] = (gxn * s, float(np.clip(by * 0.15, -3.0, 3.0)))
+                tgt[gk] = self.keeper_spot(k)
+                if abs(bxn + HALF_LENGTH) < 45.0:
+                    # Ball near his goal: he sets himself on the line, without a dead zone.
+                    self.gain[gk] = 2.5
+                    cap[gk] = self.vmax[gk] * 0.6
+            tgt[self.gk[0]] -= self.wander[self.gk[0]]
+            tgt[self.gk[1]] -= self.wander[self.gk[1]]
             tgt += self.wander
             tgt[self.ref] = (bx * 0.8, float(np.clip(by - 13.0 * np.sign(by or 1.0), -30, 30)))
             self.ball_targets(tgt, cap)
@@ -424,15 +507,29 @@ class _Director:
         # Arrive behaviour with a small dead zone, so players at their slot stand or walk.
         speed = np.minimum(cap, np.maximum(dist - 0.8 / self.gain, 0.0) * self.gain)
         desired = d / (dist[:, None] + 1e-9) * speed[:, None]
+        # Near the edge of the frame area, brake in time instead of hitting a wall: the
+        # outward speed is held to what can still be stopped before the limit.
+        for ax, lim in ((0, HALF_LENGTH + 6.0), (1, HALF_WIDTH + 5.0)):
+            side = np.sign(self.pos[:, ax])
+            room = np.maximum(lim - np.abs(self.pos[:, ax]), 0.0)
+            v_out = np.sqrt(2.0 * 0.8 * cal.decel_max * room)
+            over = desired[:, ax] * side > v_out
+            desired[over, ax] = side[over] * v_out[over]
         dv = desired - self.vel
         cur = np.linalg.norm(self.vel, axis=1)
-        amax = np.where(speed > cur, cal.accel_max, cal.decel_max) * DT
+        acc = np.where(speed > cur, cal.accel_max, cal.decel_max)
+        if self.flight is not None and self.flight["kind"] == "shot":
+            # The keeper explodes toward the shot line (within the deceleration cap).
+            acc[self.gk[1 - self.flight["team"]]] = cal.decel_max
+        amax = acc * DT
         mag = np.linalg.norm(dv, axis=1)
         dv *= np.minimum(1.0, amax / (mag + 1e-9))[:, None]
         self.vel += dv
         self.pos += self.vel * DT
-        self.pos[:, 0] = np.clip(self.pos[:, 0], -HALF_LENGTH - 3, HALF_LENGTH + 3)
-        self.pos[:, 1] = np.clip(self.pos[:, 1], -HALF_WIDTH - 3, HALF_WIDTH + 3)
+        # A last-resort stop inside the frame contract (x within 60 m, y within 40 m);
+        # the braking above keeps players short of it.
+        self.pos[:, 0] = np.clip(self.pos[:, 0], -HALF_LENGTH - 7, HALF_LENGTH + 7)
+        self.pos[:, 1] = np.clip(self.pos[:, 1], -HALF_WIDTH - 5.8, HALF_WIDTH + 5.8)
         sp = np.linalg.norm(self.vel, axis=1)
         moving = sp > 0.3
         self.head[moving] = np.degrees(np.arctan2(self.vel[moving, 1], self.vel[moving, 0]))
@@ -450,7 +547,12 @@ class _Director:
                 u = self.vel[c] / sp
             else:
                 u = np.array([self.sign(int(self.team[c])), 0.0])
-            self.ball[:2] = self.pos[c] + u * 0.55
+            # The ball is gathered to the feet over a few ticks, never snapped there.
+            want = self.pos[c] + u * 0.55
+            gap = want - self.ball[:2]
+            g = float(np.linalg.norm(gap))
+            step = (sp + cal.ball_gather_ms) * DT
+            self.ball[:2] = want if g <= step else self.ball[:2] + gap * (step / g)
             self.ball[2] = 0.0
             self.bvel[:2] = self.vel[c]
             self.bvel[2] = 0.0
@@ -627,13 +729,43 @@ class _Director:
                 best, best_score = int(j), score
         return best, best_score
 
-    def shoot(self, c: int, forced: bool) -> None:
+    def save_aim(self, c: int, speed: float) -> tuple[float, float]:
+        """A (y, z) target on goal that the keeper can reach from where he stands."""
+        team = int(self.team[c])
+        s = self.sign(team)
+        gx = s * HALF_LENGTH
+        gk = self.gk[1 - team]
+        start = self.ball[:2]
+        kp = self.pos[gk]
+        # Where the ray from the ball through the keeper meets the goal line.
+        dx = kp[0] - start[0]
+        if abs(dx) > 0.5 and (gx - start[0]) / dx > 1.0:
+            ky = start[1] + (kp[1] - start[1]) * (gx - start[0]) / dx
+        else:
+            ky = kp[1]
+        best = None
+        for _ in range(8):
+            ty = float(np.clip(ky + self.rng.uniform(-1.6, 1.6), -2.9, 2.9))
+            tz = self.rng.uniform(0.2, 1.8)
+            lat, _, _ = self.shot_path(self.ball, np.array([gx, ty]), tz, speed, np.array([gk]))
+            reach = float(lat[0]) if np.isfinite(lat[0]) else 9.0
+            if best is None or reach < best[0]:
+                best = (reach, ty, tz)
+            if reach < 0.9:
+                break
+        assert best is not None
+        return best[1], best[2]
+
+    def shoot(self, c: int, forced: bool, beat: int | None = None) -> bool:
+        """Shoot, or return False when a scripted goal has no believable aim yet."""
         cal = self.cal
         team = int(self.team[c])
         s = self.sign(team)
         gx = s * HALF_LENGTH
         xg = xg_of(float(self.pos[c, 0]), float(self.pos[c, 1]), s)
         rng = self.rng
+        speed = float(np.clip(rng.normal(cal.shot_speed_mean, cal.shot_speed_sd), 15, 34))
+        save = None
         if forced:
             outcome = "goal"
         else:
@@ -643,16 +775,28 @@ class _Director:
             outcome = ("goal" if rng.random() < p_goal else "saved") if on else "off_target"
             save = self.beat_due("save", team)
             if save is not None:
-                self.used_beats.add(save)
                 outcome = "saved"
         side = 1.0 if rng.random() < 0.5 else -1.0
         if outcome == "goal":
-            ty, tz = side * rng.uniform(1.6, GOAL_WIDTH / 2 - 0.4), rng.uniform(0.2, 2.1)
-        elif outcome == "saved":
-            ty, tz = rng.uniform(-2.6, 2.6), rng.uniform(0.2, 1.8)
-        else:
+            # A goal goes past the keeper's reach and round the defenders, or not at all.
+            late = self.overdue_s(team)
+            aim = self.aim_goal(c, speed, cal.shot_lane_margin_m if forced else cal.block_radius_m)
+            if aim is None and forced and late > 2 * cal.beat_any_shot_s:
+                aim = self.aim_goal(c, speed, cal.block_radius_m + 0.1, tries=32, strict=False)
+            if aim is None:
+                if forced:
+                    return False
+                outcome = "saved"
+            else:
+                ty, tz = aim
+        if outcome == "saved":
+            ty, tz = self.save_aim(c, speed)
+        elif outcome == "off_target":
             ty, tz = side * rng.uniform(GOAL_WIDTH / 2 + 0.6, 7.5), rng.uniform(0.3, 3.6)
-        speed = float(np.clip(rng.normal(cal.shot_speed_mean, cal.shot_speed_sd), 15, 34))
+        if save is not None:
+            self.used_beats.add(save)
+        if beat is not None:
+            self.used_beats.add(beat)
         start = self.ball.copy()
         vec = np.array([gx - start[0], ty - start[1]])
         d = float(np.linalg.norm(vec))
@@ -661,7 +805,23 @@ class _Director:
         self.bvel[:2] = vec / d * speed
         self.bvel[2] = (tz + cal.gravity * T * T / 2) / T
         self.ball[2] = 0.05
-        keeper_y = ty if outcome == "saved" else ty * 0.45
+        # The keeper goes for the point of the shot line nearest him. For a goal he gets
+        # no closer than his reach: he dives and the ball goes past his hands.
+        gk = self.gk[1 - team]
+        kp = self.pos[gk]
+        u = vec / d
+        near = start[:2] + u * float(np.clip((kp - start[:2]) @ u, 0.0, d))
+        if outcome == "goal":
+            # He dives as far as he can in the time the ball takes to reach him.
+            off = kp - near
+            gap = float(np.linalg.norm(off))
+            dive = self.keeper_dive(float(np.linalg.norm(near - start[:2])) / speed)
+            stop = min(gap, max(gap - dive, cal.keeper_reach_m))
+            keeper_to = near + off / (gap + 1e-9) * stop
+        elif outcome == "saved":
+            keeper_to = near
+        else:
+            keeper_to = np.array([near[0], np.clip(near[1], -GOAL_WIDTH / 2, GOAL_WIDTH / 2)])
         ev = self.emit(
             "shot",
             [c],
@@ -678,12 +838,15 @@ class _Director:
             "team": team,
             "receiver": None,
             "target": np.array([gx, ty]),
-            "keeper_to": np.array([gx - s * 1.0, keeper_y]),
+            "keeper_to": keeper_to,
             "t0": self.t,
             "event": ev,
             "outcome": outcome,
+            "beat": beat,
+            "prev": start[:2].copy(),
         }
         self.last_touch = team
+        return True
 
     def clear(self, c: int) -> None:
         team = int(self.team[c])
@@ -741,7 +904,12 @@ class _Director:
         in_box = self.in_attacking_box(team, self.pos[c])
         late = self.overdue_s(team)
         central = abs(y) < 20.0
-        if xn > 18.0 and (central or late < 0):
+        dist = math.hypot(HALF_LENGTH - xn, y)
+        dx = HALF_LENGTH - xn
+        angle = math.atan2(GOAL_WIDTH * abs(dx), dx * dx + y * y - (GOAL_WIDTH / 2) ** 2)
+        angle = angle + math.pi if angle < 0 else angle
+        in_range = dist <= cal.max_shot_dist_m and angle >= cal.min_shot_angle_rad
+        if xn > 18.0 and in_range and (central or late < 0):
             xg = xg_of(float(self.pos[c, 0]), y, s)
             # A due scripted goal is taken from the first decent position, not from distance.
             # Once it is overdue by ``beat_any_shot_s``, any shot in range will do.
@@ -750,10 +918,9 @@ class _Director:
             )
             boost = cal.shot_box_boost if in_box else 0.0
             p_shot = min(xg, cal.shot_xg_cap) * cal.shot_appetite + boost
-            if take or self.rng.random() < min(0.9, p_shot):
-                if beat is not None:
-                    self.used_beats.add(beat)
-                self.shoot(c, forced=beat is not None)
+            if (take or self.rng.random() < min(0.9, p_shot)) and self.shoot(
+                c, forced=beat is not None, beat=beat
+            ):
                 return
         if xn > 28.0 and abs(y) > 16.0 and self.rng.random() < 0.45:
             recv = self.cross_target(c)
@@ -855,11 +1022,33 @@ class _Director:
         f = self.flight
         if f is None or f["kind"] != "shot":
             return
+        cal = self.cal
         team = f["team"]
         s = self.sign(team)
         xb = float(self.ball[0]) * s
-        if f["outcome"] == "saved" and xb >= HALF_LENGTH - 1.2:
-            gk = self.gk[1 - team]
+        gk = self.gk[1 - team]
+        # Distance from each player to the ball's path over this tick (not just its end).
+        a, b = f["prev"], self.ball[:2].copy()
+        f["prev"] = b
+        ab = b - a
+        tt = np.clip(((self.pos - a) @ ab) / (ab @ ab + 1e-12), 0.0, 1.0)
+        near = np.linalg.norm(self.pos - (a + tt[:, None] * ab), axis=1)
+        low = self.ball[2] < 1.9
+        if low and self.t - f["t0"] >= 80 and xb < HALF_LENGTH:
+            opp = [j for j in self.members[1 - team] if j != gk]
+            hit = [j for j in opp if near[j] < cal.block_radius_m]
+            if hit:
+                self.block_shot(int(min(hit, key=lambda j: near[j])))
+                return
+        kd = float(near[gk])
+        if f["outcome"] == "goal" and kd < cal.keeper_save_reach_m and self.ball[2] < 2.4:
+            f["outcome"] = "saved"  # he got to it after all
+            f["event"]["attrs"]["outcome"] = "saved"
+            if f.get("beat") is not None:
+                self.used_beats.discard(f["beat"])
+        if f["outcome"] == "saved" and (
+            (kd < cal.keeper_save_reach_m and self.ball[2] < 2.6) or xb >= HALF_LENGTH - 0.3
+        ):
             self.emit("save", [gk], 1 - team, at=self.r2(*self.ball[:2]))
             self.ball[2] = 0.0
             self.bvel[:] = 0
@@ -869,6 +1058,33 @@ class _Director:
             in_goal = abs(self.ball[1]) < GOAL_WIDTH / 2 and self.ball[2] < GOAL_HEIGHT
             if in_goal and f["outcome"] == "goal":
                 self.goal(f["kicker"], team)
+
+    def block_shot(self, k: int) -> None:
+        """Defender ``k`` stands on the shot line: the ball comes off him, slower and
+        sideways or back, and is loose. A blocked scripted goal stays due."""
+        f = self.flight
+        assert f is not None
+        f["event"]["attrs"]["outcome"] = "blocked"
+        f["event"]["attrs"]["blocked_by"] = self.ids[k]
+        if f.get("beat") is not None:
+            self.used_beats.discard(f["beat"])
+        v = self.bvel[:2]
+        sp = float(np.linalg.norm(v)) + 1e-9
+        ang = math.atan2(-v[1], -v[0]) + self.rng.uniform(-1.6, 1.6)
+        out = sp * self.rng.uniform(0.2, 0.45)
+        self.ball[:2] = self.pos[k] + np.array([math.cos(ang), math.sin(ang)]) * 0.4
+        self.bvel[:2] = np.array([math.cos(ang), math.sin(ang)]) * out
+        self.bvel[2] = self.rng.uniform(0.0, 3.0)
+        self.flight = {
+            "kind": "deflection",
+            "kicker": k,
+            "team": int(self.team[k]),
+            "receiver": None,
+            "target": self.ball[:2] + self.bvel[:2] * 1.0,
+            "t0": self.t,
+            "event": f["event"],
+        }
+        self.last_touch = int(self.team[k])
 
     def goal(self, scorer: int, team: int) -> None:
         self.score[team] += 1
@@ -1012,10 +1228,14 @@ class _Director:
         elif self.state == "kickoff":
             lay = self.kickoff_layout(self.kickoff_team)
             spread = float(np.max(np.linalg.norm(self.pos - lay, axis=1)))
-            ready = spread < 3.0 and float(np.linalg.norm(self.ball[:2])) < 0.3
+            st = self.nearest(self.kickoff_team, np.zeros(2))
+            ready = (
+                spread < 3.0
+                and float(np.linalg.norm(self.ball[:2])) < 0.3
+                and float(np.linalg.norm(self.pos[st])) < 1.2
+            )
+            # The taker walks onto the ball; he is never moved there.
             if (self.t >= self.resume_t and ready) or self.t >= self.resume_t + 6000:
-                st = self.nearest(self.kickoff_team, np.zeros(2))
-                self.pos[st] = (-0.4 * self.sign(self.kickoff_team), 0.3)
                 self.do_kickoff(self.kickoff_team)
 
     # ------------------------------------------------------------------ run
