@@ -387,8 +387,11 @@ export function App() {
   const boardT = replaying ? replayT : summing ? summary.s.at_t : matchT;
   const allGoals: Goal[] = isLive ? [...goals.current.values()] : showMode ? showEv!.goals : [];
   const scored = allGoals.filter((g) => g.t <= boardT);
-  // A VAR chapter reviews a goal already scored, so the score counts it from the check's time.
-  const score = scoreAt(allGoals, vm ? Math.max(boardT, vm.check_t) : boardT);
+  // A VAR chapter, run-up included, replays the play into a goal already scored: as on a broadcast,
+  // the score bug stays at the check (its time, the goal counted) and the board is tagged a replay.
+  const chVar = showMode && !replaying && !summing ? varFor(showFx.var, book.chapters[chapter]?.overlay) : undefined;
+  const bugT = chVar ? Math.max(boardT, chVar.check_t) : boardT;
+  const score = scoreAt(allGoals, bugT);
   // Momentum strip: the same recorded shots, binned per minute up to the board time.
   const allShots: Shot[] = isLive ? [...shots.current.values()] : showMode ? showEv!.shots : [];
   const endT = isLive ? hub.current.durationMs || matchT : showMode ? showEndT(showFx!) : 0;
@@ -561,7 +564,8 @@ export function App() {
               </PitchView>
             )}
             {(surface === "broadcast" || showMode) && (
-              <ScoreBug s={s} score={score} clock={clock(boardT)}>
+              <ScoreBug s={s} score={score} clock={clock(bugT)}>
+                {bugT > boardT && <span className="replay-tag">{s.replayAt(clock(boardT))}</span>}
                 {flow && <Momentum m={flow} nowT={boardT} s={s} lang={lang} />}
               </ScoreBug>
             )}
