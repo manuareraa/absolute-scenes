@@ -386,3 +386,18 @@ def test_offside_line_is_said_as_a_distance_not_a_signed_coordinate():
     assert _say(call, "es-ES") == "a 6,3 m de la línea de medio campo"
     # The Verifier still accepts the number as spoken.
     assert verify.check("The line was 6.3 m from halfway.", [call], "en-GB").ok
+
+
+def test_the_spanish_suggestion_asks_for_a_what_if():
+    from chalktalk_crew.ask.crew import WHAT_IF_INTENT
+
+    for q in [
+        "¿Qué debieron hacer?",
+        "¿Qué debió hacer el 9?",
+        "¿Qué debería haber hecho?",
+        "¿Qué pudieron hacer?",
+        "What should they have done?",
+    ]:
+        assert WHAT_IF_INTENT.search(q), q
+    for q in ["¿Quién estaba debajo del balón?", "¿Por qué había tanto espacio?"]:
+        assert not WHAT_IF_INTENT.search(q), q

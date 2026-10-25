@@ -62,8 +62,9 @@ SHAPES = {
     "label",
 }
 WHAT_IF_INTENT = re.compile(
-    r"\b(should|could|would|instead|what if|better|have done|deber[ií]a\w*|podr[ií]a\w*|"
-    r"mejor|qu[eé] pasar[ií]a|en vez)\b",
+    # Spanish: every form of "deber" (debieron, debió, debería) and "poder" (pudieron, podría).
+    r"\b(should|could|would|instead|what if|better|have done|deb(?:er|ie|i[oó])\w*|"
+    r"podr[ií]a\w*|pudi\w*|mejor|qu[eé] pasar[ií]a|en vez)\b",
     re.IGNORECASE,
 )
 MATCH_ID = re.compile(r"sim-\d+")
