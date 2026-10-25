@@ -43,8 +43,12 @@ describe("pitch geometry", () => {
 
   it("draws a ball at a player's feet just outside their disc, on its own side", () => {
     const at = layoutDiscs([[10, 0]], [10.55, 0]);
-    expect(dist(at.ball, [10, 0])).toBeCloseTo(BALL_CLEAR);
+    expect(dist(at.ball, [10, 0])).toBeGreaterThanOrEqual(BALL_CLEAR - 1e-9);
+    expect(dist(at.ball, [10.55, 0])).toBeLessThan(BALL_CLEAR);
     expect(at.ball[0]).toBeGreaterThan(10);
-    expect(layoutDiscs([[10, 0]], [10, 0], 1.6).ball[0]).toBeCloseTo(10 + BALL_CLEAR * 1.6);
+    expect(dist(layoutDiscs([[10, 0]], [10, 0], 1.6).ball, [10, 0])).toBeGreaterThanOrEqual(BALL_CLEAR * 1.6 - 1e-9);
+    // Between two players, it clears both, not just the nearer one.
+    const two = layoutDiscs([[0, 0], [3, 0]], [1.2, 0]);
+    expect(Math.min(dist(two.ball, two.players[0]), dist(two.ball, two.players[1]))).toBeGreaterThanOrEqual(BALL_CLEAR - 1e-9);
   });
 });

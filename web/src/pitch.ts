@@ -116,14 +116,19 @@ export function layoutDiscs(players: Vec[], ball: Vec, k = 1): { players: Vec[];
       if (d > MAX_NUDGE) pos[i] = [players[i][0] + (dx / d) * MAX_NUDGE, players[i][1] + (dy / d) * MAX_NUDGE];
     }
   }
+  // The nearest spot to the ball clear of every disc, searched outwards in rings.
   const clear = BALL_CLEAR * k;
+  const free = (q: Vec) => pos.every((p) => dist(p, q) >= clear - 1e-9);
   let b: Vec = [ball[0], ball[1]];
-  for (let pass = 0; pass < 2; pass++) {
-    const near = pos.reduce((best, p) => (dist(p, b) < dist(best, b) ? p : best), pos[0]);
-    const d = near ? dist(near, ball) : Infinity;
-    if (!near || dist(near, b) >= clear) break;
-    const [ux, uy] = d > 1e-6 ? [(ball[0] - near[0]) / d, (ball[1] - near[1]) / d] : [1, 0];
-    b = [near[0] + ux * clear, near[1] + uy * clear];
+  search: for (let r = 0.25; !free(b) && r <= 4 * clear; r += 0.25) {
+    for (let a = 0; a < 32; a++) {
+      const th = (a * Math.PI) / 16;
+      const q: Vec = [ball[0] + r * Math.cos(th), ball[1] + r * Math.sin(th)];
+      if (free(q)) {
+        b = q;
+        break search;
+      }
+    }
   }
   return { players: pos, ball: b };
 }
