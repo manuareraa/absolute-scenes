@@ -15,51 +15,53 @@ OUT = ROOT / "public/fixtures/ask"
 AUDIO_BASE = "/fixtures/show-sim-7/"
 
 # Control-room lines per language: (type, agent, text or payload). t_ms is spaced out below.
+# {n}, {gap}, {pc} and {clock} are filled from the ghost chapter's own claims, never typed in.
 LINES = {
     "counterfactual": {
         "en-GB": {
             "steps": [
-                ("director", "Question on the goal at 02:55: what should they have done?"),
-                ("analyst", "Measuring where No. 11 was against their slot in the shape"),
-                ("tactician", "Proposing a change: No. 11 holds the slot"),
+                ("director", "Question on the goal at {clock}: what should they have done?"),
+                ("analyst", "Measuring where No. {n} was against their slot in the shape"),
+                ("tactician", "Proposing a change: No. {n} holds the slot"),
                 ("critic", "Re-running pitch control with the ghost in place"),
                 ("pundit", "Drafting the answer"),
                 ("verifier", "Checking every number against the tools"),
                 ("pundit", "Rewriting the rejected line"),
             ],
-            "proposal": "No. 11 holds the slot in the team shape",
-            "draft": "No. 11 should have held their slot, 8 metres back",
+            "proposal": "No. {n} holds the slot in the team shape",
+            "draft": "No. {n} should have held their slot, 8 metres back",
             "draft_reason": (
-                "Ghost tool says 6.3 m, and pitch control is 3 points worse with the ghost there"
+                "Ghost tool says {gap} m, and pitch control is {pc} points worse "
+                "with the ghost there"
             ),
             "final": (
-                "The run was the right call: holding the slot gives up 3 points of pitch control"
+                "The run was the right call: holding the slot gives up {pc} points of pitch control"
             ),
-            "ghost_summary": "No. 11 was 6.3 m from their slot",
-            "pc_summary": "With the ghost there, control swings 3 points the other way",
+            "ghost_summary": "No. {n} was {gap} m from their slot",
+            "pc_summary": "With the ghost there, control swings {pc} points the other way",
         },
         "es-ES": {
             "steps": [
-                ("director", "Pregunta sobre el gol del 02:55: ¿qué debieron hacer?"),
-                ("analyst", "Midiendo dónde estaba el 11 respecto a su sitio en el dibujo"),
-                ("tactician", "Propuesta: el 11 mantiene su sitio"),
+                ("director", "Pregunta sobre el gol del {clock}: ¿qué debieron hacer?"),
+                ("analyst", "Midiendo dónde estaba el {n} respecto a su sitio en el dibujo"),
+                ("tactician", "Propuesta: el {n} mantiene su sitio"),
                 ("critic", "Recalculando el control del campo con el fantasma"),
                 ("pundit", "Redactando la respuesta"),
                 ("verifier", "Comprobando cada cifra con las herramientas"),
                 ("pundit", "Reescribiendo la frase rechazada"),
             ],
-            "proposal": "El 11 mantiene su sitio en el dibujo del equipo",
-            "draft": "El 11 debió quedarse en su sitio, 8 metros atrás",
+            "proposal": "El {n} mantiene su sitio en el dibujo del equipo",
+            "draft": "El {n} debió quedarse en su sitio, 8 metros atrás",
             "draft_reason": (
-                "La herramienta fantasma dice 6,3 m, y el control del "
-                "campo baja 3 puntos con el fantasma"
+                "La herramienta fantasma dice {gap} m, y el control del "
+                "campo baja {pc} puntos con el fantasma"
             ),
             "final": (
                 "La carrera fue la decisión correcta: quedarse en el "
-                "sitio cuesta 3 puntos de control"
+                "sitio cuesta {pc} puntos de control"
             ),
-            "ghost_summary": "El 11 estaba a 6,3 m de su sitio",
-            "pc_summary": "Con el fantasma ahí, el control cambia 3 puntos al rival",
+            "ghost_summary": "El {n} estaba a {gap} m de su sitio",
+            "pc_summary": "Con el fantasma ahí, el control cambia {pc} puntos al rival",
         },
     },
 }
@@ -76,11 +78,22 @@ def chapter(show_fx: dict, prefix: str, lang: str) -> dict:
 
 
 def counterfactual_feed(show_fx: dict, lang: str) -> list[dict]:
-    t = LINES["counterfactual"][lang]
     ov = json.loads(json.dumps(chapter(show_fx, "ov-ghost", lang)))
     ghost_call = ov["claims"][0]["tool_call"]
+    player = ghost_call["args"]["player_id"]
     gap = next(c["value"] for c in ov["claims"] if c["text_slot"] == "gap_m")
     pc = next(c["value"] for c in ov["claims"] if c["text_slot"] == "pc_pts")
+    secs = ov["match_tc"] // 1000
+    fill = {
+        "n": int(player[1:]),
+        "gap": f"{gap:.1f}".replace(".", "," if lang == "es-ES" else "."),
+        "pc": pc,
+        "clock": f"{secs // 60:02d}:{secs % 60:02d}",
+    }
+    t = {
+        k: [(a, x.format(**fill)) for a, x in v] if k == "steps" else v.format(**fill)
+        for k, v in LINES["counterfactual"][lang].items()
+    }
     ov["id"] = f"ask-cf-{ov['id']}"
     ov["surface"] = "player"
     ov["approval"] = {"state": "auto", "by": None, "at": None}
@@ -109,7 +122,7 @@ def counterfactual_feed(show_fx: dict, lang: str) -> list[dict]:
                 "agent": "critic",
                 "tool": {
                     "name": "pitch_control",
-                    "args": {"match_id": "sim-7", "t": ov["match_tc"], "ghost": "H11"},
+                    "args": {"match_id": "sim-7", "t": ov["match_tc"], "ghost": player},
                     "summary": t["pc_summary"],
                     "ms": 655,
                 },

@@ -20,9 +20,9 @@ describe("score at a match time", () => {
 
   it("finds the show fixture's three goals once each", () => {
     expect(ev.goals).toEqual([
-      { t: 176800, team: "home" },
-      { t: 448840, team: "away" },
-      { t: 531600, team: "home" },
+      { t: 181520, team: "home" },
+      { t: 417160, team: "away" },
+      { t: 524960, team: "home" },
     ]);
   });
 

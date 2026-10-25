@@ -23,7 +23,7 @@ Branch `stream/a-studio-ask`. The Worker route is in PR #70 (`stream/d-ask-route
 ```json
 { "question": "What should they have done?", "suggestion": "counterfactual",
   "match_id": "sim-7", "moment_id": "<overlay id on screen, optional>",
-  "match_tc": 175400, "lang": "en-GB", "lens": "analyst", "side": "away" }
+  "match_tc": 180760, "lang": "en-GB", "lens": "analyst", "side": "away" }
 ```
 - `suggestion` is one of `counterfactual | space | chance | offside | press | key_player`, or absent for free text.
 - The reply is NDJSON `AskEvent`s, ending with `done`.
