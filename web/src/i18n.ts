@@ -254,6 +254,8 @@ const EN = {
     before: "before",
     after: "after",
     cached: "From the cache",
+    trace: "Trace",
+    traceTitle: "OpenTelemetry trace id in Application Insights and Foundry tracing",
     refusals: {
       rehearsal: "Rehearsal answers exist only for the suggested questions. The live crew answers anything about the match.",
       default: "The pundit only answers questions about this match.",
@@ -527,6 +529,8 @@ const ES: Strings = {
     before: "antes",
     after: "después",
     cached: "Desde la caché",
+    trace: "Traza",
+    traceTitle: "Id de la traza OpenTelemetry en Application Insights y el seguimiento de Foundry",
     refusals: {
       rehearsal: "En el ensayo solo hay respuestas para las preguntas sugeridas. El equipo en directo responde cualquier cosa sobre el partido.",
       default: "El comentarista solo responde preguntas sobre este partido.",

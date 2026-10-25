@@ -160,6 +160,12 @@ export function ControlRoom(props: { st: StudioState; s: Strings; lang: string; 
           <p className={`cr-status${onAir ? " on-air" : ""}${st.phase === "thinking" ? " busy" : ""}`}>
             {status}
             {st.cached && st.phase !== "thinking" && <small> · {t.cached}</small>}
+            {st.traceId && st.phase !== "thinking" && (
+              <small className="cr-trace" title={t.traceTitle}>
+                {" "}
+                · {t.trace} {st.traceId.slice(0, 8)}
+              </small>
+            )}
           </p>
         )}
         <button className="cr-back" onClick={props.onBack}>
