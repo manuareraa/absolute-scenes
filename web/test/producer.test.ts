@@ -36,6 +36,16 @@ describe("queue fixture", () => {
       expect(Math.abs(frameAt(fx.frames, o.match_tc)!.t - o.match_tc)).toBeLessThan(80);
     }
   });
+
+  it("draws the gap arrow's two lines, as the show does", () => {
+    for (const o of fx.overlays) {
+      for (const s of o.strokes) {
+        const c = o.claims.find((x) => s.claim_ids?.includes(x.id));
+        if (s.shape !== "arrow" || c?.tool_call.name !== "line_gap") continue;
+        expect(o.strokes.filter((x) => x.shape === "line" && x.id.startsWith(`${s.id}-line`))).toHaveLength(2);
+      }
+    }
+  });
 });
 
 describe("decisions", () => {

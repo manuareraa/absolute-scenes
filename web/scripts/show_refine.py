@@ -12,6 +12,8 @@
 Run on a built fixture:
 
     uv run python web/scripts/show_refine.py --half-minutes 5 web/public/fixtures/show-sim-7.json
+    uv run python web/scripts/show_refine.py --half-minutes 5 --queue \
+        web/public/fixtures/queue-sim-7.json
 """
 
 from __future__ import annotations
@@ -33,8 +35,12 @@ TOPIC_CHANCE = "The chance"
 TOPIC_GOAL = "Goal"
 
 
-def _gap_lines(t, overlay: dict[str, Any], match_id: str) -> None:
-    """Add the ``line_gap`` tool's two lines before each gap arrow, on the arrow's cue."""
+def _gap_lines(t, overlay: dict[str, Any], match_id: str, strict: bool = True) -> None:
+    """Add the ``line_gap`` tool's two lines before each gap arrow, on the arrow's cue.
+
+    ``strict``: a re-run that differs from its claim stops the build. The producer queue keeps
+    rejected overlays, whose numbers may be the reason they were rejected, so there such an arrow
+    is left as it is."""
     claims = {c["id"]: c for c in overlay["claims"]}
     strokes = []
     for s in overlay["strokes"]:
@@ -48,6 +54,9 @@ def _gap_lines(t, overlay: dict[str, Any], match_id: str) -> None:
             r = t.line_gap(match_id, int(args["t"]), args["team"])
             arrow = next(g for g in r["geometry"] if g["shape"] == "arrow")
             same_arrow = arrow["geometry_m"]["points"] == s["geometry_m"]["points"]
+            if (r["value"] != c["value"] or not same_arrow) and not strict:
+                strokes.append(s)
+                continue
             if r["value"] != c["value"] or not same_arrow:
                 raise SystemExit(f"{overlay['id']}: line_gap re-run does not match its claim")
             lines = [g for g in r["geometry"] if g["shape"] == "line"]
@@ -116,12 +125,27 @@ def refine(fx: dict[str, Any], half_minutes: float, seed: int = 7) -> dict[str, 
     return fx
 
 
+def refine_queue(q: dict[str, Any], half_minutes: float, seed: int = 7) -> dict[str, Any]:
+    """The producer console's queue: the same gap lines, so it shows what the show would draw."""
+    match = simulate(MatchConfig(seed=seed, half_minutes=half_minutes, beats=DEMO_BEATS))
+    t = tools(half_minutes, match.digest()[:8])
+    for o in q["overlays"]:
+        _gap_lines(t, o, q["match_id"], strict=False)
+    return q
+
+
 def main() -> None:
     p = argparse.ArgumentParser()
     p.add_argument("--half-minutes", type=float, required=True)
     p.add_argument("--seed", type=int, default=7)
+    p.add_argument("--queue", action="store_true", help="the file is the producer queue")
     p.add_argument("fixture", type=Path)
     args = p.parse_args()
+    if args.queue:
+        q = refine_queue(json.loads(args.fixture.read_text()), args.half_minutes, args.seed)
+        args.fixture.write_text(json.dumps(q, separators=(",", ":")))
+        print(f"{args.fixture}: refined, {len(q['overlays'])} overlays")
+        return
     fx = refine(json.loads(args.fixture.read_text()), args.half_minutes, args.seed)
     args.fixture.write_text(json.dumps(fx, separators=(",", ":")))
     print(f"{args.fixture}: refined, {len(fx['frames'])} frames, {args.fixture.stat().st_size} B")

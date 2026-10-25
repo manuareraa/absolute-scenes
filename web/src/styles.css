@@ -91,6 +91,7 @@ button { font: inherit; color: inherit; cursor: pointer; }
 .scorebug .team.away { border-color: var(--away); }
 .scorebug b { font-variant-numeric: tabular-nums; font-size: 16px; }
 .scorebug .tc { margin-left: 4px; font-weight: 400; }
+.replay-tag { align-self: flex-start; background: #0d0c0bdd; color: var(--signal); padding: 2px 8px; border-radius: 3px; font-family: var(--font-display); font-weight: 600; font-size: 13px; text-transform: uppercase; letter-spacing: 0.04em; }
 /* Momentum strip under the score bug: home bars up, away bars down, yellow line at now. */
 .momentum { margin: 0; width: 100%; min-width: 150px; background: #0d0c0bcc; border-radius: 3px; padding: 3px 8px 4px; pointer-events: auto; }
 .momentum figcaption { font: 600 10px var(--font-display); text-transform: uppercase; letter-spacing: 0.08em; color: var(--muted); }
