@@ -14,6 +14,7 @@ from collections.abc import Callable
 from typing import Any
 
 from chalktalk_core import analytics as an
+from chalktalk_core import counterfactual as cf
 from chalktalk_core import ghost as gh
 from chalktalk_core import summary
 from chalktalk_core.geometry import attack_sign
@@ -383,6 +384,26 @@ class Tools:
         }
         return _result("ghost", args, match_id, gh.ghost(frames, player_id, baseline))
 
+    def what_if(
+        self, match_id: str, t: int, team: str, moves: list[dict[str, Any]]
+    ) -> dict[str, Any]:
+        """Move up to 3 of the team's players and re-measure the frame: pitch control around
+        the ball, the defence-midfield line gap, pressure on the ball and OBSO, before and
+        after, from the team's view. Each move is {player_id, back_m, infield_m, to_ball_m}
+        in metres (back = towards their own goal, infield = towards the middle, negative for
+        the other way; at most 10 m in total). The value is metrics improved minus metrics
+        worse; ghost_path strokes run from each real position to its moved one."""
+        fr = self.store.get(match_id).frame(t)
+        moves = [
+            {
+                "player_id": str(m["player_id"]),
+                **{k: float(m.get(k, 0.0)) for k in ("back_m", "infield_m", "to_ball_m")},
+            }
+            for m in moves
+        ]
+        args = {"match_id": match_id, "t": t, "team": team, "moves": moves}
+        return _result("what_if", args, match_id, cf.what_if(fr, team, moves))
+
     # ----------------------------------------------------------------- verifier
     def verify(
         self,
@@ -493,5 +514,6 @@ TOOL_NAMES = (
     "ball_speed",
     "player_run",
     "ghost",
+    "what_if",
     "verify",
 )
