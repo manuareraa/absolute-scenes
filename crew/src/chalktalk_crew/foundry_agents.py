@@ -240,13 +240,17 @@ class HostedAnalyst(Analyst):
         prompt = json.dumps(
             {"moment": moment.id, "trigger": moment.trigger, "lens": lens, "planned": [*planned]}
         )
+        failed = False
         try:
             self.log.runs["analyst"] += 1
             self.runner.run("analyst", prompt, [run_analytics])
         except Exception as err:  # noqa: BLE001
+            failed = True
             self.log.fallback("analyst", f"{type(err).__name__}: {err}")
         missing = [(name, args) for name, args in planned.items() if name not in got]
-        if missing and len(missing) < len(planned):
+        # an agent that ran but skipped tools (even all of them) is a fallback too; a failed run
+        # is already counted once above
+        if missing and not failed:
             self.log.fallback("analyst", "skipped " + ", ".join(n for n, _ in missing))
         got.update({r.name: r for r in call_tools(self.tools, missing)})
         # number the calls like call_tools does: plan order, after dropping failed tools

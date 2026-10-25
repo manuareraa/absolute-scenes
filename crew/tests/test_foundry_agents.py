@@ -3,6 +3,7 @@
 import json
 
 import pytest
+from chalktalk_crew.analyst import plan
 from chalktalk_crew.azure import Usage
 from chalktalk_crew.crew import crew_from_env, fake_crew
 from chalktalk_crew.foundry_agents import (
@@ -94,6 +95,19 @@ def test_analyst_tools_the_agent_skipped_run_in_process():
     assert [r.name for r in results] == [r.name for r in local]
     assert [r.output for r in results] == [r.output for r in local]
     assert log.fallbacks == [{"role": "analyst", "reason": "skipped line_gap"}]
+
+
+def test_an_analyst_that_calls_no_tools_counts_as_a_fallback():
+    service = ScriptedService()
+    crew, log = hosted(service)
+    moment = crew.director.moments(EVENTS)[0]
+    service.skip_tools = {name for name, _ in plan(moment, "casual")}
+    results = crew.analyst.analyse(moment, "casual")
+    assert [r.name for r in results] == [
+        r.name for r in fake_crew().analyst.analyse(moment, "casual")
+    ]
+    assert [f["role"] for f in log.fallbacks] == ["analyst"]
+    assert log.fallbacks[0]["reason"].startswith("skipped ")
 
 
 def test_the_gate_comes_from_the_tool_not_the_agent():
