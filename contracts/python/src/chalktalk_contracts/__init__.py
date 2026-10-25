@@ -17,7 +17,7 @@ from referencing import Registry, Resource
 
 __version__ = "0.0.0"
 
-SCHEMA_NAMES = ("frame", "event", "claim", "overlay", "show")
+SCHEMA_NAMES = ("frame", "event", "claim", "overlay", "show", "ask-event")
 
 # Editable installs see the repo copy; built wheels carry a packaged copy.
 _CANDIDATES = (

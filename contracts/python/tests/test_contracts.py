@@ -4,6 +4,7 @@ from pathlib import Path
 import pytest
 from chalktalk_contracts import SCHEMA_NAMES, is_valid, validate
 from chalktalk_contracts.models import (
+    ask_event_schema,
     claim_schema,
     event_schema,
     frame_schema,
@@ -19,6 +20,7 @@ MODELS = {
     "claim": claim_schema.Claim,
     "overlay": overlay_schema.Overlay,
     "show": show_schema.Show,
+    "ask-event": ask_event_schema.AskEvent,
 }
 
 

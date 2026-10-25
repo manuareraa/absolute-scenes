@@ -1,0 +1,17 @@
+{
+  "type": "counterfactual",
+  "seq": 7,
+  "t_ms": 4120,
+  "agent": "critic",
+  "text": "Re-ran pitch control with the left back 4 m deeper.",
+  "tool": { "name": "pitch_control", "args": { "frame": 1834, "box": "penalty_area" }, "summary": "home control 41% -> 58%", "ms": 92 },
+  "verdict": { "claim": "Holding deeper closes the gap", "ok": true, "round": 1 },
+  "counterfactual": {
+    "proposal": "left back holds 4 m deeper",
+    "accepted": true,
+    "metrics": [
+      { "name": "pitch_control_box", "before": 0.41, "after": 0.58, "tool_call": "call_7" },
+      { "name": "line_gap_m", "before": 6.4, "after": 3.1 }
+    ]
+  }
+}
