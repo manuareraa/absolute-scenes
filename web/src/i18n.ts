@@ -422,7 +422,7 @@ const ES: Strings = {
   pitch: "Vista del campo sintético",
   broadcast3d: "Vista de televisión sintética; arrastra para girar, rueda para acercar",
   slots: { gap: "hueco", control: "control", press: "presión", "pass options": "opciones de pase", "pitch control": "control del campo", block: "bloque", margin: "margen", xg: "ocasión" },
-  crewTitles: { "The chance": "La ocasión", "The gap between the lines": "El hueco entre líneas", "Where they should have been": "Dónde debía estar", "VAR check: offside?": "Revisión del VAR: ¿fuera de juego?" },
+  crewTitles: { "The chance": "La ocasión", Goal: "Gol", "The gap between the lines": "El hueco entre líneas", "Where they should have been": "Dónde debía estar", "VAR check: offside?": "Revisión del VAR: ¿fuera de juego?" },
   var: { check: "Revisión del VAR · provisional", checking: "Revisando", checkingFor: (r) => `Revisando: ${r}`, onside: "En posición legal", offside: "Fuera de juego", decisions: { goal_stands: "Gol válido", goal_disallowed: "Gol anulado" } },
   outcomes: { saved: "parada", blocked: "bloqueado", wide: "fuera", post: "al palo", goal: "gol" },
   events: { pass: "pase", carry: "conducción", dribble: "regate", save: "parada", clearance: "despeje", goal: "gol", free_kick: "tiro libre", shot: "tiro", tackle: "entrada", press: "presión", foul: "falta", interception: "intercepción", offside: "fuera de juego", card: "tarjeta" },

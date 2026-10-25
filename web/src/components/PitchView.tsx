@@ -1,6 +1,6 @@
 import { useEffect, useState, type ReactNode } from "react";
 import type { Frame } from "@chalktalk/contracts";
-import { HALF_L, HALF_W, VIEW_BOX, shirtNumber, toSvg } from "../pitch";
+import { HALF_L, HALF_W, VIEW_BOX, layoutDiscs, shirtNumber, toSvg } from "../pitch";
 
 /** Static pitch markings, 105 x 68 m, in SVG units (metres, y flipped). */
 function Markings() {
@@ -50,6 +50,8 @@ export function PitchView(props: {
 }) {
   const { frame, children, label = "Synthetic pitch view", mine, mineLabel, onPick } = props;
   const k = usePhone() ? 1.6 : 1;
+  // Nudged only where discs overlap or the ball would cover a number (`layoutDiscs`).
+  const at = frame && layoutDiscs(frame.players.map((p) => [p.x, p.y]), [frame.ball.x, frame.ball.y], k);
   return (
     <svg className="pitch" viewBox={VIEW_BOX} role="img" aria-label={label}>
       <rect className="grass" x={-HALF_L - 4} y={-HALF_W - 4} width={2 * HALF_L + 8} height={2 * HALF_W + 8} />
@@ -58,10 +60,10 @@ export function PitchView(props: {
       ))}
       <Markings />
       {children}
-      {frame && (
+      {frame && at && (
         <g className="players">
-          {frame.players.map((p) => {
-            const [x, y] = toSvg([p.x, p.y]);
+          {frame.players.map((p, i) => {
+            const [x, y] = toSvg(at.players[i]);
             const rad = (-p.heading * Math.PI) / 180;
             const [cx, cy] = [Math.cos(rad), Math.sin(rad)];
             const n = p.team === "ref" ? null : shirtNumber(p.id);
@@ -85,11 +87,11 @@ export function PitchView(props: {
             );
           })}
           {/* The ball is drawn larger than life, with a ground shadow that parts from it in the air. */}
-          <ellipse className="ball-shadow" cx={frame.ball.x + Math.min(frame.ball.z, 3) * 0.3} cy={-frame.ball.y + Math.min(frame.ball.z, 3) * 0.3} rx={0.9 * k} ry={0.6 * k} />
+          <ellipse className="ball-shadow" cx={at.ball[0] + Math.min(frame.ball.z, 3) * 0.3} cy={-at.ball[1] + Math.min(frame.ball.z, 3) * 0.3} rx={0.9 * k} ry={0.6 * k} />
           <circle
             className="ball"
-            cx={frame.ball.x}
-            cy={-frame.ball.y}
+            cx={at.ball[0]}
+            cy={-at.ball[1]}
             r={(0.85 + Math.min(frame.ball.z, 3) * 0.15) * k}
           />
         </g>

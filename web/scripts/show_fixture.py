@@ -23,6 +23,7 @@ from pathlib import Path
 from chalktalk_postmatch.show import build_shows
 from chalktalk_sim import DEMO_BEATS, MatchConfig, simulate
 from chalktalk_sim.match import FRAME_MS
+from show_refine import refine
 from tool_overlays import evidence_map, ghost_overlay, summary, tools, var_overlay
 
 PRE_MS = 4000
@@ -129,6 +130,7 @@ def main() -> None:
         "var": var,
         "summaries": summaries,
     }
+    out = refine(out, args.half_minutes, args.seed)
     args.out.write_text(json.dumps(out, separators=(",", ":")))
     print(f"{args.out}: {len(shows)} shows, {len(frames)} frames, {args.out.stat().st_size} B")
 

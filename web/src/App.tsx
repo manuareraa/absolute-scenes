@@ -339,6 +339,10 @@ export function App() {
   if (showMode) {
     state = showStateAt(book.chapters, book.totalMs, elapsed);
     chapter = state.chapter;
+    // VAR measures offside at the pass, not the shot: its run-up and freeze are the play into the pass.
+    const ch = book.chapters[chapter];
+    const playT = varFor(showFx.var, ch?.overlay)?.play_t;
+    if (ch && playT !== undefined) state = { ...state, matchT: state.matchT - ch.overlay.match_tc + playT };
     frame = frameAt(showFx.frames, state.matchT);
   } else if (isLive) {
     // Play on the hub's clock; hold on a moment while its breakdown runs, then rejoin live.

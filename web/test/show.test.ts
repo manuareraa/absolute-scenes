@@ -51,6 +51,27 @@ describe("chapters", () => {
   const show = pickShow(fx.shows, "analyst", "away")!;
   const { chapters, totalMs } = chaptersOf(show, BASE);
 
+  it("draws both of line_gap's lines with each gap arrow, on the arrow's cue", () => {
+    const segs = fx.shows.flatMap((s) => s.segments);
+    let arrows = 0;
+    for (const { overlay: o } of segs) {
+      for (const s of o.strokes) {
+        const c = o.claims.find((x) => s.claim_ids?.includes(x.id));
+        if (s.shape !== "arrow" || c?.tool_call.name !== "line_gap") continue;
+        arrows++;
+        const lines = o.strokes.filter((x) => x.shape === "line" && x.id.startsWith(`${s.id}-line`));
+        expect(lines).toHaveLength(2);
+        for (const l of lines) expect(l.cue_id).toBe(s.cue_id);
+      }
+    }
+    expect(arrows).toBeGreaterThan(0);
+  });
+
+  it("titles a shot that scored as a goal", () => {
+    const titles = fx.shows.flatMap((s) => s.segments.map((g) => g.chapter_title));
+    expect(titles.some((t) => t.includes("Goal"))).toBe(true);
+  });
+
   it("picks by lens and side, falling back to the lens", () => {
     expect([show.lens, show.side]).toEqual(["analyst", "away"]);
     const other = { ...fx.shows[0], lens: "casual" as const, side: "home" as const };

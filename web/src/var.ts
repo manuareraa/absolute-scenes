@@ -15,6 +15,8 @@ export interface VarMeta {
   offside: "offside" | "onside";
   /** The cue that reveals the decision; graphics before it are provisional. */
   decision_cue: string;
+  /** When `var_offside` measured: the pass. The board holds on this frame, not the shot's. */
+  play_t?: number;
 }
 
 export type VarMap = Record<string, VarMeta>;
