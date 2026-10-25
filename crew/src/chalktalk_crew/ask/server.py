@@ -3,10 +3,15 @@
 Body: ``{show_id, match_tc, question, lens, side, lang}``. Each line is one AskEvent
 (``contracts/schemas/ask-event.schema.json``). ``GET /ask/audio/{key}`` serves answer audio
 when Speech returns bytes rather than a URL; ``GET /healthz`` is the container probe.
+
+With ``CHALKTALK_ASK_SECRET`` set, ``/ask`` and ``/ask/audio`` need the same value in
+``x-chalktalk-secret`` (the edge Worker's ``ASK_BACKEND_SECRET``); ``/healthz`` stays open.
 """
 
 from __future__ import annotations
 
+import base64
+import hmac
 import json
 import os
 from collections import OrderedDict
@@ -26,24 +31,39 @@ MAX_AUDIO = 64
 class AudioStore:
     """The last ``MAX_AUDIO`` answers' MP3s in memory (answers are cached per moment anyway)."""
 
-    def __init__(self, prefix: str = "/ask/audio/") -> None:
+    def __init__(self, prefix: str = "/ask/audio/", *, inline: bool = False) -> None:
         self.prefix = prefix
+        self.inline = inline
         self.clips: OrderedDict[str, bytes] = OrderedDict()
 
     def __call__(self, key: str, audio: bytes) -> str:
+        if self.inline:
+            # Behind the edge Worker the browser can't reach /ask/audio, so the clip rides in
+            # the overlay event itself (an answer is ~20 s of MP3, well under 100 kB).
+            return "data:audio/mpeg;base64," + base64.b64encode(audio).decode()
         self.clips[key] = audio
         while len(self.clips) > MAX_AUDIO:
             self.clips.popitem(last=False)
         return self.prefix + key
 
 
-def create_app(crew: AskCrew, audio: AudioStore | None = None) -> Starlette:
+def create_app(
+    crew: AskCrew, audio: AudioStore | None = None, *, secret: str | None = None
+) -> Starlette:
     if audio is None:
         audio = crew.audio_store if isinstance(crew.audio_store, AudioStore) else AudioStore()
     if crew.audio_store is None:
         crew.audio_store = audio
 
+    def allowed(request: Request) -> bool:
+        if not secret:
+            return True
+        given = request.headers.get("x-chalktalk-secret", "")
+        return hmac.compare_digest(given.encode(), secret.encode())
+
     async def ask(request: Request) -> Response:
+        if not allowed(request):
+            return JSONResponse({"error": "forbidden"}, status_code=403)
         try:
             body: Any = await request.json()
             req = AskRequest.from_json(body)
@@ -62,6 +82,8 @@ def create_app(crew: AskCrew, audio: AudioStore | None = None) -> Starlette:
         )
 
     async def clip(request: Request) -> Response:
+        if not allowed(request):
+            return Response(status_code=403)
         data = audio.clips.get(request.path_params["key"])
         if data is None:
             return Response(status_code=404)
@@ -105,7 +127,7 @@ def crew_from_env(env: dict[str, str] | None = None) -> AskCrew:
         from .safety import FakeSafety
 
         crew = AskCrew(tools, FakeAskRunner(), FakeSpeechClient(), FakeSafety())
-    crew.audio_store = AudioStore()
+    crew.audio_store = AudioStore(inline=env.get("CHALKTALK_ASK_AUDIO", "inline") == "inline")
     for match_id in filter(None, env.get("CHALKTALK_ASK_PRELOAD", "").split(",")):
         crew.warm(match_id.strip())
     return crew

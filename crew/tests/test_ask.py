@@ -293,3 +293,34 @@ def test_http_service_streams_ndjson(tools):
     assert client.post("/ask", json={**body, "show_id": "nope"}).status_code == 400
     assert client.post("/ask", json={**body, "lens": "x"}).status_code == 400
     assert client.get("/healthz").json()["ok"]
+
+
+def test_http_service_needs_the_shared_secret(tools):
+    from chalktalk_crew.ask.server import AudioStore
+    from starlette.testclient import TestClient
+
+    store = AudioStore()
+    store("k1", b"mp3")
+    client = TestClient(create_app(make_crew(tools), store, secret="s3cret"))
+    body = {
+        "show_id": SHOW,
+        "match_tc": 40_000,
+        "question": "How big was the gap?",
+        "lens": "analyst",
+        "side": "home",
+        "lang": "en-GB",
+    }
+    assert client.post("/ask", json=body).status_code == 403
+    assert client.post("/ask", json=body, headers={"x-chalktalk-secret": "nope"}).status_code == 403
+    assert client.get("/ask/audio/k1").status_code == 403
+    ok = client.post("/ask", json=body, headers={"x-chalktalk-secret": "s3cret"})
+    assert ok.status_code == 200
+    check_stream([json.loads(line) for line in ok.text.splitlines()])
+    assert client.get("/ask/audio/k1", headers={"x-chalktalk-secret": "s3cret"}).content == b"mp3"
+    assert client.get("/healthz").json()["ok"]
+
+
+def test_inline_audio_is_a_data_url():
+    from chalktalk_crew.ask.server import AudioStore
+
+    assert AudioStore(inline=True)("k", b"mp3") == "data:audio/mpeg;base64,bXAz"
