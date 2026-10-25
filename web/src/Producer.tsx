@@ -248,7 +248,7 @@ export function Producer() {
       {intro && (
         <section className="intro" aria-labelledby="intro-title">
           <h2 id="intro-title">You are the producer</h2>
-          <p>The AI crew writes each pundit moment in many versions (audience, side, language). Nothing reaches viewers until you approve it.</p>
+          <p>The AI crew writes each pundit moment in many versions (audience, side, language). With a producer on shift, nothing reaches viewers until you approve it. With none, the public demo airs the fact-checked moments on auto-pilot and labels them so; any decision here overrides it.</p>
           <ol>
             <li>Pick a moment on the left. Moments that say “airs in” are still ahead of the live match.</li>
             <li>Watch the drawing, read the script, and check the fact-check: every number should trace back to a tracking tool.</li>

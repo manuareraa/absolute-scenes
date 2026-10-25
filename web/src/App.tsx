@@ -574,7 +574,7 @@ export function App() {
                 {s.goal}! {s.teams[lastGoal.team] ?? lastGoal.team} · {score.home} – {score.away}
               </div>
             )}
-            {status && <StatusPill status={status} s={s} onShow={() => setSurface("show")} />}
+            {status && <StatusPill status={status} auto={state.overlay?.approval?.state === "auto"} s={s} onShow={() => setSurface("show")} />}
             {vm && <VarBanner {...varBanner(vm, provisional, lang)} provisional={provisional} />}
             {wantShow && !showFx && !showFailed && <TitleCard top={s.loading} />}
             {preRoll && <TitleCard key={`ch${chapter}`} top={s.upNext} title={titles[chapter]} />}
@@ -659,9 +659,10 @@ function HowItWorks({ s, onClose }: { s: Strings; onClose(): void }) {
   );
 }
 
-function StatusPill({ status, s, onShow }: { status: NonNullable<ReturnType<typeof airStatus>>; s: Strings; onShow(): void }) {
+/** `auto`: the demo aired this moment because no producer decided it, and the pill says so. */
+function StatusPill({ status, auto, s, onShow }: { status: NonNullable<ReturnType<typeof airStatus>>; auto: boolean; s: Strings; onShow(): void }) {
   const text =
-    status.kind === "on-air" ? s.onAir : status.kind === "next" ? s.nextMoment(clock(status.at)) : status.kind === "full-time" ? s.fullTime : s.noMoreMoments;
+    status.kind === "on-air" ? (auto ? s.onAirAuto : s.onAir) : status.kind === "next" ? s.nextMoment(clock(status.at)) : status.kind === "full-time" ? s.fullTime : s.noMoreMoments;
   return (
     <div className={`air-pill ${status.kind}`} role="status">
       <span>{text}</span>

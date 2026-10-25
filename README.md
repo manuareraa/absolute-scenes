@@ -9,16 +9,16 @@ Built for Microsoft's "Inside the Game" hackathon. All match data is synthetic: 
 
 ## Try it in two minutes
 1. Open the live demo and press **Watch the studio show**. The first breakdown starts on its own; a short tour explains the screen.
-2. Pick a chapter on the left. Watch a stroke land on its word, then **tap a number** in the caption to replay the evidence: the tool re-runs and the match replays the moment it measured.
-3. Switch the **audience** (Casual, Analyst, Newcomer), the **supporter side** (Northbridge, Saltmere, Neutral) or the **language** (English, Español). The same moment is rewritten and redrawn for each.
-4. Open **Live**: the match clock runs on the server and pundit moments air in the pauses. Open **/producer** to approve or reject a moment before it airs.
+2. Pick a chapter on the left. Watch a stroke land on its word, then **tap a number** in the caption to replay the evidence: the match replays the moment the tool measured, with the tool's own drawing, and shows the check made when the show was built (the tool re-run, same number, same data hash).
+3. Switch the **audience** (Casual, Analyst, Newcomer), the **supporter side** (Northbridge, Saltmere, Neutral) or the **language** (English, Español). The crew's chapters are rewritten and redrawn for each. The ghost-run and VAR chapters are drawn straight from their tools' output with a fixed script per language, so they read the same for every audience and side.
+4. Open **Live**: the match clock runs on the server and pundit moments air in the pauses. Open **/producer** to approve or reject a moment before it airs. With no producer on shift, the public demo airs the fact-checked moments on auto-pilot and labels them so.
 
 | Feature | Where |
 |---|---|
 | Strokes land on their words (arrows, gaps, zones, pitch control) | Studio show, any chapter |
-| Ghost run: where a player should have been, and what it changes | Chapter "Where they should have been" |
-| VAR offside check: provisional line, then the decision | Chapter "VAR check: offside?" |
-| Evidence replay: tap any number to re-run its tool | Underlined numbers in the caption |
+| Ghost run: where a player should have been, and what it changes (tool output, fixed script) | Chapter "Where they should have been" |
+| VAR offside check: provisional line, then the decision (tool output, fixed script) | Chapter "VAR check: offside?" |
+| Evidence replay: tap any number to replay what its tool measured, with the build-time re-run check | Underlined numbers in the caption |
 | 18 versions of the show: 3 audiences × 3 sides × 2 languages | Header controls |
 | Half-time panel and "Catch me up" summary | Left rail, and the Catch me up button |
 | Follow one player ("My player") | Tap a player, or pick one in the header |
@@ -54,7 +54,7 @@ flowchart LR
 
 - **Facts come from tools, never from the model.** Distances, gaps, xG and pitch control are computed by deterministic Python tools. The language model only picks, phrases and orders. Each spoken number is bound to its `tool_call`, and the Verifier re-runs the tools before an overlay is released.
 - **Strokes are timed to words.** Azure AI Speech returns the audio with word boundaries and SSML bookmarks. Each drawing cue is snapped to the start of its word, so a stroke begins as its word is spoken.
-- **Four agents** (Director, Analyst, Pundit, Verifier) run on Foundry Agent Service through Microsoft Agent Framework. The shipped show was made by them end to end; each role has an in-process fallback, which this run never needed.
+- **Four agents** (Director, Analyst, Pundit, Verifier) run on Foundry Agent Service through Microsoft Agent Framework. They made every crew chapter of the shipped show (the ghost-run and VAR chapters are drawn from tool output with a fixed script); each role has an in-process fallback, which this run never needed.
 - **Cheap by design.** Tracking frames and audio are precomputed into static files. Servers carry only low-rate control messages, so the live site runs on Cloudflare's free plan.
 
 ## Microsoft and Azure technology
@@ -65,7 +65,7 @@ flowchart LR
 | Foundry evaluations | Three custom evaluators (claim groundedness, numeric tolerance, cue timing) plus the built-in `GroundednessEvaluator` |
 | Azure AI Speech (neural voices, en-GB and es-ES) | Voices every chapter and returns the word timings the drawing follows |
 | Model Context Protocol (MCP) | The Analyst's 26 analytics tools, served over stdio or streamable HTTP |
-| Azure Container Apps (Bicep) | Deployment template for the MCP server, consumption plan, scales to zero |
+| Azure Container Apps (Bicep) | Deployment template for the MCP server, consumption plan, scales to zero. A template only: not deployed, the demo serves pre-built shows |
 | GitHub Actions and GHCR | CI on every push; the MCP server image |
 
 ## Measured
@@ -74,7 +74,7 @@ flowchart LR
 | Stroke start vs its word (speech side) | Each cue snapped to its word start; 0 ms gap enforced on every shipped cue | [c-s1-word-timing](docs/notes/c-s1-word-timing.md), [c-real-audio](docs/notes/c-real-audio.md) |
 | Stroke start vs audio (browser side, 33 strokes) | median 10 ms, p95 16 ms | [a-audio-sync](docs/notes/a-audio-sync.md) |
 | Claims verified in the shipped show | 198 of 198; all 90 chapters passed the gate | `web/public/fixtures/show-sim-7.json` |
-| Evidence re-runs that match the claim | 14 of 14 | same file |
+| Evidence re-runs that match the claim (at build) | 14 of 14 | same file |
 | Foundry evaluation of the shipped show (54 show overlays + 10 test items) | groundedness 1.0, numeric tolerance 1.0, cue timing 1.0, LLM groundedness 4.94 / 5 | [evals/results](evals/results/2026-10-24-foundry.json) |
 | Cost to make the whole show on Foundry agents (54 overlays, 176 agent runs, 0 fallbacks) | about $0.06 in tokens; speech on the free tier | [coord-foundry-show](docs/notes/coord-foundry-show.md) |
 | Simulated match vs real football | shots 23.7 per 90 (Premier League 25–27); pressing 0.50 (tracking reference 0.48–0.64) | [b-sim-realism](docs/notes/b-sim-realism.md) |
