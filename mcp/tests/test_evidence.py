@@ -27,6 +27,12 @@ def calls(t):
         "ball_speed": {"match_id": MID, "start_t": 0, "end_t": 60_000},
         "player_run": {"match_id": MID, "start_t": t, "end_t": t + 4000, "player_id": "H09"},
         "ghost": {"match_id": MID, "player_id": "A04", "start_t": t, "end_t": t + 8000},
+        "what_if": {
+            "match_id": MID,
+            "t": t,
+            "team": "away",
+            "moves": [{"player_id": "A04", "back_m": 3.0}],
+        },
         "var_offside": {"match_id": MID, "t": t, "player_id": "H09"},
         "half_time": {"match_id": MID},
         "catch_up": {"match_id": MID, "t": 150_000},

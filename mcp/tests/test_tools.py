@@ -23,6 +23,9 @@ def claim_for(out, slot="v"):
     }
 
 
+WHAT_IF_MOVE = {"player_id": "A04", "back_m": 3.0, "to_ball_m": 2.0}
+
+
 def all_calls(t):
     return [
         ("match_info", {"match_id": MID}),
@@ -48,6 +51,7 @@ def all_calls(t):
         ("ball_speed", {"match_id": MID, "start_t": 0, "end_t": 60_000}),
         ("player_run", {"match_id": MID, "start_t": t, "end_t": t + 4000, "player_id": "H09"}),
         ("ghost", {"match_id": MID, "player_id": "H04", "start_t": t, "end_t": t + 6000}),
+        ("what_if", {"match_id": MID, "t": t, "team": "away", "moves": [WHAT_IF_MOVE]}),
     ]
 
 
@@ -146,6 +150,38 @@ def test_ghost_tool(store, owned_t):
     assert tools.verify(tc["name"], tc["args"], output_hash=tc["output_hash"])["verified"]
     with pytest.raises(ValueError):
         tools.ghost(MID, "A04", 0, 40_000)
+
+
+def test_what_if_moves_named_players_and_re_measures(store, owned_t):
+    tools = Tools(store)
+    out = tools.what_if(MID, owned_t, "away", [WHAT_IF_MOVE])
+    d = out["details"]
+    assert out["unit"] == "metrics" and d["team"] == "away" and not d["in_possession"]
+    move = d["moves"][0]
+    real = next(p for p in tools.frame(MID, owned_t)["details"]["frame"]["players"]
+                if p["id"] == "A04")  # fmt: skip
+    assert move["from"] == [round(real["x"], 2), round(real["y"], 2)]
+    assert 0 < move["shift_m"] <= 10.0
+    assert {"pitch_control", "line_gap_m", "pressure", "obso"} <= set(d["metrics"])
+    m = d["metrics"]
+    assert out["value"] == sum(v["better"] for v in m.values())
+    ghost = out["geometry"][0]
+    assert ghost["shape"] == "ghost_path" and ghost["geometry_m"]["points"][0] == move["from"]
+    assert ghost["geometry_m"]["points"][1] == move["to"]
+    tc = out["tool_call"]
+    assert tools.verify(tc["name"], tc["args"], output_hash=tc["output_hash"])["verified"]
+
+
+def test_what_if_caps_and_rejects(store, owned_t):
+    tools = Tools(store)
+    far = tools.what_if(MID, owned_t, "away", [{"player_id": "A04", "back_m": 40}])
+    assert far["details"]["moves"][0]["shift_m"] <= 10.0
+    with pytest.raises(ValueError):
+        tools.what_if(MID, owned_t, "away", [{"player_id": "H04", "back_m": 2}])
+    with pytest.raises(ValueError):
+        tools.what_if(MID, owned_t, "away", [])
+    with pytest.raises(KeyError):
+        tools.what_if(MID, owned_t, "away", [{"player_id": "A99", "back_m": 2}])
 
 
 def test_var_offside_agrees_with_the_sim(store):
