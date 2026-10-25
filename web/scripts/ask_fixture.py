@@ -29,8 +29,12 @@ LINES = {
             ],
             "proposal": "No. 11 holds the slot in the team shape",
             "draft": "No. 11 should have held their slot, 8 metres back",
-            "draft_reason": "Ghost tool says 6.3 m, and pitch control is 3 points worse with the ghost there",
-            "final": "The run was the right call: holding the slot gives up 3 points of pitch control",
+            "draft_reason": (
+                "Ghost tool says 6.3 m, and pitch control is 3 points worse with the ghost there"
+            ),
+            "final": (
+                "The run was the right call: holding the slot gives up 3 points of pitch control"
+            ),
             "ghost_summary": "No. 11 was 6.3 m from their slot",
             "pc_summary": "With the ghost there, control swings 3 points the other way",
         },
@@ -46,8 +50,14 @@ LINES = {
             ],
             "proposal": "El 11 mantiene su sitio en el dibujo del equipo",
             "draft": "El 11 debió quedarse en su sitio, 8 metros atrás",
-            "draft_reason": "La herramienta fantasma dice 6,3 m, y el control del campo baja 3 puntos con el fantasma",
-            "final": "La carrera fue la decisión correcta: quedarse en el sitio cuesta 3 puntos de control",
+            "draft_reason": (
+                "La herramienta fantasma dice 6,3 m, y el control del "
+                "campo baja 3 puntos con el fantasma"
+            ),
+            "final": (
+                "La carrera fue la decisión correcta: quedarse en el "
+                "sitio cuesta 3 puntos de control"
+            ),
             "ghost_summary": "El 11 estaba a 6,3 m de su sitio",
             "pc_summary": "Con el fantasma ahí, el control cambia 3 puntos al rival",
         },
@@ -79,10 +89,32 @@ def counterfactual_feed(show_fx: dict, lang: str) -> list[dict]:
     events: list[tuple[str, dict]] = [
         ("step", {"agent": steps[0][0], "text": steps[0][1]}),
         ("step", {"agent": steps[1][0], "text": steps[1][1]}),
-        ("tool", {"agent": "analyst", "tool": {"name": "ghost", "args": ghost_call["args"], "summary": t["ghost_summary"], "ms": 412}}),
+        (
+            "tool",
+            {
+                "agent": "analyst",
+                "tool": {
+                    "name": "ghost",
+                    "args": ghost_call["args"],
+                    "summary": t["ghost_summary"],
+                    "ms": 412,
+                },
+            },
+        ),
         ("step", {"agent": steps[2][0], "text": steps[2][1]}),
         ("step", {"agent": steps[3][0], "text": steps[3][1]}),
-        ("tool", {"agent": "critic", "tool": {"name": "pitch_control", "args": {"match_id": "sim-7", "t": ov["match_tc"], "ghost": "H11"}, "summary": t["pc_summary"], "ms": 655}}),
+        (
+            "tool",
+            {
+                "agent": "critic",
+                "tool": {
+                    "name": "pitch_control",
+                    "args": {"match_id": "sim-7", "t": ov["match_tc"], "ghost": "H11"},
+                    "summary": t["pc_summary"],
+                    "ms": 655,
+                },
+            },
+        ),
         (
             "counterfactual",
             {
@@ -92,16 +124,35 @@ def counterfactual_feed(show_fx: dict, lang: str) -> list[dict]:
                     "accepted": False,
                     "metrics": [
                         {"name": "gap_m", "before": gap, "after": 0, "tool_call": ghost_call["id"]},
-                        {"name": "pc_pts", "before": 0, "after": -pc, "tool_call": ghost_call["id"]},
+                        {
+                            "name": "pc_pts",
+                            "before": 0,
+                            "after": -pc,
+                            "tool_call": ghost_call["id"],
+                        },
                     ],
                 },
             },
         ),
         ("step", {"agent": steps[4][0], "text": steps[4][1]}),
         ("step", {"agent": steps[5][0], "text": steps[5][1]}),
-        ("verdict", {"agent": "verifier", "verdict": {"claim": t["draft"], "ok": False, "reason": t["draft_reason"], "round": 1}}),
+        (
+            "verdict",
+            {
+                "agent": "verifier",
+                "verdict": {
+                    "claim": t["draft"],
+                    "ok": False,
+                    "reason": t["draft_reason"],
+                    "round": 1,
+                },
+            },
+        ),
         ("step", {"agent": steps[6][0], "text": steps[6][1]}),
-        ("verdict", {"agent": "verifier", "verdict": {"claim": t["final"], "ok": True, "round": 2}}),
+        (
+            "verdict",
+            {"agent": "verifier", "verdict": {"claim": t["final"], "ok": True, "round": 2}},
+        ),
         ("overlay", {"agent": "pundit", "overlay": ov}),
         ("done", {"cached": True, "trace_id": "rehearsal"}),
     ]
@@ -122,7 +173,15 @@ def main() -> None:
         feed = counterfactual_feed(show_fx, lang)
         name = f"sim-7-counterfactual-{lang}.ndjson"
         (OUT / name).write_text("".join(json.dumps(e, ensure_ascii=False) + "\n" for e in feed))
-        index.append({"key": "counterfactual", "match_id": "sim-7", "match_tc": feed[-2]["overlay"]["match_tc"], "lang": lang, "file": name})
+        index.append(
+            {
+                "key": "counterfactual",
+                "match_id": "sim-7",
+                "match_tc": feed[-2]["overlay"]["match_tc"],
+                "lang": lang,
+                "file": name,
+            }
+        )
     (OUT / "index.json").write_text(json.dumps({"feeds": index}, indent=2) + "\n")
     print(f"wrote {len(index)} feeds to {OUT}")
 
