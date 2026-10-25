@@ -29,7 +29,30 @@
         "name": { "type": "string", "description": "MCP tool name, e.g. line_gap." },
         "args": { "type": "object" },
         "summary": { "type": "string", "maxLength": 200, "description": "Result in one line, e.g. 'gap 6.4 m between lines'." },
-        "ms": { "type": "integer", "minimum": 0 }
+        "ms": { "type": "integer", "minimum": 0 },
+        "sketch": { "$ref": "#/$defs/Sketch" }
+      }
+    },
+    "Sketch": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "The tool's own geometry, drawn at once while the crew is still thinking; the overlay replaces it.",
+      "required": ["match_tc", "strokes"],
+      "properties": {
+        "match_tc": { "type": "integer", "minimum": 0, "description": "The moment the geometry is drawn on." },
+        "strokes": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["shape", "geometry_m"],
+            "properties": {
+              "shape": { "$ref": "overlay.schema.json#/$defs/Stroke/properties/shape" },
+              "geometry_m": { "$ref": "overlay.schema.json#/$defs/Geometry" },
+              "style": { "$ref": "overlay.schema.json#/$defs/StrokeStyle" }
+            }
+          }
+        }
       }
     },
     "Verdict": {

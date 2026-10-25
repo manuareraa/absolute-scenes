@@ -138,6 +138,16 @@ describe("studio state", () => {
     expect(run([cf(false, "a"), cf(false, "b")]).counterfactual?.proposal).toBe("b");
   });
 
+  it("chalks each tool's geometry on the moment before the answer arrives", () => {
+    const line = { shape: "line" as const, geometry_m: { points: [[10, 20], [30, 20]] as [number, number][] } };
+    const tool = (seq: number): AskEvent => ({ type: "tool", seq, t_ms: seq, agent: "analyst", tool: { name: "line_gap", args: {}, summary: "gap", sketch: { match_tc: 9000, strokes: [line] } } });
+    const st = run([tool(0), tool(1)]);
+    expect(st.sketch?.match_tc).toBe(9000);
+    expect(st.sketch?.strokes).toHaveLength(2);
+    expect(st.sketch?.strokes.every((s) => s.duration_ms === 0 && s.cue_id === "ev")).toBe(true);
+    expect(validate("overlay", st.sketch).errors).toEqual([]);
+  });
+
   it("shows a refusal and a stream that ends without an answer as such", () => {
     expect(run([{ type: "refusal", seq: 0, t_ms: 0, text: "rehearsal" }]).phase).toBe("refused");
     expect(run([{ type: "step", seq: 0, t_ms: 0, agent: "director", text: "x" }, { type: "done", seq: 1, t_ms: 1 }]).phase).toBe("error");

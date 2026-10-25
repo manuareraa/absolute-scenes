@@ -3,6 +3,7 @@
 // rejected and rewritten, then one overlay that plays like a show chapter. Without the backend a
 // rehearsal feed (public/fixtures/ask/*.ndjson) replays the same events at their recorded pace.
 import type { AskEvent as WireEvent, Overlay } from "@chalktalk/contracts";
+import { geometryOverlay } from "./evidence";
 
 // From the generated contract; the overlay keeps the shared Overlay type the player already plays.
 export type AskEvent = Omit<WireEvent, "overlay"> & { overlay?: Overlay };
@@ -166,9 +167,11 @@ export interface StudioState {
   message: string | null;
   cached: boolean;
   traceId: string | null;
+  /** The tools' geometry so far, drawn at once while the crew thinks; the answer replaces it. */
+  sketch: Overlay | null;
 }
 
-export const idleStudio: StudioState = { phase: "idle", question: "", source: "live", rows: [], active: null, overlay: null, counterfactual: null, message: null, cached: false, traceId: null };
+export const idleStudio: StudioState = { phase: "idle", question: "", source: "live", rows: [], active: null, overlay: null, counterfactual: null, message: null, cached: false, traceId: null, sketch: null };
 
 export function startStudio(question: string, source: AskSource): StudioState {
   return { ...idleStudio, phase: "thinking", question, source };
@@ -179,8 +182,12 @@ export function studioReduce(st: StudioState, ev: AskEvent): StudioState {
   switch (ev.type) {
     case "step":
       return { ...st, active: agent, rows: [...st.rows, { kind: "step", seq: ev.seq, agent, text: ev.text ?? "" }] };
-    case "tool":
-      return ev.tool ? { ...st, active: agent, rows: [...st.rows, { kind: "tool", seq: ev.seq, agent, tool: ev.tool }] } : st;
+    case "tool": {
+      if (!ev.tool) return st;
+      const sk = ev.tool.sketch;
+      const sketch = sk ? geometryOverlay([...(st.sketch?.match_tc === sk.match_tc ? st.sketch.strokes : []), ...sk.strokes], sk.match_tc, "ask-sketch") : st.sketch;
+      return { ...st, active: agent, sketch, rows: [...st.rows, { kind: "tool", seq: ev.seq, agent, tool: ev.tool }] };
+    }
     case "verdict": {
       if (!ev.verdict) return st;
       // A new round supersedes the rejected claims of earlier rounds: they stay, struck through.

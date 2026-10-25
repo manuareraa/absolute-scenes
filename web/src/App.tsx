@@ -379,7 +379,10 @@ export function App() {
 
   // The pundit's answer takes the board at its own moment, on the frames of the match it is about.
   const answer = studio.state.overlay;
-  if (answer && !replay && !summary) frame = frameAt(showFx ? showFx.frames : frames, answer.match_tc);
+  // Until it airs, the tools' own geometry is chalked on the moment as each tool returns.
+  const sketch = !answer && studio.state.phase === "thinking" ? studio.state.sketch : null;
+  const board = answer ?? sketch;
+  if (board && !replay && !summary) frame = frameAt(showFx ? showFx.frames : frames, board.match_tc);
   // Strokes and captions run on the overlay audio's clock, not on wall time.
   const audio = useOverlayAudio(
     answer ?? state.overlay,
@@ -400,8 +403,8 @@ export function App() {
     ? evidenceOverlay(replay.entry, replay.key)
     : summing
       ? geometryOverlay(summary.s.geometry, summary.s.at_t, `summary-${summary.s.kind}`)
-      : answer
-        ? answer
+      : board
+        ? board
         : vm && state.overlay
           ? varGraphics(vm, state.overlay, audio.audioMs)
           : state.overlay;

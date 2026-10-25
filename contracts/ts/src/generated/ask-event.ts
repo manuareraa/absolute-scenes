@@ -52,6 +52,39 @@ export interface ToolRun {
    */
   summary: string;
   ms?: number;
+  sketch?: Sketch;
+}
+/**
+ * The tool's own geometry, drawn at once while the crew is still thinking; the overlay replaces it.
+ */
+export interface Sketch {
+  /**
+   * The moment the geometry is drawn on.
+   */
+  match_tc: number;
+  strokes: {
+    shape:
+      "arrow" | "run" | "pass_lane" | "line" | "offside_line" | "zone" | "ring" | "spotlight" | "ghost_path" | "label";
+    geometry_m: Geometry;
+    style?: StrokeStyle;
+  }[];
+}
+/**
+ * Coordinates in pitch metres, always from tools, never from the LLM.
+ */
+export interface Geometry {
+  points?: Point[];
+  radius?: number;
+  player_id?: string;
+  text?: string;
+}
+export interface StrokeStyle {
+  /**
+   * Design token name, e.g. 'chalk', 'home', 'away', 'danger'.
+   */
+  color?: string;
+  width?: number;
+  dash?: boolean;
 }
 export interface Verdict {
   /**
@@ -165,23 +198,6 @@ export interface Stroke {
    * Claims this stroke shows (evidence links).
    */
   claim_ids?: string[];
-}
-/**
- * Coordinates in pitch metres, always from tools, never from the LLM.
- */
-export interface Geometry {
-  points?: Point[];
-  radius?: number;
-  player_id?: string;
-  text?: string;
-}
-export interface StrokeStyle {
-  /**
-   * Design token name, e.g. 'chalk', 'home', 'away', 'danger'.
-   */
-  color?: string;
-  width?: number;
-  dash?: boolean;
 }
 export interface Script {
   ssml?: string;

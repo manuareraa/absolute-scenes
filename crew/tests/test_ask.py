@@ -107,6 +107,19 @@ def test_answers_with_tool_checked_numbers(tools):
     assert by["done"][0]["cached"] is False and by["done"][0]["trace_id"]
 
 
+def test_tools_sketch_their_geometry_before_the_answer(tools):
+    events = ask(make_crew(tools), "Why was there so much space between the lines?")
+    by = check_stream(events)
+    sketched = [e for e in by["tool"] if "sketch" in e["tool"]]
+    assert sketched and sketched[0]["seq"] < by["overlay"][0]["seq"]
+    ov = by["overlay"][0]["overlay"]
+    sk = sketched[0]["tool"]["sketch"]
+    assert sk["match_tc"] == ov["match_tc"]
+    # the same tool geometry the spoken overlay later draws word by word
+    drawn = [(s["shape"], s["geometry_m"]) for s in ov["strokes"]]
+    assert all((s["shape"], s["geometry_m"]) in drawn for s in sk["strokes"])
+
+
 def test_verifier_rejects_a_wrong_number_and_the_pundit_rewrites(tools):
     crew = make_crew(tools, runner=FakeAskRunner(wrong_first=True))
     by = check_stream(ask(crew, "Who controlled the pitch here?"))

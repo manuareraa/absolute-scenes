@@ -183,6 +183,24 @@ class Stats:
     latencies_ms: list[int] = field(default_factory=list)
 
 
+def call_strokes(call: Call) -> list[dict[str, Any]]:
+    """A tool call's own geometry as stroke shapes, styles and metres (no timing yet)."""
+    team = (call.out.get("details") or {}).get("team")
+    out = []
+    for g in call.out.get("geometry") or []:
+        if g.get("shape") not in SHAPES or not g.get("geometry_m", {}).get("points"):
+            continue
+        style = {k: v for k, v in (g.get("style") or {}).items() if k in ("color", "width", "dash")}
+        style.setdefault("color", team if team in ("home", "away") else "chalk")
+        geom = {
+            k: v
+            for k, v in g["geometry_m"].items()
+            if k in ("points", "radius", "player_id", "text")
+        }
+        out.append({"shape": g["shape"], "geometry_m": geom, "style": style})
+    return out
+
+
 def trace_span(name: str) -> contextlib.AbstractContextManager[str]:
     """An OpenTelemetry span (exported to Foundry when tracing is configured); yields its
     trace id, or a random id when OpenTelemetry is not installed."""
@@ -298,11 +316,20 @@ class AskCrew:
             emit.step("safety", "Question checked: safe to answer.")
             match_id = req.match_id
             box = ToolBox(self.tools, match_id, max_calls=ANALYST_CALLS)
-            box.on_call = lambda c: emit(
-                "tool",
-                tool={"name": c.name, "args": c.args, "summary": summarise(c.out), "ms": c.ms},
-            )
+            moment: dict[str, int] = {}
+
+            def on_call(c: Call) -> None:
+                tool = {"name": c.name, "args": c.args, "summary": summarise(c.out), "ms": c.ms}
+                # Drawn at once while the crew thinks, so the viewer sees chalk in seconds; the
+                # spoken overlay replaces it. Only once the moment is known.
+                sketch = call_strokes(c) if "t" in moment and c.name != "what_if" else []
+                if sketch:
+                    tool["sketch"] = {"match_tc": moment["t"], "strokes": sketch}
+                emit("tool", tool=tool)
+
+            box.on_call = on_call
             ctx = self._moment(box, req)
+            moment["t"] = ctx["t"]
             wants_cf = bool(WHAT_IF_INTENT.search(req.question))
             emit.step(
                 "director",
@@ -645,27 +672,11 @@ class AskCrew:
         for call_id, cue in cue_of.items():
             call = box.by_id(call_id)
             assert call is not None
-            team = (call.out.get("details") or {}).get("team")
-            for g in call.out.get("geometry") or []:
-                if g.get("shape") not in SHAPES or not g.get("geometry_m", {}).get("points"):
-                    continue
-                style = {
-                    k: v
-                    for k, v in (g.get("style") or {}).items()
-                    if k in ("color", "width", "dash")
-                }
-                style.setdefault("color", team if team in ("home", "away") else "chalk")
-                geom = {
-                    k: v
-                    for k, v in g["geometry_m"].items()
-                    if k in ("points", "radius", "player_id", "text")
-                }
+            for g in call_strokes(call):
                 strokes.append(
                     {
                         "id": f"s{len(strokes) + 1}",
-                        "shape": g["shape"],
-                        "geometry_m": geom,
-                        "style": style,
+                        **g,
                         "cue_id": cue,
                         "lead_ms": min(LEAD_MS, offsets.get(cue, 0)),
                         "duration_ms": 600,

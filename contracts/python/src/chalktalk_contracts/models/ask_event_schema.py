@@ -32,22 +32,6 @@ class Agent(StrEnum):
     safety = 'safety'
 
 
-class ToolRun(BaseModel):
-    model_config = ConfigDict(
-        extra='forbid',
-    )
-    name: str
-    """
-    MCP tool name, e.g. line_gap.
-    """
-    args: dict[str, Any]
-    summary: constr(max_length=200)
-    """
-    Result in one line, e.g. 'gap 6.4 m between lines'.
-    """
-    ms: conint(ge=0) | None = None
-
-
 class Verdict(BaseModel):
     model_config = ConfigDict(
         extra='forbid',
@@ -96,6 +80,47 @@ class Counterfactual(BaseModel):
     The Critic accepts only if the tools show the change helps.
     """
     metrics: list[Metric]
+
+
+class Stroke(BaseModel):
+    model_config = ConfigDict(
+        extra='forbid',
+    )
+    shape: overlay_schema.Shape
+    geometry_m: overlay_schema.Geometry
+    style: overlay_schema.StrokeStyle | None = None
+
+
+class Sketch(BaseModel):
+    """
+    The tool's own geometry, drawn at once while the crew is still thinking; the overlay replaces it.
+    """
+
+    model_config = ConfigDict(
+        extra='forbid',
+    )
+    match_tc: conint(ge=0)
+    """
+    The moment the geometry is drawn on.
+    """
+    strokes: list[Stroke]
+
+
+class ToolRun(BaseModel):
+    model_config = ConfigDict(
+        extra='forbid',
+    )
+    name: str
+    """
+    MCP tool name, e.g. line_gap.
+    """
+    args: dict[str, Any]
+    summary: constr(max_length=200)
+    """
+    Result in one line, e.g. 'gap 6.4 m between lines'.
+    """
+    ms: conint(ge=0) | None = None
+    sketch: Sketch | None = None
 
 
 class AskEvent(BaseModel):
