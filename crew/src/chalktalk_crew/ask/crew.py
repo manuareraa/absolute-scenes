@@ -76,7 +76,7 @@ LABELS = {
         "obso": "the scoring threat",
     },
     "es": {
-        "pitch_control": "el control del campo",
+        "pitch_control": "el control del espacio",
         "line_gap_m": "el hueco entre líneas",
         "pressure": "la presión sobre el balón",
         "obso": "la amenaza de gol",
