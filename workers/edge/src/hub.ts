@@ -1,4 +1,5 @@
 import { DurableObject } from "cloudflare:workers";
+import { admit, quotaDay, type QuotaAnswer, type QuotaRequest } from "./ask";
 import { apply, chunksFor, type ChunkRef, type Clock, ended, matchT, newClock, parseAction, pause, play, seek } from "./clock";
 import type { Env } from "./env";
 import { isPackageFile, packageBase } from "./routes";
@@ -62,11 +63,32 @@ export class MatchHub extends DurableObject<Env> {
       if (path === "/ws") return await this.join();
       if (path === "/overlay" && request.method === "POST") return await this.postOverlay(await request.json());
       if (path === "/control" && request.method === "POST") return await this.control(await request.json());
+      if (path === "/quota" && request.method === "POST") return Response.json(this.quota((await request.json()) as QuotaRequest));
     } catch (e) {
       if (e instanceof MissingPackage) return Response.json({ error: e.message }, { status: 404 });
       throw e;
     }
     return new Response("not found", { status: 404 });
+  }
+
+  // --- ask quota (only on the QUOTA_HUB instance) ------------------------------------------
+
+  // Per-viewer minute windows live in memory: losing them on eviction only forgives a minute.
+  private askWindows = new Map<string, { minute: number; n: number }>();
+
+  /** Admits one ask or voice-token request: the viewer's minute window first, then the day's quota. */
+  private quota(q: QuotaRequest): QuotaAnswer {
+    const now = Date.now();
+    if (!admit(this.askWindows, `${q.bucket}:${q.key}`, now, q.perMinute)) return { ok: false, reason: "busy" };
+    if (!q.perDay) return { ok: true };
+    const sql = this.ctx.storage.sql;
+    sql.exec("CREATE TABLE IF NOT EXISTS ask_days (day TEXT PRIMARY KEY, n INTEGER NOT NULL)");
+    const day = quotaDay(now);
+    const used = sql.exec<{ n: number }>("SELECT n FROM ask_days WHERE day = ?", day).toArray()[0]?.n ?? 0;
+    if (used >= q.perDay) return { ok: false, reason: "quota" };
+    sql.exec("INSERT INTO ask_days (day, n) VALUES (?, 1) ON CONFLICT(day) DO UPDATE SET n = n + 1", day);
+    sql.exec("DELETE FROM ask_days WHERE day < ?", quotaDay(now - 7 * 86_400_000));
+    return { ok: true };
   }
 
   // --- viewers ---------------------------------------------------------------------------

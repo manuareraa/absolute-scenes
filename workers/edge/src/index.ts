@@ -1,3 +1,4 @@
+import { askEnabled, checkAsk, limits, MAX_ASK_BYTES, proxyAsk, QUOTA_HUB, refuse, viewerKey, voiceToken, type Bucket, type QuotaAnswer, type QuotaRequest } from "./ask";
 import { checkSecret } from "./auth";
 import type { Env } from "./env";
 import { OPEN_ACTIONS, openDecision, queueFile } from "./open";
@@ -16,6 +17,13 @@ function toHub(env: Env, matchId: string, path: string, init: RequestInit): Prom
   const headers = new Headers(init.headers);
   headers.set("x-match-id", matchId);
   return hub(env, matchId).fetch(new Request(`https://hub${path}`, { ...init, headers }));
+}
+
+/** One Durable Object request: this viewer's minute window and the day's quota. */
+async function admitted(request: Request, env: Env, bucket: Bucket): Promise<QuotaAnswer> {
+  const q: QuotaRequest = { key: await viewerKey(request), bucket, ...limits(env, bucket) };
+  const res = await hub(env, QUOTA_HUB).fetch(new Request("https://hub/quota", { method: "POST", body: JSON.stringify(q) }));
+  return (await res.json()) as QuotaAnswer;
 }
 
 async function readJson(request: Request): Promise<unknown | Response> {
@@ -81,6 +89,35 @@ export default {
         const decided = openDecision(await res.json(), match_id, overlay);
         if ("error" in decided) return Response.json({ error: decided.error }, { status: 403 });
         return toHub(env, match_id, "/overlay", { method: "POST", body: JSON.stringify(decided.overlay) });
+      }
+
+      case "ask": {
+        if (request.method !== "POST") return new Response("method not allowed", { status: 405 });
+        if (!askEnabled(env)) return refuse(503, "off");
+        if (!env.ASK_BACKEND_URL) return refuse(501, "no backend");
+        const len = Number(request.headers.get("content-length") ?? "0");
+        if (len > MAX_ASK_BYTES) return refuse(413, "too large");
+        const text = await request.text();
+        if (text.length > MAX_ASK_BYTES) return refuse(413, "too large");
+        let parsed: unknown;
+        try {
+          parsed = JSON.parse(text);
+        } catch {
+          return refuse(400, "bad json");
+        }
+        const checked = checkAsk(parsed);
+        if (!checked.ok) return refuse(400, checked.error);
+        const q = await admitted(request, env, "ask");
+        if (!q.ok) return refuse(429, q.reason);
+        return proxyAsk(checked.body, env, request.signal);
+      }
+
+      case "voice_token": {
+        if (request.method !== "GET") return new Response("method not allowed", { status: 405 });
+        if (!env.SPEECH_KEY) return refuse(501, "voice off");
+        const q = await admitted(request, env, "voice");
+        if (!q.ok) return refuse(429, q.reason);
+        return voiceToken(env);
       }
 
       default:

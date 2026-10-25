@@ -5,6 +5,8 @@ export type Route =
   | { kind: "match_manifest"; matchId: string }
   | { kind: "match_control"; matchId: string }
   | { kind: "overlay" }
+  | { kind: "ask" }
+  | { kind: "voice_token" }
   | { kind: "not_found" };
 
 const MATCH_ID = /^[A-Za-z0-9_-]{1,64}$/;
@@ -16,6 +18,8 @@ export function isMatchId(id: unknown): id is string {
 export function route(pathname: string): Route {
   if (pathname === "/api/health") return { kind: "health" };
   if (pathname === "/api/overlay") return { kind: "overlay" };
+  if (pathname === "/api/ask") return { kind: "ask" };
+  if (pathname === "/api/voice-token") return { kind: "voice_token" };
   let m = pathname.match(/^\/ws\/match\/([^/]+)$/);
   if (m && isMatchId(m[1])) return { kind: "match_ws", matchId: m[1] };
   m = pathname.match(/^\/api\/match\/([^/]+?)(\/control)?$/);
