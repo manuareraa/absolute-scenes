@@ -4,7 +4,7 @@ Branch `stream/a-studio-ask`. The Worker route is in PR #70 (`stream/d-ask-route
 
 ## What viewers get
 - **Ask bar** on the show and player surfaces. It has three suggestions; on a show moment the first is always "What should they have done?". Typing works with no mic.
-- **Mic:** the Speech SDK loads only on the first tap, as its own chunk of about 400 KB. It gets a 10-minute token from `GET /api/voice-token`, so no key reaches the browser. With no token (501), the mic shows "voice is off" and typing still works.
+- **Mic:** the Speech SDK loads only on the first tap, as its own chunk of about 400 KB. It gets a 10-minute token from `GET /api/voice-token`, so no key reaches the browser. With no token (501), the mic says "Voice isn't available here, so type your question" and typing still works.
 - **Barge-in:** typing or speaking again stops the current answer. Esc closes the control room.
 - **Control room:** a 300 px strip in broadcast-gallery style, with a tally light per agent.
   - It shows steps, tool runs (name, ms, summary) and verdicts. A rejected claim is struck through and shown with its round number, then the rewrite appears as "checked".
