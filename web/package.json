@@ -17,6 +17,7 @@
     "@fontsource/barlow-condensed": "^5.3.0",
     "@fontsource/caveat": "^5.3.0",
     "@react-three/fiber": "^9.8.2",
+    "microsoft-cognitiveservices-speech-sdk": "^1.53.0",
     "react": "^19.0.0",
     "react-dom": "^19.0.0",
     "three": "^0.186.1"

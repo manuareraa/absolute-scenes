@@ -21,6 +21,9 @@ import { Tour, tourSeen } from "./Tour";
 import { catchUpAt } from "./catchup";
 import { eventStats, ingest, involves, loadMyPlayer, playerLabel, rosterOf, saveMyPlayer, statsUpTo, type MatchEvent, type RosterPlayer, type Track, type TrackStats } from "./myplayer";
 import { keepConnected, matchWsUrl, type SourceMode } from "./ws";
+import { askMode, suggestionsFor, type SuggestionKey } from "./ask";
+import { useAsk } from "./studio/useAsk";
+import { AskBar, ControlRoom, WhatIf } from "./studio/Studio";
 
 type Surface = Overlay["surface"];
 type Lens = Overlay["lens"];
@@ -63,6 +66,8 @@ const HEADER_SURFACES: Surface[] = ["show", "broadcast"];
 const LANDING = !params.has("surface") && !params.has("demo") && params.get("welcome") !== "off";
 // three.js only loads when the 3D view is first opened.
 const Broadcast3D = lazy(() => import("./figures/Broadcast3D"));
+/** `?ask=fake` plays the rehearsal feed for "Ask the pundit"; by default it stands in only while /api/ask has no backend. */
+const ASK_MODE = askMode(params);
 const GOAL_BANNER_MS = 8000;
 const NOTICE_MS = 5000;
 
@@ -178,6 +183,19 @@ export function App() {
     setReplay(null);
     setSummary(null);
   };
+  // "Ask the pundit": the question pauses the show; the answer plays on its own clock, held while
+  // a tapped number replays its evidence, and closing the strip resumes the show if it was playing.
+  const studio = useAsk(
+    ASK_MODE,
+    {
+      pause: () => {
+        setPlaying(false);
+        return playing;
+      },
+      resume: () => setPlaying(true),
+    },
+    replay !== null,
+  );
   const go = (j: Jump) => {
     setSurface(j.surface);
     if (j.lens) setLens(j.lens);
@@ -210,6 +228,7 @@ export function App() {
       if (settingsOpen) return setSettingsOpen(false);
       if (replay) closeEvidence();
       else if (summary) closeSummary();
+      else if (studio.open) studio.close();
     };
     addEventListener("keydown", onKey);
     return () => removeEventListener("keydown", onKey);
@@ -357,8 +376,16 @@ export function App() {
     frame = frameAt(frames, state.matchT);
   }
 
+  // The pundit's answer takes the board at its own moment, on the frames of the match it is about.
+  const answer = studio.state.overlay;
+  if (answer && !replay && !summary) frame = frameAt(showFx ? showFx.frames : frames, answer.match_tc);
   // Strokes and captions run on the overlay audio's clock, not on wall time.
-  const audio = useOverlayAudio(state.overlay, state.audioMs, running && !replay && !summary, seekGen);
+  const audio = useOverlayAudio(
+    answer ?? state.overlay,
+    answer ? studio.answerMs : state.audioMs,
+    answer ? studio.playing : running && !replay && !summary,
+    answer ? 1e6 + studio.gen : seekGen,
+  );
   // Summaries and their replays come from the show fixture, so they also open over the broadcast.
   const replaying = showFx !== null && replay !== null;
   const summing = showFx !== null && summary !== null && !replaying;
@@ -372,13 +399,15 @@ export function App() {
     ? evidenceOverlay(replay.entry, replay.key)
     : summing
       ? geometryOverlay(summary.s.geometry, summary.s.at_t, `summary-${summary.s.kind}`)
-      : vm && state.overlay
-        ? varGraphics(vm, state.overlay, audio.audioMs)
-        : state.overlay;
+      : answer
+        ? answer
+        : vm && state.overlay
+          ? varGraphics(vm, state.overlay, audio.audioMs)
+          : state.overlay;
   const tappable = (c: Claim) => showMode && evidenceFor(showFx.evidence, c) !== undefined;
   const audioMs = audio.audioMs;
   // Breakdowns cut to the 2D chalkboard, as a broadcast cuts to the telestrator; play stays in 3D.
-  const show3d = view === "3d" && !state.overlay;
+  const show3d = view === "3d" && !state.overlay && !answer;
 
   // Score and goal banner come from goal events: the hub's live, the show fixture's recorded. The
   // M1 demo fixture has no goals, so its board honestly stays 0-0.
@@ -420,6 +449,12 @@ export function App() {
     setCatchPending(false);
     catchMeUp();
   }, [catchPending, showFx, showFailed]);
+
+  const asking = studio.state.phase === "thinking" || studio.state.phase === "answering";
+  const askPundit = (question: string, suggestion?: SuggestionKey) => {
+    if (!shownMatch) return;
+    studio.ask({ question, suggestion, match_id: shownMatch, moment_id: state.overlay?.id, match_tc: Math.round(matchT), lang, lens, side });
+  };
 
   // My player: totals from the frames on screen (recorded) or received (live), never estimated.
   const names = shownMatch === MATCH_ID ? roster : undefined;
@@ -563,6 +598,9 @@ export function App() {
                 <OverlayLayer overlay={drawn} frame={frame} audioMs={replaying || summing ? Infinity : audioMs} />
               </PitchView>
             )}
+            {answer && studio.state.counterfactual && !replaying && !summing && (
+              <WhatIf cf={studio.state.counterfactual} overlay={answer} audioMs={audioMs} s={s} lang={lang} />
+            )}
             {(surface === "broadcast" || showMode) && (
               <ScoreBug s={s} score={score} clock={clock(bugT)}>
                 {bugT > boardT && <span className="replay-tag">{s.replayAt(clock(boardT))}</span>}
@@ -584,7 +622,7 @@ export function App() {
             ) : summing ? (
               <SummaryPanel sm={summary.s} onMoment={openMoment} onClose={closeSummary} s={s} lang={lang} mine={myId} />
             ) : null}
-            {audio.blocked && state.overlay && (
+            {audio.blocked && (state.overlay || answer) && (
               <button className="sound-on" onClick={audio.unblock} aria-label={s.soundOn} title={s.soundOn}>
                 {s.soundOn}
               </button>
@@ -595,8 +633,20 @@ export function App() {
               </div>
             )}
           </div>
-          {!replaying && !summing && state.overlay && (
-            <Caption overlay={state.overlay} audioMs={audioMs} onClaim={showMode ? openEvidence : undefined} tappable={tappable} hint={s.replayEvidence} />
+          {!replaying && !summing && (answer ?? state.overlay) && (
+            <Caption overlay={(answer ?? state.overlay)!} audioMs={audioMs} onClaim={showMode ? openEvidence : undefined} tappable={tappable} hint={s.replayEvidence} />
+          )}
+          {surface !== "broadcast" && shownMatch && !replaying && !summing && (
+            <AskBar
+              s={s}
+              lang={lang}
+              suggestions={suggestionsFor(state.overlay)}
+              busy={asking}
+              onPause={studio.pauseShow}
+              onBargeIn={() => asking && studio.stop()}
+              onAsk={askPundit}
+              onStop={studio.stop}
+            />
           )}
           <div className="viewer-bar">
             <button className="catch-up" onClick={catchMeUp} title={s.catchMeUpHint} aria-keyshortcuts="c">
@@ -606,6 +656,7 @@ export function App() {
           </div>
           <Legend s={s} />
         </div>
+        {studio.open && <ControlRoom st={studio.state} s={s} lang={lang} onBack={studio.close} />}
       </div>
 
       {surface !== "broadcast" && (!isLive || showMode) && (

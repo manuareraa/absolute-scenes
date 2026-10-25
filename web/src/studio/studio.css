@@ -1,0 +1,95 @@
+/* "Ask the pundit": a gallery strip, not a log. Condensed caps, tally lights, one signal colour. */
+
+.ask-bar { width: 100%; max-width: inherit; display: flex; flex-direction: column; gap: 6px; }
+.ask-row { display: flex; align-items: stretch; gap: 0; background: var(--panel); border: 1px solid var(--border); border-radius: 6px; overflow: hidden; }
+.ask-row:focus-within { border-color: var(--signal); }
+.ask-tag { display: flex; align-items: center; padding: 0 12px; background: var(--signal); color: #17140c; font: 700 13px var(--font-display); text-transform: uppercase; letter-spacing: 0.06em; white-space: nowrap; }
+.ask-input { flex: 1; min-width: 0; background: transparent; border: 0; color: var(--ink); font: inherit; padding: 9px 12px; outline: none; }
+.ask-input::placeholder { color: var(--muted); }
+.ask-mic, .ask-send { border: 0; border-left: 1px solid var(--border); background: transparent; padding: 0 14px; font: 600 14px var(--font-display); text-transform: uppercase; letter-spacing: 0.05em; }
+.ask-mic { display: flex; align-items: center; color: var(--ink); }
+.ask-mic.listening { color: #fff; background: var(--onair); animation: tally 1.2s ease-in-out infinite; }
+.ask-mic:disabled { color: var(--border); cursor: not-allowed; }
+.ask-send { color: var(--signal); }
+.ask-send:disabled { color: var(--muted); cursor: default; }
+.ask-send.stop { color: #ffb3b3; }
+.ask-suggest { display: flex; flex-wrap: wrap; gap: 6px; }
+.ask-suggest button { background: transparent; border: 1px solid var(--border); border-radius: 99px; padding: 3px 12px; font-size: 13px; color: var(--muted); }
+.ask-suggest button:hover, .ask-suggest button:focus-visible { border-color: var(--signal); color: var(--ink); }
+.ask-suggest button:first-child { color: var(--ink); border-color: color-mix(in srgb, var(--signal) 55%, var(--border)); }
+
+.control-room { flex: 0 0 300px; align-self: flex-start; display: flex; flex-direction: column; max-height: calc(100svh - 120px); background: #0d0c0b; border: 1px solid var(--border); border-top: 3px solid var(--signal); border-radius: 4px; font-size: 13px; animation: cr-in 0.25s ease-out; }
+@keyframes cr-in { from { opacity: 0; transform: translateX(12px); } }
+.cr-head { display: flex; align-items: center; justify-content: space-between; padding: 8px 12px 6px; }
+.cr-head h2 { margin: 0; font: 700 15px var(--font-display); text-transform: uppercase; letter-spacing: 0.1em; }
+.cr-source { font: 700 11px var(--font-display); text-transform: uppercase; letter-spacing: 0.08em; padding: 2px 8px; border-radius: 3px; }
+.cr-source.live { background: var(--onair); color: #fff; }
+.cr-source.live::before { content: "● "; }
+.cr-source.rehearsal { background: transparent; color: var(--signal); border: 1px solid var(--signal); cursor: help; }
+
+/* Tally lights: an agent's light goes red while it works, stays dim once it has had its turn. */
+.cr-tally { display: grid; grid-template-columns: repeat(3, 1fr); gap: 3px; list-style: none; margin: 0; padding: 0 12px 8px; }
+.cr-tally li { text-align: center; padding: 3px 0; border-radius: 2px; background: #1b1a17; color: #5d584f; font: 700 10px var(--font-display); text-transform: uppercase; letter-spacing: 0.08em; transition: background 0.2s, color 0.2s; }
+.cr-tally li.used { color: var(--muted); }
+.cr-tally li.on { background: var(--onair); color: #fff; box-shadow: 0 0 10px color-mix(in srgb, var(--onair) 60%, transparent); }
+
+.cr-question { margin: 0; padding: 6px 12px; border-top: 1px solid var(--border); border-bottom: 1px solid var(--border); background: var(--panel); font-weight: 600; }
+.cr-question small { display: block; color: var(--muted); font: 600 10px var(--font-display); text-transform: uppercase; letter-spacing: 0.08em; }
+
+.cr-rows { list-style: none; margin: 0; padding: 6px 0; overflow-y: auto; flex: 1; min-height: 120px; scroll-behavior: smooth; }
+.cr-row { display: grid; grid-template-columns: 74px 1fr; gap: 8px; padding: 5px 12px; animation: row-in 0.3s ease-out; line-height: 1.35; }
+@keyframes row-in { from { opacity: 0; transform: translateY(4px); } }
+.cr-agent { font: 700 11px var(--font-display); text-transform: uppercase; letter-spacing: 0.06em; padding-top: 2px; color: var(--muted); }
+.cr-agent.director { color: #f3efe3; }
+.cr-agent.analyst { color: var(--stroke-home); }
+.cr-agent.tactician { color: var(--stroke-ghost); }
+.cr-agent.critic { color: #ffb86b; }
+.cr-agent.pundit { color: var(--signal); }
+.cr-agent.verifier { color: var(--ok-ink); }
+.cr-row.tool code { font: 600 12px ui-monospace, monospace; color: var(--ink); background: var(--panel-2); padding: 1px 5px; border-radius: 3px; }
+.cr-row.tool code::after { content: "()"; color: var(--muted); }
+.cr-ms { margin-left: 6px; color: var(--muted); font-variant-numeric: tabular-nums; }
+.cr-row.tool span { color: var(--muted); }
+.cr-flag { display: block; font: 700 10px var(--font-display); text-transform: uppercase; letter-spacing: 0.08em; }
+.cr-row.verdict q { display: block; quotes: "“" "”"; }
+.cr-row.verdict em { display: block; color: var(--muted); font-style: normal; font-size: 12px; }
+.cr-row.rejected .cr-flag { color: #ff8a8d; }
+.cr-row.ok .cr-flag { color: var(--ok-ink); }
+.cr-row.verdict.rejected q { text-decoration: line-through; text-decoration-color: #ff8a8d; text-decoration-thickness: 2px; color: var(--muted); }
+.cr-row.verdict.ok { background: color-mix(in srgb, var(--ok-bg) 45%, transparent); }
+.cr-row.cf.rejected > span { color: var(--muted); }
+.cr-metrics { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 4px; }
+
+.cr-foot { display: flex; flex-direction: column; gap: 6px; padding: 8px 12px 10px; border-top: 1px solid var(--border); }
+.cr-status { margin: 0; font: 700 13px var(--font-display); text-transform: uppercase; letter-spacing: 0.08em; color: var(--muted); }
+.cr-status.busy::before { content: ""; display: inline-block; width: 8px; height: 8px; margin-right: 6px; border-radius: 50%; background: var(--onair); animation: tally 1.2s ease-in-out infinite; }
+.cr-status.on-air { color: #fff; }
+.cr-status.on-air::before { content: "ON AIR"; margin-right: 8px; padding: 1px 6px; border-radius: 2px; background: var(--onair); font-size: 11px; }
+.cr-status.on-air { font-size: 0; }
+.cr-status.on-air::before { font-size: 11px; }
+.cr-message { margin: 0; color: var(--ink); }
+.cr-back { align-self: flex-start; background: transparent; border: 1px solid var(--border); border-radius: 99px; padding: 3px 12px; font-size: 13px; }
+.cr-back:hover, .cr-back:focus-visible { border-color: var(--signal); }
+@keyframes tally { 50% { opacity: 0.45; } }
+
+.metric-chip { display: inline-flex; align-items: baseline; gap: 5px; padding: 2px 8px; border-radius: 3px; background: #000b; border: 1px solid var(--border); font-variant-numeric: tabular-nums; white-space: nowrap; }
+.metric-chip small { color: var(--muted); font: 600 10px var(--font-display); text-transform: uppercase; letter-spacing: 0.06em; }
+.metric-chip .before { color: var(--muted); text-decoration: line-through; }
+.metric-chip .after { color: var(--stroke-ghost); }
+
+/* The ghosts' before/after, in the board's bottom-left corner, as a broadcast lower third. */
+.what-if { position: absolute; left: 10px; bottom: 10px; max-width: min(70%, 420px); background: #0d0c0be6; border-left: 4px solid var(--stroke-ghost); padding: 6px 10px; border-radius: 3px; animation: cr-in 0.3s ease-out; pointer-events: none; }
+.what-if p { margin: 0; font-weight: 600; }
+.what-if p small { color: var(--stroke-ghost); font: 700 11px var(--font-display); text-transform: uppercase; letter-spacing: 0.08em; margin-right: 4px; }
+.what-if-chips { display: flex; flex-wrap: wrap; gap: 4px; margin: 4px 0; }
+.what-if-verdict { font: 700 11px var(--font-display) !important; text-transform: uppercase; letter-spacing: 0.08em; }
+.what-if.ok .what-if-verdict { color: var(--ok-ink); }
+.what-if.rejected .what-if-verdict { color: #ff8a8d; }
+
+@media (max-width: 900px) {
+  .control-room { flex-basis: auto; width: 100%; max-height: 50svh; }
+  .ask-tag { display: none; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .control-room, .cr-row, .what-if, .ask-mic.listening, .cr-status.busy::before { animation: none; }
+}
