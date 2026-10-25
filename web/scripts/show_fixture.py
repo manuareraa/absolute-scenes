@@ -23,7 +23,7 @@ from pathlib import Path
 from chalktalk_postmatch.show import build_shows
 from chalktalk_sim import DEMO_BEATS, MatchConfig, simulate
 from chalktalk_sim.match import FRAME_MS
-from show_refine import refine
+from show_refine import refine, refine_queue
 from tool_overlays import evidence_map, ghost_overlay, summary, tools, var_overlay
 
 PRE_MS = 4000
@@ -142,6 +142,7 @@ def main() -> None:
             "overlays": queued,
             "frames": [match.frame(match.tick(t)) for t in moments],
         }
+        q = refine_queue(q, args.half_minutes, args.seed)
         args.queue.write_text(json.dumps(q, separators=(",", ":")))
         print(f"{args.queue}: {len(queued)} overlays, {args.queue.stat().st_size} B")
 
