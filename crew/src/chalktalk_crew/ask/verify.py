@@ -63,10 +63,11 @@ def numbers_of(value: Any, unit: str | None, lang: str) -> set[str]:
 class Finding:
     claim: str  # the clause as spoken
     ok: bool
-    reason: str = ""
+    reason: str = ""  # in English: it is also the Pundit's feedback
     call_id: str | None = None
     number: str = ""
     span: tuple[int, int] = (0, 0)
+    shown: str = ""  # the reason in the viewer's language, for the control room
 
 
 @dataclass
@@ -120,7 +121,15 @@ def check(text: str, calls: list[Call], lang: str) -> Check:
             result.findings.append(Finding(clause, True, "", owner.id, num, m.span()))
             continue
         result.findings.append(
-            Finding(clause, False, _reason(num, calls, lang), None, num, m.span())
+            Finding(
+                clause,
+                False,
+                _reason(num, calls, lang),
+                None,
+                num,
+                m.span(),
+                _reason(num, calls, lang, shown=True),
+            )
         )
     for m in SPELLED.finditer(masked):
         result.findings.append(
@@ -132,16 +141,27 @@ def check(text: str, calls: list[Call], lang: str) -> Check:
                 None,
                 m.group(0),
                 m.span(),
+                f"'{m.group(0)}' está en letras: debe ir en cifras"
+                if lang.startswith("es")
+                else "",
             )
         )
     result.findings.sort(key=lambda f: f.span)
     return result
 
 
-def _reason(num: str, calls: list[Call], lang: str) -> str:
+NO_NUMBERS = {"es": "sin números que comprobar"}
+
+
+def _reason(num: str, calls: list[Call], lang: str, shown: bool = False) -> str:
+    """Why ``num`` failed; in English for the Pundit, or with ``shown`` in the viewer's language
+    (empty for English, where the two are the same)."""
+    es = shown and lang.startswith("es")
+    if shown and not es:
+        return ""
     numeric = [c for c in calls if isinstance(c.out.get("value"), int | float)]
     if not numeric:
-        return f"no tool measured {num}"
+        return f"ninguna herramienta midió {num}" if es else f"no tool measured {num}"
     target = _to_float(num)
 
     def gap(c: Call) -> float:
@@ -149,4 +169,8 @@ def _reason(num: str, calls: list[Call], lang: str) -> str:
         return abs(_to_float(spoken.group(0)) - target) if spoken else float("inf")
 
     best = min(numeric, key=gap)
+    if es:
+        return f"{best.name} da {say(best.out['value'], best.out.get('unit'), lang)}, no {num}"[
+            :200
+        ]
     return f"{best.name} says {say(best.out['value'], best.out.get('unit'), lang)}, not {num}"[:200]

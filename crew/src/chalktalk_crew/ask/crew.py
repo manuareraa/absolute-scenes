@@ -89,6 +89,67 @@ CF_INTRO = {
 WHO = {"en": ("{team} number {n}", " and "), "es": ("el número {n} {team}", " y ")}
 VERB = {"en": ("moves", "move"), "es": ("se mueve", "se mueven")}
 TEAM = {"en": {"home": "home", "away": "away"}, "es": {"home": "local", "away": "visitante"}}
+# The control room's step lines, in the viewer's language.
+STEPS = {
+    "en": {
+        "cached": "Answered this before; replaying it.",
+        "safe": "Question checked: safe to answer.",
+        "moment": "Moment at {clock}: {team} on the ball.",
+        "explain": "Explain it.",
+        "explain_cf": "Explain it, then test a better option.",
+        "choose": "Choosing which tools to run.",
+        "analyst_down": "Agent unavailable ({err}); using the default tools.",
+        "write": "Writing the answer.",
+        "rewrite": "Rewriting with the tool's numbers.",
+        "pundit_down": "Agent unavailable ({err}).",
+        "fallback": "Using a checked answer written from the tool results.",
+        "no_what_if": "The what-if tool is not deployed yet; skipping the better option.",
+        "propose": "Proposing a better position.",
+        "propose_again": "Trying another change.",
+        "rerun": "Re-running the frame with the change.",
+        "out_of_calls": "Out of tool calls; no better option tested.",
+        "unusable": "unusable proposal",
+        "gate_passed": "Gate passed: {n} claims re-run.",
+        "gate_failed": "Gate failed: {n} claims re-run.",
+        "timeout": "The answer took too long; try again.",
+        "problem": "The crew hit a problem: {err}.",
+    },
+    "es": {
+        "cached": "Ya respondida; se repite la respuesta.",
+        "safe": "Pregunta revisada: se puede responder.",
+        "moment": "Jugada en el {clock}: el balón es del equipo {team}.",
+        "explain": "Explicarla.",
+        "explain_cf": "Explicarla y probar una opción mejor.",
+        "choose": "Eligiendo qué herramientas ejecutar.",
+        "analyst_down": "Agente no disponible ({err}); se usan las herramientas por defecto.",
+        "write": "Escribiendo la respuesta.",
+        "rewrite": "Reescribiendo con los números de la herramienta.",
+        "pundit_down": "Agente no disponible ({err}).",
+        "fallback": "Respuesta verificada, escrita con los resultados de las herramientas.",
+        "no_what_if": "La herramienta what-if no está desplegada; no se prueba otra opción.",
+        "propose": "Proponiendo una posición mejor.",
+        "propose_again": "Probando otro cambio.",
+        "rerun": "Volviendo a jugar la imagen con el cambio.",
+        "out_of_calls": "Sin llamadas a herramientas; no se probó otra opción.",
+        "unusable": "propuesta inservible",
+        "gate_passed": "Control superado: {n} datos comprobados de nuevo.",
+        "gate_failed": "Control no superado: {n} datos comprobados de nuevo.",
+        "timeout": "La respuesta tardó demasiado; inténtalo de nuevo.",
+        "problem": "El equipo tuvo un problema: {err}.",
+    },
+}
+# Refusals by the check that refused, for the viewer (the English text is the safety module's).
+REFUSALS_ES = {
+    "length": "Haz una pregunta corta sobre esta jugada.",
+    "prompt_shield": "Solo puedo hablar del fútbol que hay en pantalla.",
+    "harm": "No puedo responder a eso. Pregúntame por la jugada.",
+}
+
+
+def step_text(lang: str, key: str, **kw: Any) -> str:
+    return STEPS["es" if lang.startswith("es") else "en"][key].format(**kw)
+
+
 CF_UNITS = {"pitch_control": "share", "line_gap_m": "m", "pressure": "prob", "obso": "xG"}
 # What each tool's number is, in the viewer's language. The Pundit names a number only with its
 # own label, so a pitch-control share is never called "pressure" and Spanish stays Spanish.
@@ -353,7 +414,7 @@ class AskCrew:
             except Exception as err:  # noqa: BLE001 - reported to the viewer as an error event
                 log.exception("ask %s failed", req.show_id)
                 with contextlib.suppress(Cancelled):
-                    emit("error", text=f"The crew hit a problem: {type(err).__name__}."[:400])
+                    emit("error", text=step_text(req.lang, "problem", err=type(err).__name__)[:400])
             finally:
                 q.put(None)
 
@@ -368,7 +429,7 @@ class AskCrew:
                     "type": "error",
                     "seq": emit.seq,
                     "t_ms": int((time.monotonic() - start) * 1000),
-                    "text": "The answer took too long; try again.",
+                    "text": step_text(req.lang, "timeout"),
                 }
                 return
             if ev is None:
@@ -388,7 +449,7 @@ class AskCrew:
                 self.cache.move_to_end(req.cache_key())
         if hit is not None:
             self.stats.cached += 1
-            emit.step("director", "Answered this before; replaying it.")
+            emit.step("director", step_text(req.lang, "cached"))
             emit("overlay", overlay=hit["overlay"], audio_url=hit.get("audio_url"))
             emit("done", cached=True, trace_id=hit["trace_id"])
             return
@@ -396,10 +457,13 @@ class AskCrew:
             verdict = self.safety.check(req.question)
             if not verdict.ok:
                 self.stats.refused += 1
-                emit("refusal", agent="safety", text=verdict.reason[:400])
+                reason = verdict.reason
+                if req.lang.startswith("es"):
+                    reason = REFUSALS_ES.get(verdict.check, reason)
+                emit("refusal", agent="safety", text=reason[:400])
                 emit("done", cached=False, trace_id=trace_id)
                 return
-            emit.step("safety", "Question checked: safe to answer.")
+            emit.step("safety", step_text(req.lang, "safe"))
             match_id = req.match_id
             box = ToolBox(self.tools, match_id, max_calls=ANALYST_CALLS)
             moment: dict[str, int] = {}
@@ -417,10 +481,12 @@ class AskCrew:
             ctx = self._moment(box, req)
             moment["t"] = ctx["t"]
             wants_cf = bool(WHAT_IF_INTENT.search(req.question))
+            lng = "es" if req.lang.startswith("es") else "en"
             emit.step(
                 "director",
-                f"Moment at {ctx['clock']}: {ctx['attacking']} on the ball. "
-                + ("Explain it, then test a better option." if wants_cf else "Explain it."),
+                step_text(req.lang, "moment", clock=ctx["clock"], team=TEAM[lng][ctx["attacking"]])
+                + " "
+                + step_text(req.lang, "explain_cf" if wants_cf else "explain"),
             )
             self._analyse(req, box, ctx, emit)
             # The Tactician's first proposal needs only the analysis, so it is drafted while the
@@ -436,8 +502,11 @@ class AskCrew:
             overlay, audio_url = self._overlay(req, box, ans, cf, ctx)
             emit.step(
                 "verifier",
-                f"Gate {'passed' if overlay['gate']['passed'] else 'failed'}: "
-                f"{len(overlay['claims'])} claims re-run.",
+                step_text(
+                    req.lang,
+                    "gate_passed" if overlay["gate"]["passed"] else "gate_failed",
+                    n=len(overlay["claims"]),
+                ),
             )
             emit("overlay", overlay=overlay, audio_url=audio_url)
             emit("done", cached=False, trace_id=trace_id)
@@ -499,7 +568,7 @@ class AskCrew:
         return ""
 
     def _analyse(self, req: AskRequest, box: ToolBox, ctx: dict[str, Any], emit: Emitter) -> None:
-        emit.step("analyst", "Choosing which tools to run.")
+        emit.step("analyst", step_text(req.lang, "choose"))
         data = {"question": req.question, "lens": req.lens, "side": req.side, **ctx}
         prompt = f"Question: {req.question}\nPaused at t={ctx['t']} ms.\n{data_block(data)}"
         try:
@@ -507,9 +576,7 @@ class AskCrew:
         except Cancelled:
             raise
         except Exception as err:  # noqa: BLE001 - the plan below still answers
-            emit.step(
-                "analyst", f"Agent unavailable ({type(err).__name__}); using the default tools."
-            )
+            emit.step("analyst", step_text(req.lang, "analyst_down", err=type(err).__name__))
         # The question's obvious tools, then the general ones if none of those could measure
         # (shot_xg fails when nobody has the ball).
         for question in (req.question, ""):
@@ -564,7 +631,7 @@ class AskCrew:
         for rnd in range(1, MAX_REWRITES + 2):
             emit.step(
                 "pundit",
-                "Writing the answer." if rnd == 1 else "Rewriting with the tool's numbers.",
+                step_text(lang, "write" if rnd == 1 else "rewrite"),
             )
             data: dict[str, Any] = {
                 "question": req.question,
@@ -591,13 +658,20 @@ class AskCrew:
             except Cancelled:
                 raise
             except Exception as err:  # noqa: BLE001
-                emit.step("pundit", f"Agent unavailable ({type(err).__name__}).")
+                emit.step("pundit", step_text(lang, "pundit_down", err=type(err).__name__))
                 break
             text = verify.normalize(" ".join(text.replace("*", "").split())[:600])
             result = verify.check(text, calls, lang)
             self.stats.drafts += 1
             findings = result.findings or [
-                verify.Finding(verify.CUE.sub("", text)[:200], True, "no numbers to check")
+                verify.Finding(
+                    verify.CUE.sub("", text)[:200],
+                    True,
+                    "no numbers to check",
+                    shown=verify.NO_NUMBERS[lang.split("-")[0]]
+                    if lang.split("-")[0] in verify.NO_NUMBERS
+                    else "",
+                )
             ]
             for f in findings:
                 emit(
@@ -607,7 +681,7 @@ class AskCrew:
                         "claim": f.claim or "-",
                         "ok": f.ok,
                         "round": rnd,
-                        **({"reason": f.reason} if f.reason else {}),
+                        **({"reason": f.shown or f.reason} if f.reason else {}),
                     },
                 )
             if result.ok:
@@ -615,7 +689,7 @@ class AskCrew:
             self.stats.rejected_drafts += 1
             feedback = result.feedback()
         self.stats.fallbacks += 1
-        emit.step("verifier", "Using a checked answer written from the tool results.")
+        emit.step("verifier", step_text(lang, "fallback"))
         return Answer(self._fallback_text(results), MAX_REWRITES + 1, fallback=True)
 
     @staticmethod
@@ -631,6 +705,8 @@ class AskCrew:
             data["feedback"] = feedback
         prompt = (
             f"Question: {req.question}\n"
+            f"Language: {req.lang}. Write the 'proposal' field in this language; keep player ids "
+            "as they are.\n"
             f"Change the defending team ({ctx['defending']}) unless the question is about the "
             "attack.\n" + (f"FEEDBACK: {feedback}\n" if feedback else "") + data_block(data)
         )
@@ -645,25 +721,25 @@ class AskCrew:
         first: Future[str] | None = None,
     ) -> Counterfactual | None:
         if "what_if" not in box.available:
-            emit.step("critic", "The what-if tool is not deployed yet; skipping the better option.")
+            emit.step("critic", step_text(req.lang, "no_what_if"))
             return None
         feedback = ""
         for attempt in (1, 2):
             emit.step(
                 "tactician",
-                "Proposing a better position." if attempt == 1 else "Trying another change.",
+                step_text(req.lang, "propose" if attempt == 1 else "propose_again"),
             )
             try:
                 drafted = first.result() if attempt == 1 and first else None
                 plan = _json(drafted or self._propose(req, ctx, feedback))
                 team, moves = plan["team"], plan["moves"]
                 proposal = str(plan.get("proposal") or "a change of position")[:200]
-                emit.step("critic", "Re-running the frame with the change.")
+                emit.step("critic", step_text(req.lang, "rerun"))
                 call = box.call("what_if", {"t": ctx["t"], "team": team, "moves": moves})
             except Cancelled:
                 raise
             except ToolCapReached:
-                emit.step("critic", "Out of tool calls; no better option tested.")
+                emit.step("critic", step_text(req.lang, "out_of_calls"))
                 return None
             except Exception as err:  # noqa: BLE001 - a bad proposal is rejected, not fatal
                 self.stats.proposals += 1
@@ -672,7 +748,7 @@ class AskCrew:
                     "counterfactual",
                     agent="critic",
                     counterfactual={
-                        "proposal": "unusable proposal",
+                        "proposal": step_text(req.lang, "unusable"),
                         "accepted": False,
                         "metrics": [],
                     },
