@@ -80,7 +80,7 @@ flowchart LR
 | Azure Container Apps | Runs the live ask crew (`chalktalk-ask`), consumption plan, scales to zero; reaches Foundry with a user-assigned managed identity. Bicep templates in `infra/` |
 | Azure AI Content Safety | Prompt Shields and text analysis screen every question before an agent runs |
 | Azure Monitor OpenTelemetry | Each live answer carries a Foundry trace id |
-| GitHub Actions and GHCR | CI on every push; the MCP server and ask crew images |
+| GitHub Actions and GHCR | CI on every pull request; the MCP server and ask crew images |
 
 ## Measured
 | What | Result | Source |
@@ -96,7 +96,7 @@ flowchart LR
 | Live ask speed and cost | answer ready median 12.5 s, p90 18.3 s; about $0.002 per answer | same note |
 | Attack questions (prompt injection, phishing, hate) | 6 of 6 ended safely: 2 refused by Prompt Shields, 3 declined by the Pundit, 1 ignored and answered the football | same note |
 | Simulated match vs real football | shots 23.7 per 90 (Premier League 25–27); pressing 0.50 (tracking reference 0.48–0.64) | [b-sim-realism](docs/notes/b-sim-realism.md) |
-| Tests | 400+ (Python, web, worker, contracts); CI runs on every push | `.github/workflows/` |
+| Tests | 400+ (Python, web, worker, contracts); CI runs on every pull request | `.github/workflows/` |
 
 ## Synthetic data
 The match comes from our own seeded simulator. Real open data is used only to calibrate it, and none of it is shipped or shown: IDSSE tracking data (CC BY 4.0) for movement and pressing, and Wyscout open event data (CC BY 4.0) for a three-coefficient xG model. See [docs/data-credits.md](docs/data-credits.md).
