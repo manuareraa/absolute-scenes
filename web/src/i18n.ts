@@ -32,6 +32,16 @@ const EN = {
       { key: "summary", title: "Half-time and catch-up", body: "What decided the half so far, with each deciding moment one tap from its replay." },
       { key: "live", title: "Live, with a producer", body: "Moments air at their minute on the live match; a producer approves or rejects each one before it airs." },
     ],
+    measuredTitle: "Measured, not claimed",
+    measured: [
+      { value: "10 ms", label: "median gap between a stroke and the word that names it (33 strokes)" },
+      { value: "4.62 / 5", label: "groundedness of 77 live answers, judged by a Foundry evaluator" },
+      { value: "8 of 156", label: "first-round claims the Verifier rejected and sent back for a rewrite" },
+      { value: "6 of 34", label: "what-if proposals the Critic kept; the rest did not improve the numbers" },
+      { value: "6 of 6", label: "attack questions that ended safely (Prompt Shields or the Pundit declined)" },
+      { value: "12.5 s", label: "median time to a drawn, spoken answer, at about $0.002 each" },
+    ],
+    measuredNote: "From the live ask eval of 25 October 2026: 78 football questions in English and Spanish, plus 6 attacks. Method and raw results are in the repository.",
     builtTitle: "How it is built",
     built: [
       { name: "Director", body: "Microsoft Foundry agent that picks the moments worth a breakdown from match events." },
@@ -320,6 +330,16 @@ const ES: Strings = {
       { key: "summary", title: "Descanso y resumen", body: "Lo que ha decidido la parte hasta ahora, con cada jugada clave a un toque de su repetición." },
       { key: "live", title: "En directo, con productor", body: "Las jugadas se emiten en su minuto del partido en directo; un productor aprueba o rechaza cada una antes de emitirla." },
     ],
+    measuredTitle: "Medido, no prometido",
+    measured: [
+      { value: "10 ms", label: "diferencia mediana entre un trazo y la palabra que lo nombra (33 trazos)" },
+      { value: "4,62 / 5", label: "fundamentación de 77 respuestas en directo, según un evaluador de Foundry" },
+      { value: "8 de 156", label: "datos de la primera ronda que el Verificador rechazó y mandó reescribir" },
+      { value: "6 de 34", label: "propuestas que el Crítico aceptó; las demás no mejoraban los números" },
+      { value: "6 de 6", label: "preguntas de ataque que acabaron sin daño (Prompt Shields o el Comentarista se negó)" },
+      { value: "12,5 s", label: "tiempo mediano hasta una respuesta dibujada y hablada, por unos 0,002 $ cada una" },
+    ],
+    measuredNote: "De la evaluación en directo del 25 de octubre de 2026: 78 preguntas de fútbol en inglés y español, más 6 ataques. El método y los resultados están en el repositorio.",
     builtTitle: "Cómo está hecho",
     built: [
       { name: "Director", body: "Agente de Microsoft Foundry que elige las jugadas que merecen un análisis a partir de los eventos del partido." },

@@ -337,8 +337,8 @@ button.logo:hover .wordmark b, button.logo:focus-visible .wordmark b { color: va
 .hero-board figcaption { margin: 14px auto 0; width: fit-content; max-width: 100%; padding: 8px 14px; border-left: 3px solid var(--signal); background: #0d0c0be6; border-radius: 3px; font-size: 16px; }
 .hero-board mark { background: none; color: var(--signal); font-weight: 600; }
 .hero-board mark.b { color: var(--chalk); text-decoration: underline dashed; text-underline-offset: 3px; }
-.features, .built { padding: 44px 0 8px; }
-.features h2, .built h2 { font-size: 30px; text-transform: uppercase; margin-bottom: 20px; }
+.features, .measured, .built { padding: 44px 0 8px; }
+.features h2, .measured h2, .built h2 { font-size: 30px; text-transform: uppercase; margin-bottom: 20px; }
 .features ol { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 14px; }
 .features li { display: flex; flex-direction: column; gap: 6px; padding: 18px; background: var(--panel); border: 1px solid var(--border); border-radius: 8px; }
 .features .idx { font-family: var(--font-chalk); font-size: 26px; color: var(--signal); line-height: 1; }
@@ -346,6 +346,13 @@ button.logo:hover .wordmark b, button.logo:focus-visible .wordmark b { color: va
 .features p { margin: 0; color: #cfc8b8; flex: 1; }
 .show-me { align-self: flex-start; margin-top: 8px; background: none; border: 1px solid var(--border); border-radius: 99px; padding: 4px 12px; font-size: 13px; font-weight: 600; }
 .show-me:hover, .show-me:focus-visible { border-color: var(--signal); color: var(--signal); }
+/* Six numbers: three by two, or two by three on a phone. */
+.measured ul { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px; }
+@media (max-width: 860px) { .measured ul { grid-template-columns: repeat(2, 1fr); } }
+.measured li { display: flex; flex-direction: column; gap: 6px; padding: 16px 18px; border-left: 3px solid var(--signal); background: var(--panel); border-radius: 0 8px 8px 0; }
+.measured b { font-family: var(--font-display); font-size: 30px; line-height: 1; color: var(--signal); font-variant-numeric: tabular-nums; }
+.measured span { font-size: 13px; color: #cfc8b8; }
+.measured-note { margin: 12px 0 0; font-size: 13px; color: var(--muted); }
 .built ol { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(6, 1fr); gap: 0; counter-reset: step; }
 .built li { position: relative; padding: 14px 16px 14px 0; border-top: 2px solid var(--border); counter-increment: step; }
 .built li::before { content: counter(step); position: absolute; top: -13px; left: 0; width: 24px; height: 24px; border-radius: 50%; display: grid; place-items: center; background: var(--bg); border: 2px solid var(--signal); color: var(--signal); font-family: var(--font-display); font-weight: 700; font-size: 13px; }

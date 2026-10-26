@@ -81,6 +81,19 @@ export function Landing({ s, lang, onLang, onGo }: { s: Strings; lang: string; o
         </ol>
       </section>
 
+      <section className="measured" aria-labelledby="measured-title">
+        <h2 id="measured-title">{l.measuredTitle}</h2>
+        <ul>
+          {l.measured.map((m) => (
+            <li key={m.value}>
+              <b>{m.value}</b>
+              <span>{m.label}</span>
+            </li>
+          ))}
+        </ul>
+        <p className="measured-note">{l.measuredNote}</p>
+      </section>
+
       <section className="built" aria-labelledby="built-title">
         <h2 id="built-title">{l.builtTitle}</h2>
         <ol>
