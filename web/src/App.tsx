@@ -118,6 +118,7 @@ export function App() {
   const [landing, setLanding] = useState(LANDING);
   // A "Show me" link from the front page, applied once the show has loaded.
   const [jump, setJump] = useState<Jump | null>(null);
+  const [askHint, setAskHint] = useState<Jump["hint"] | null>(null);
   const [how, setHow] = useState(false);
   const [tour, setTour] = useState<{ resume: boolean } | null>(null);
   const tourAuto = useRef(!tourSeen());
@@ -342,6 +343,7 @@ export function App() {
     const prefix = jump.chapter === "ghost" ? "ov-ghost" : jump.chapter === "var" ? "ov-var" : null;
     const target = prefix ? book.chapters.find((c) => c.overlay.id.startsWith(prefix)) : book.chapters[0];
     if (jump.chapter && target) seek(target.at);
+    setAskHint(jump.hint ?? null);
     if (jump.open === "summary") {
       const sm = Object.values(showFx.summaries ?? {})[0];
       if (sm) openSummary(sm);
@@ -456,6 +458,7 @@ export function App() {
 
   const asking = studio.state.phase === "thinking" || studio.state.phase === "answering";
   const askPundit = (question: string, suggestion?: SuggestionKey) => {
+    setAskHint(null);
     if (!shownMatch) return;
     studio.ask({ question, suggestion, match_id: shownMatch, moment_id: state.overlay?.id, match_tc: Math.round(matchT), lang, lens, side });
   };
@@ -659,6 +662,7 @@ export function App() {
               lang={lang}
               suggestions={suggestionsFor(state.overlay)}
               busy={asking}
+              hint={askHint}
               onPause={studio.pauseShow}
               onBargeIn={() => asking && studio.stop()}
               onAsk={askPundit}

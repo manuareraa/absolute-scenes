@@ -11,6 +11,8 @@ export type Jump = {
   lang?: string;
   chapter?: "first" | "ghost" | "var";
   open?: "evidence" | "summary";
+  /** Points at the ask bar: its input, or the "What should they have done?" chip. */
+  hint?: "ask" | "whatif";
 };
 
 export const START_SHOW: Jump = { surface: "show", lens: "analyst", side: "away", chapter: "first" };
@@ -18,8 +20,8 @@ export const START_LIVE: Jump = { surface: "broadcast" };
 
 const JUMPS: Record<string, Jump> = {
   strokes: START_SHOW,
-  ask: START_SHOW,
-  whatif: START_SHOW,
+  ask: { ...START_SHOW, hint: "ask" },
+  whatif: { ...START_SHOW, hint: "whatif" },
   ghost: { surface: "show", lens: "analyst", side: "away", chapter: "ghost" },
   var: { surface: "show", lens: "analyst", side: "away", chapter: "var" },
   evidence: { surface: "show", lens: "analyst", side: "away", chapter: "first", open: "evidence" },

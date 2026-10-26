@@ -14,6 +14,8 @@ export function AskBar(props: {
   lang: string;
   suggestions: SuggestionKey[];
   busy: boolean;
+  /** A landing "Show me" link points here: pulse the input, or the what-if chip. */
+  hint?: "ask" | "whatif" | null;
   /** The viewer went to the bar: pause the show. */
   onPause(): void;
   /** The viewer typed or spoke again: stop the answer on screen. */
@@ -56,7 +58,7 @@ export function AskBar(props: {
 
   return (
     <form
-      className="ask-bar"
+      className={`ask-bar${props.hint ? ` hint-${props.hint}` : ""}`}
       aria-label={t.title}
       onSubmit={(e) => {
         e.preventDefault();

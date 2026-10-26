@@ -17,6 +17,10 @@
 .ask-suggest button { background: transparent; border: 1px solid var(--border); border-radius: 99px; padding: 3px 12px; font-size: 13px; color: var(--muted); }
 .ask-suggest button:hover, .ask-suggest button:focus-visible { border-color: var(--signal); color: var(--ink); }
 .ask-suggest button:first-child { color: var(--ink); border-color: color-mix(in srgb, var(--signal) 55%, var(--border)); }
+/* A landing "Show me" link points at the ask bar until the viewer asks something. */
+.ask-bar.hint-ask .ask-input, .ask-bar.hint-whatif .ask-suggest button:first-child { animation: ask-hint 1.6s ease-in-out infinite; border-color: var(--signal); }
+@keyframes ask-hint { 50% { box-shadow: 0 0 0 4px color-mix(in srgb, var(--signal) 35%, transparent); } }
+@media (prefers-reduced-motion: reduce) { .ask-bar.hint-ask .ask-input, .ask-bar.hint-whatif .ask-suggest button:first-child { animation: none; box-shadow: 0 0 0 3px color-mix(in srgb, var(--signal) 35%, transparent); } }
 
 .control-room { flex: 0 0 300px; align-self: flex-start; display: flex; flex-direction: column; max-height: calc(100svh - 120px); background: #0d0c0b; border: 1px solid var(--border); border-top: 3px solid var(--signal); border-radius: 4px; font-size: 13px; animation: cr-in 0.25s ease-out; }
 @keyframes cr-in { from { opacity: 0; transform: translateX(12px); } }
