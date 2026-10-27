@@ -4,8 +4,8 @@ import type { Moment } from "./summary";
 
 const EN = {
   tagline:
-    "ChalkTalk is an AI pundit that draws on a synthetic pitch: every line lands on the word that names it, and every number links back to the tracking tool that produced it.",
-  welcomeTitle: "Welcome to ChalkTalk",
+    "Absolute Scenes is an AI pundit that draws on a synthetic pitch: every line lands on the word that names it, and every number links back to the tracking tool that produced it.",
+  welcomeTitle: "Welcome to Absolute Scenes",
   watchShow: "Watch the studio show",
   watchShowHint: "A recorded analyst breakdown, from the away side",
   watchLive: "Watch live",
@@ -14,9 +14,9 @@ const EN = {
   close: "Close",
   landing: {
     kicker: "AI football analysis for broadcast",
-    backHome: "ChalkTalk home",
+    backHome: "Absolute Scenes home",
     title: "The pundit that draws as it talks.",
-    lede: "ChalkTalk turns tracking data into a studio breakdown. An AI crew picks the moment, measures it with analytics tools, writes and voices a short script, and draws each line on the pitch at the exact word that names it. Every number links back to the tool call that measured it. Ask it about any moment, by typing or out loud, and it answers by drawing.",
+    lede: "Absolute Scenes turns tracking data into a studio breakdown. An AI crew picks the moment, measures it with analytics tools, writes and voices a short script, and draws each line on the pitch at the exact word that names it. Every number links back to the tool call that measured it. Ask it about any moment, by typing or out loud, and it answers by drawing.",
     honest: "The match is simulated and shown as a tactics board, as the hackathon rules require: no real footage, clubs or players.",
     start: "Start here",
     featuresTitle: "What to look for",
@@ -327,8 +327,8 @@ export interface TourStep {
 
 const ES: Strings = {
   tagline:
-    "ChalkTalk es un comentarista con IA que dibuja sobre un campo sintético: cada trazo cae en la palabra que lo nombra, y cada número enlaza con la herramienta de seguimiento que lo calculó.",
-  welcomeTitle: "Bienvenido a ChalkTalk",
+    "Absolute Scenes es un comentarista con IA que dibuja sobre un campo sintético: cada trazo cae en la palabra que lo nombra, y cada número enlaza con la herramienta de seguimiento que lo calculó.",
+  welcomeTitle: "Bienvenido a Absolute Scenes",
   watchShow: "Ver el programa de estudio",
   watchShowHint: "Un análisis grabado, desde el lado visitante",
   watchLive: "Ver en directo",
@@ -337,9 +337,9 @@ const ES: Strings = {
   close: "Cerrar",
   landing: {
     kicker: "Análisis de fútbol con IA para televisión",
-    backHome: "Inicio de ChalkTalk",
+    backHome: "Inicio de Absolute Scenes",
     title: "El comentarista que dibuja mientras habla.",
-    lede: "ChalkTalk convierte datos de seguimiento en un análisis de estudio. Un equipo de IA elige la jugada, la mide con herramientas de análisis, escribe y pone voz a un guion breve, y dibuja cada línea en el campo justo en la palabra que la nombra. Cada número enlaza con la llamada a la herramienta que lo midió. Pregúntale por cualquier jugada, escribiendo o en voz alta, y responde dibujando.",
+    lede: "Absolute Scenes convierte datos de seguimiento en un análisis de estudio. Un equipo de IA elige la jugada, la mide con herramientas de análisis, escribe y pone voz a un guion breve, y dibuja cada línea en el campo justo en la palabra que la nombra. Cada número enlaza con la llamada a la herramienta que lo midió. Pregúntale por cualquier jugada, escribiendo o en voz alta, y responde dibujando.",
     honest: "El partido es simulado y se muestra como una pizarra táctica, como exigen las reglas del hackathon: sin imágenes, clubes ni jugadores reales.",
     start: "Empieza aquí",
     featuresTitle: "Qué mirar",

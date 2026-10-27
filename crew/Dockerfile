@@ -1,4 +1,4 @@
-# ChalkTalk live crew: POST /ask streams NDJSON AskEvents on :8080, health at /healthz.
+# Absolute Scenes live crew: POST /ask streams NDJSON AskEvents on :8080, health at /healthz.
 # Build from the repo root:  docker build -f crew/Dockerfile -t chalktalk-ask .
 # Without CHALKTALK_ASK_BACKEND=azure it runs the fakes, so a bare container spends nothing.
 # Nothing here holds secrets; the deploy sets the endpoint, keys and managed identity.

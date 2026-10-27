@@ -60,7 +60,7 @@ jobs:
             type=raw,value=latest,enable={{is_default_branch}}
           labels: |
             org.opencontainers.image.title=chalktalk-mcp
-            org.opencontainers.image.description=ChalkTalk Analyst MCP server (synthetic data only)
+            org.opencontainers.image.description=Absolute Scenes Analyst MCP server (synthetic data only)
       - uses: docker/build-push-action@v6
         with:
           context: .

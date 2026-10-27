@@ -1,4 +1,4 @@
-// The front page a first-time visitor (or judge) lands on: what ChalkTalk is, what to look for,
+// The front page a first-time visitor (or judge) lands on: what Absolute Scenes is, what to look for,
 // and a "Show me" link per feature that opens the show at the chapter or panel that has it.
 import { Logo } from "./components/Logo";
 import type { Strings } from "./i18n";

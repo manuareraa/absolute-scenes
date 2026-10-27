@@ -1,4 +1,4 @@
-"""ChalkTalk shared contracts.
+"""Absolute Scenes shared contracts.
 
 The JSON Schemas in ``contracts/schemas`` are the source of truth. Pydantic models in
 ``chalktalk_contracts.models`` are generated from them by ``scripts/gen_contracts.sh``;

@@ -1,4 +1,4 @@
-"""ChalkTalk post-match: drawn tactical shows assembled from verified overlays."""
+"""Absolute Scenes post-match: drawn tactical shows assembled from verified overlays."""
 
 from .show import build_show, build_shows, chapter_title, match_minute
 

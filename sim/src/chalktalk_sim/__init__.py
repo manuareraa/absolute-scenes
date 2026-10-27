@@ -1,4 +1,4 @@
-"""ChalkTalk synthetic match director: seeded 25 fps tracking and events for fictional clubs."""
+"""Absolute Scenes synthetic match director: seeded 25 fps tracking and events, fictional clubs."""
 
 from .calibration import Calibration
 from .director import DEMO_BEATS, Beat, MatchConfig, config_from_meta, simulate

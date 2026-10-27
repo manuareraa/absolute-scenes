@@ -1,3 +1,3 @@
-"""ChalkTalk vision package."""
+"""Absolute Scenes vision package."""
 
 __version__ = "0.0.0"

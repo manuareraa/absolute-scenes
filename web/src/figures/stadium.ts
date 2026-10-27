@@ -106,7 +106,7 @@ export function boardTexture(): THREE.CanvasTexture {
   g.font = "700 38px 'Barlow Condensed', 'Barlow', sans-serif";
   g.textBaseline = "middle";
   g.fillStyle = "#ffd23f";
-  g.fillText("CHALKTALK", 40, 34);
+  g.fillText("ABSOLUTE SCENES", 40, 34);
   g.fillStyle = "#f3efe3";
   g.fillText("SYNTHETIC MATCH", 560, 34);
   const t = texture(c);

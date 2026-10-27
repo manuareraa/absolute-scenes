@@ -1,6 +1,6 @@
-# ChalkTalk: rules for every build session
+# Absolute Scenes: rules for every build session
 
-ChalkTalk is an AI pundit that draws on a synthetic broadcast pitch. Every stroke lands on the word that names it.
+Absolute Scenes is an AI pundit that draws on a synthetic broadcast pitch. Every stroke lands on the word that names it.
 - **Concept (locked):** `../plan/CONCEPT.md` (v5.1).
 - **Build plan:** `../plan/BUILD-PLAN.md` (v2.1).
 

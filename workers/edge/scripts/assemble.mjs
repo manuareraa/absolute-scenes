@@ -21,7 +21,7 @@ if (existsSync(web)) {
   cpSync(web, out, { recursive: true });
 } else {
   console.warn(`assemble: ${web} missing, run "npm run build" for the web app; writing a placeholder`);
-  writeFileSync(join(out, "index.html"), "<!doctype html><title>ChalkTalk</title><p>web build missing</p>\n");
+  writeFileSync(join(out, "index.html"), "<!doctype html><title>Absolute Scenes</title><p>web build missing</p>\n");
 }
 
 const ids = [];

@@ -1,4 +1,4 @@
-"""ChalkTalk crew: Director, Analyst, Pundit, Speech and Verifier, producing overlay contracts."""
+"""Absolute Scenes crew: Director, Analyst, Pundit, Speech and Verifier, making overlays."""
 
 from .config import CrewConfig
 from .crew import LENSES, SIDES, Crew, crew_from_env, fake_crew

@@ -1,7 +1,7 @@
 [project]
 name = "chalktalk-contracts"
 version = "0.0.0"
-description = "ChalkTalk shared contracts: JSON Schemas, generated Pydantic models, validation."
+description = "Absolute Scenes shared contracts: JSON Schemas, generated Pydantic models, validation."
 requires-python = ">=3.12"
 dependencies = ["pydantic>=2.8", "jsonschema>=4.23", "referencing>=0.35"]
 

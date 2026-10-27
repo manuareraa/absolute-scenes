@@ -122,7 +122,7 @@ def sync_agents(
             model=model, instructions=spec["instructions"], tools=tools or None
         )
         details = client.agents.create_version(
-            name, definition=definition, description="ChalkTalk live crew: " + name
+            name, definition=definition, description="Absolute Scenes live crew: " + name
         )
         versions[name] = str(details.version)
     return versions

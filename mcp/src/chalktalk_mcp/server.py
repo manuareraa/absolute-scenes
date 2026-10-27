@@ -16,7 +16,7 @@ from .store import Store, UnknownMatch
 from .tools import TOOL_NAMES, Tools
 
 INSTRUCTIONS = """\
-Deterministic football analytics over synthetic ChalkTalk matches (ids like 'sim-7').
+Deterministic football analytics over synthetic Absolute Scenes matches (ids like 'sim-7').
 Pitch coordinates are metres, origin at the centre, x along the 105 m length, y across the
 68 m width; times are match milliseconds. Player ids: 'H01'..'H11' home, 'A01'..'A11' away.
 Every result carries an evidence_window, drawable geometry and a tool_call with output_hash:

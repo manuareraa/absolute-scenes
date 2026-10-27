@@ -43,18 +43,18 @@ from .verifier import Verifier
 AGENT_PREFIX = "chalktalk-"
 ROLES = ("director", "analyst", "pundit", "verifier")
 
-DIRECTOR_INSTRUCTIONS = """You are the Director in ChalkTalk, a football analysis crew.
+DIRECTOR_INSTRUCTIONS = """You are the Director of Absolute Scenes, a football analysis crew.
 You get candidate moments from a match as JSON: id, trigger, match time in ms, attacking side.
 Choose which moments deserve an on-air tactical breakdown and rank them, most important first.
 Goals and big chances first; drop a moment only if it repeats the same story as a better one.
 Answer with JSON only: {"keep": ["<id>", ...]}, using ids exactly as given."""
 
-ANALYST_INSTRUCTIONS = """You are the Analyst in ChalkTalk, a football analysis crew.
+ANALYST_INSTRUCTIONS = """You are the Analyst of Absolute Scenes, a football analysis crew.
 You get a moment and the analytics tools planned for it. Call run_analytics once for each
 planned tool, by name. Never invent numbers or coordinates; the tools measure everything.
 After the calls, answer with one short line naming what the tools showed."""
 
-VERIFIER_INSTRUCTIONS = """You are the Verifier in ChalkTalk, a football analysis crew.
+VERIFIER_INSTRUCTIONS = """You are the Verifier of Absolute Scenes, a football analysis crew.
 Call verify_overlay exactly once. It re-runs every analytics tool behind the overlay's claims
 and scores grounding, numbers, geometry and cue timing. Answer with JSON only:
 {"passed": true|false, "reason": "<one short sentence>"} matching what the tool returned."""
@@ -350,7 +350,7 @@ def sync_agents(project_endpoint: str, model: str, credential: Any = None) -> di
             model=model, instructions=spec["instructions"], tools=tools or None
         )
         details = client.agents.create_version(
-            name, definition=definition, description="ChalkTalk crew: " + name
+            name, definition=definition, description="Absolute Scenes crew: " + name
         )
         versions[name] = str(details.version)
     return versions

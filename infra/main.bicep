@@ -1,4 +1,4 @@
-// ChalkTalk Azure core for the Analyst MCP server: one consumption-only Container Apps
+// Absolute Scenes Azure core for the Analyst MCP server: one consumption-only Container Apps
 // environment and the `mcp` Container App, image from GHCR. Deployed by the coordinator only
 // (see docs/notes/d-azure-deploy.md); CI only compiles this file.
 //

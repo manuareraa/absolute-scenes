@@ -1,4 +1,4 @@
-"""ChalkTalk offline evals: claim grounding, numeric tolerance and cue timing."""
+"""Absolute Scenes offline evals: claim grounding, numeric tolerance and cue timing."""
 
 from .foundry import (
     ClaimGroundednessEvaluator,

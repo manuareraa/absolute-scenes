@@ -19,7 +19,7 @@ The same Cloudflare account runs InspectMate (Workers `inspectmate-console`, `in
 | Durable Object requests | 100,000 a day | 0 (it has no DOs) |
 | Durable Object duration | 13,000 GB-s a day | 0 |
 
-ChalkTalk's cost: static assets are free. Each `/api/*` or `/ws/*` hit is one Worker request. While
+Absolute Scenes' cost: static assets are free. Each `/api/*` or `/ws/*` hit is one Worker request. While
 someone watches a match, its MatchHub alarm costs one DO request per second (3,600 per watched
 hour). The alarm stops when the last viewer leaves, when the clock is paused, and at full time.
 
@@ -31,6 +31,6 @@ It sums the whole account's usage for today and exits 1 when any limit passes 50
 (`CF_WARN=0.8` to change). It reads wrangler's OAuth token and never prints it.
 
 ## Rules
-- No Workers Paid, R2, Queues, Containers or new Workers for ChalkTalk without asking.
+- No Workers Paid, R2, Queues, Containers or new Workers for Absolute Scenes without asking.
 - Do not leave a load test or a looping demo script running against the live Worker.
 - If usage nears 50% of a limit, pause matches (`POST /api/match/:id/control {"action":"pause"}`).

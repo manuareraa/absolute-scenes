@@ -1,4 +1,4 @@
-// The ChalkTalk mark: a speech bubble with a chalk run drawn inside it (talk + telestration).
+// The Absolute Scenes mark: a speech bubble with a chalk run drawn inside it (talk + telestration).
 export function LogoMark({ size = 28 }: { size?: number }) {
   return (
     <svg className="logo-mark" width={size} height={size} viewBox="0 0 64 64" aria-hidden="true">
@@ -21,7 +21,7 @@ export function Logo({ size = 28, onClick, title }: { size?: number; onClick?():
     <>
       <LogoMark size={size} />
       <span className="wordmark">
-        Chalk<b>Talk</b>
+        Absolute <b>Scenes</b>
       </span>
     </>
   );

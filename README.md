@@ -1,6 +1,6 @@
-# ChalkTalk
+# Absolute Scenes
 
-**The AI pundit that draws as it talks.** ChalkTalk turns match tracking data into a studio breakdown. A crew of AI agents picks the moment, measures it with analytics tools, writes and voices a short script, and draws each arrow, line and zone on the pitch at the exact word that names it. Every number on screen links back to the tool call that measured it. Viewers can **ask the pundit** about any moment, typed or spoken: a live agent crew on Azure measures it, checks every number and answers by drawing on the pitch as it speaks.
+**The AI pundit that draws as it talks.** Absolute Scenes turns match tracking data into a studio breakdown. A crew of AI agents picks the moment, measures it with analytics tools, writes and voices a short script, and draws each arrow, line and zone on the pitch at the exact word that names it. Every number on screen links back to the tool call that measured it. Viewers can **ask the pundit** about any moment, typed or spoken: a live agent crew on Azure measures it, checks every number and answers by drawing on the pitch as it speaks.
 
 Built for Microsoft's "Inside the Game" hackathon. All match data is synthetic: the clubs, players and match are made up.
 
@@ -72,7 +72,7 @@ flowchart LR
 - **Cheap by design.** Tracking frames and audio are precomputed into static files. Servers carry only low-rate control messages, so the live site runs on Cloudflare's free plan.
 
 ## Microsoft and Azure technology
-| Technology | What it does in ChalkTalk |
+| Technology | What it does in Absolute Scenes |
 |---|---|
 | Microsoft Foundry: `gpt-4.1-mini` (pay per token, 20K TPM cap) | Writes the Director's picks, the Pundit's scripts and the Verifier's checks, and the live answers |
 | Foundry Agent Service + Microsoft Agent Framework | Hosts the show agents (`chalktalk-director`, `-analyst`, `-pundit`, `-verifier`) and the live ask agents (Analyst with open tool choice, Pundit, Tactician) |

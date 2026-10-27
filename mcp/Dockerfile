@@ -1,4 +1,4 @@
-# ChalkTalk Analyst MCP server (streamable HTTP on :8000, health at /healthz).
+# Absolute Scenes Analyst MCP server (streamable HTTP on :8000, health at /healthz).
 # Build from the repo root:  docker build -f mcp/Dockerfile -t chalktalk-mcp .
 # Stream D deploys it to Azure Container Apps; nothing here holds secrets.
 FROM python:3.12-slim AS build

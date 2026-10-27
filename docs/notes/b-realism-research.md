@@ -1,4 +1,4 @@
-# B: Match realism research (what makes ChalkTalk's synthetic match read as football)
+# B: Match realism research (what makes Absolute Scenes' synthetic match read as football)
 
 Date: 2026-10-23. Web research only: nothing was cloned, downloaded or run.
 Labels: **[V]** verified from a primary source I read (link given), **[I]** inferred, **[?]** unverified.

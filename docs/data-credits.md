@@ -1,6 +1,6 @@
 # Data and asset credits
 
-ChalkTalk's matches, clubs and players are synthetic and fictional. No real match footage, club names, crests or league marks are used.
+Absolute Scenes' matches, clubs and players are synthetic and fictional. No real match footage, club names, crests or league marks are used.
 
 ## Calibration only (not shipped or shown)
 - **IDSSE dataset** (Bassek et al., 2025). Official tracking and event data from seven matches. Licence: CC-BY 4.0. Data © DFL Deutsche Fußball Liga.

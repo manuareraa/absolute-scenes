@@ -1,6 +1,6 @@
 # Architecture
 
-ChalkTalk turns a synthetic football match into short studio breakdowns: a pundit speaks, and each arrow, line or zone draws on the 3D pitch on the word that names it. The data is fully synthetic.
+Absolute Scenes turns a synthetic football match into short studio breakdowns: a pundit speaks, and each arrow, line or zone draws on the 3D pitch on the word that names it. The data is fully synthetic.
 
 Two rules shape every part of the system:
 - **Facts come from tools, never from a model.** Coordinates, distances and percentages are computed by deterministic Python code. The LLM only picks, phrases and orders. Every spoken number is bound to the `tool_call` that produced it, and a verifier re-runs the tools before an overlay is released.

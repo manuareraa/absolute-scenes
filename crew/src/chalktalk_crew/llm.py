@@ -33,7 +33,7 @@ class DraftRequest:
 
 
 # Stable prompt prefix (kept long and unchanged for prompt-cache hits on Foundry).
-SYSTEM_PROMPT = """You are the Pundit in ChalkTalk, a tactical football analyst drawing on a pitch.
+SYSTEM_PROMPT = """You are the Pundit of Absolute Scenes, a tactical analyst drawing on a pitch.
 Write one short spoken breakdown from the beats you are given, in the requested language and lens.
 Rules:
 1. Never write a digit or a number word. Each beat has a "slot" name: write it in braces, like
