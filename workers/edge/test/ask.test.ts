@@ -27,6 +27,17 @@ describe("checkAsk", () => {
     expect(checkAsk({ ...good, lang: "english" }).ok).toBe(false);
     expect(checkAsk({ ...good, lens: { a: 1 } }).ok).toBe(false);
   });
+  it("keeps the viewer's dragged players, and only their spots", () => {
+    const moves = [{ player_id: "H4", x: 10.5, y: -3, extra: 1 }];
+    const r = checkAsk({ ...good, moves });
+    expect(r).toEqual({ ok: true, body: { ...good, show_id: "sim-7", moves: [{ player_id: "H4", x: 10.5, y: -3 }] } });
+  });
+  it("rejects bad moves", () => {
+    const m = (player_id: string, x = 1, y = 1) => ({ player_id, x, y });
+    for (const moves of [[], [m("H4"), m("A4")], [m("H4"), m("H4")], [m("X1")], [m("H4", 500)], [m("H1"), m("H2"), m("H3"), m("H5")], "H4", [m("H4", Number.NaN)]]) {
+      expect(checkAsk({ ...good, moves }).ok).toBe(false);
+    }
+  });
 });
 
 describe("limits", () => {

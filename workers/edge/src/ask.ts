@@ -73,7 +73,28 @@ export function checkAsk(body: unknown): { ok: true; body: Record<string, unknow
   for (const k of ["suggestion", "moment_id", "lens", "side"]) {
     if (out[k] !== undefined && (typeof out[k] !== "string" || (out[k] as string).length > 64)) return { ok: false, error: `bad ${k}` };
   }
+  if (b.moves !== undefined) {
+    const moves = checkMoves(b.moves);
+    if (!moves) return { ok: false, error: "bad moves" };
+    out.moves = moves;
+  }
   return { ok: true, body: out };
+}
+
+/** "You be the tactician": 1..3 dragged players of one team, each a target spot on the pitch. Only these fields pass. */
+function checkMoves(raw: unknown): { player_id: string; x: number; y: number }[] | null {
+  if (!Array.isArray(raw) || raw.length < 1 || raw.length > 3) return null;
+  const out = [];
+  for (const m of raw) {
+    if (!m || typeof m !== "object") return null;
+    const { player_id, x, y } = m as Record<string, unknown>;
+    if (typeof player_id !== "string" || !/^[HA]\d{1,2}$/.test(player_id)) return null;
+    if (typeof x !== "number" || typeof y !== "number" || !Number.isFinite(x) || !Number.isFinite(y) || Math.abs(x) > 60 || Math.abs(y) > 40) return null;
+    out.push({ player_id, x, y });
+  }
+  const ids = out.map((m) => m.player_id);
+  if (new Set(ids).size !== ids.length || new Set(ids.map((i) => i[0])).size !== 1) return null;
+  return out;
 }
 
 /** SHA-256 of the viewer's IP, shortened: enough to tell viewers apart, not to recover the address. */
