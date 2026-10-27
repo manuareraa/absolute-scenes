@@ -1,6 +1,7 @@
 """The live crew (Ask the pundit) with fake agents, fake Speech and fake Content Safety."""
 
 import json
+import math
 import time
 
 import pytest
@@ -472,3 +473,72 @@ def test_digits_with_a_spelled_percent_pass_but_number_words_are_sent_back():
     assert verify.check(text, [pc], "es-ES").ok
     words = verify.check("Es del cincuenta y cinco por ciento.", [pc], "es-ES")
     assert not words.ok and "55%" in words.feedback()
+
+
+def _a_home_player(tools):
+    fr = tools.frame("sim-11", 40_000)["details"]["frame"]
+    p = next(p for p in fr["players"] if p["team"] == "home" and abs(p["y"]) > 2)
+    return fr, p
+
+
+def test_the_viewers_idea_is_judged_by_the_critic(tools):
+    fr, p = _a_home_player(tools)
+    # Across the pitch only (no back_m), so the scripted what_if says it helps.
+    target = {"player_id": p["id"], "x": p["x"], "y": p["y"] - math.copysign(4.0, p["y"])}
+    req = AskRequest.from_json(
+        {"show_id": SHOW, "match_tc": 40_000, "question": "Test my idea", "moves": [target]}
+    )
+    crew = make_crew(tools, runner=NoTactician())
+    by = check_stream(crew.ask(req))
+    cfs = [e["counterfactual"] for e in by["counterfactual"]]
+    assert len(cfs) == 1 and cfs[0]["accepted"]
+    assert cfs[0]["proposal"].startswith("The viewer's idea: home number")
+    call = next(e["tool"] for e in by["tool"] if e["tool"]["name"] == "what_if")
+    move = call["args"]["moves"][0]
+    assert move["player_id"] == p["id"] and move["back_m"] == 0.0 and move["infield_m"] == 4.0
+    ov = by["overlay"][0]["overlay"]
+    assert "Your idea works" in ov["script"]["text"] and ov["gate"]["passed"]
+
+
+def test_a_rejected_idea_is_still_spoken_in_spanish(tools):
+    fr, p = _a_home_player(tools)
+    # 30 m along the pitch: capped to 10 m, and back_m makes the scripted what_if worse.
+    target = {"player_id": p["id"], "x": p["x"] + 30.0, "y": p["y"]}
+    req = AskRequest.from_json(
+        {
+            "show_id": SHOW,
+            "match_tc": 40_000,
+            "question": "Prueba mi idea",
+            "lang": "es-ES",
+            "moves": [target],
+        }
+    )
+    by = check_stream(make_crew(tools, runner=NoTactician()).ask(req))
+    cfs = [e["counterfactual"] for e in by["counterfactual"]]
+    assert len(cfs) == 1 and not cfs[0]["accepted"]
+    assert cfs[0]["proposal"].startswith("La idea del espectador: el número")
+    move = next(e["tool"] for e in by["tool"] if e["tool"]["name"] == "what_if")["args"]["moves"][0]
+    assert abs(move["back_m"]) == 10.0
+    text = by["overlay"][0]["overlay"]["script"]["text"]
+    assert "Tu idea no mejora la jugada" in text and "41" in text and "39" in text
+
+
+@pytest.mark.parametrize(
+    "moves",
+    [
+        [{"player_id": "H4", "x": 1, "y": 1}, {"player_id": "A4", "x": 1, "y": 1}],
+        [{"player_id": "H4", "x": 1, "y": 1}, {"player_id": "H4", "x": 2, "y": 1}],
+        [{"player_id": "X4", "x": 1, "y": 1}],
+        [{"player_id": "H4", "x": 500, "y": 1}],
+        [{"player_id": f"H{i}", "x": 1, "y": 1} for i in range(1, 5)],
+    ],
+)
+def test_bad_moves_are_refused(moves):
+    with pytest.raises(ValueError):
+        AskRequest.from_json({"show_id": SHOW, "match_tc": 0, "question": "x", "moves": moves})
+
+
+class NoTactician(FakeAskRunner):
+    def run(self, role, prompt, toolbox=None):  # noqa: ANN001, ANN201
+        assert role != "ask-tactician", "the viewer's idea needs no Tactician"
+        return super().run(role, prompt, toolbox)

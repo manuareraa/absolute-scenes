@@ -20,6 +20,7 @@ import contextlib
 import hashlib
 import json
 import logging
+import math
 import queue
 import re
 import threading
@@ -32,6 +33,7 @@ from dataclasses import dataclass, field
 from typing import Any
 
 from chalktalk_contracts import validate
+from chalktalk_core.geometry import attack_sign
 
 from ..lang import get_lang, voice_for
 from ..script import render
@@ -86,6 +88,23 @@ CF_INTRO = {
     "en": "Better: [[{cue}]] {who} {verb} over, and {metric} goes from {before} to {after}.",
     "es": "Mejor: si [[{cue}]] {who} {verb}, {metric} pasa de {before} a {after}.",
 }
+# The viewer's own idea is answered kept or not: the Critic's verdict is the point.
+CF_MINE = {
+    "en": {
+        True: "Your idea works: [[{cue}]] {who} {verb} over, and {metric} goes from {before} "
+        "to {after}.",
+        False: "Your idea does not help: when [[{cue}]] {who} {verb} over, {metric} goes from "
+        "{before} to {after}.",
+    },
+    "es": {
+        True: "Tu idea funciona: si [[{cue}]] {who} {verb}, {metric} pasa de {before} a {after}.",
+        False: "Tu idea no mejora la jugada: si [[{cue}]] {who} {verb}, {metric} pasa de "
+        "{before} a {after}.",
+    },
+}
+MAX_MINE = 3  # what_if moves at most 3 players
+MINE_SHIFT_M = 10.0  # and each by at most 10 m
+PLAYER_ID = re.compile(r"^[HA]\d{1,2}$")
 WHO = {"en": ("{team} number {n}", " and "), "es": ("el número {n} {team}", " y ")}
 VERB = {"en": ("moves", "move"), "es": ("se mueve", "se mueven")}
 TEAM = {"en": {"home": "home", "away": "away"}, "es": {"home": "local", "away": "visitante"}}
@@ -97,6 +116,9 @@ STEPS = {
         "moment": "Moment at {clock}: {team} on the ball.",
         "explain": "Explain it.",
         "explain_cf": "Explain it, then test a better option.",
+        "explain_mine": "Explain it, then test the viewer's idea.",
+        "mine": "The viewer's idea: {moves}.",
+        "mine_move": "{who} {dist:.0f} m",
         "choose": "Choosing which tools to run.",
         "analyst_down": "Agent unavailable ({err}); using the default tools.",
         "write": "Writing the answer.",
@@ -120,6 +142,9 @@ STEPS = {
         "moment": "Jugada en el {clock}: el balón es del equipo {team}.",
         "explain": "Explicarla.",
         "explain_cf": "Explicarla y probar una opción mejor.",
+        "explain_mine": "Explicarla y probar la idea del espectador.",
+        "mine": "La idea del espectador: {moves}.",
+        "mine_move": "{who} {dist:.0f} m",
         "choose": "Eligiendo qué herramientas ejecutar.",
         "analyst_down": "Agente no disponible ({err}); se usan las herramientas por defecto.",
         "write": "Escribiendo la respuesta.",
@@ -246,6 +271,8 @@ class AskRequest:
     lens: str = "casual"
     side: str = "neutral"
     lang: str = "en-GB"
+    # The viewer's own idea: (player_id, x, y) targets in pitch metres, "You be the tactician".
+    moves: tuple[tuple[str, float, float], ...] = ()
 
     @classmethod
     def from_json(cls, body: dict[str, Any]) -> AskRequest:
@@ -261,6 +288,7 @@ class AskRequest:
             lens=lens,
             side=side,
             lang=lang,
+            moves=_moves(body.get("moves")),
         )
 
     @property
@@ -272,7 +300,35 @@ class AskRequest:
 
     def cache_key(self) -> tuple[Any, ...]:
         q = re.sub(r"[^\w\s]", "", self.question.lower())
-        return (self.show_id, self.match_tc, " ".join(q.split()), self.lens, self.side, self.lang)
+        return (
+            self.show_id,
+            self.match_tc,
+            " ".join(q.split()),
+            self.lens,
+            self.side,
+            self.lang,
+            self.moves,
+        )
+
+
+def _moves(raw: Any) -> tuple[tuple[str, float, float], ...]:
+    """The viewer's dragged players, checked: 1..3 players of one team, finite coordinates."""
+    if not raw:
+        return ()
+    if not isinstance(raw, list) or len(raw) > MAX_MINE:
+        raise ValueError(f"moves: give 1..{MAX_MINE} players")
+    out = []
+    for m in raw:
+        pid = str(m.get("player_id") or "") if isinstance(m, dict) else ""
+        if not PLAYER_ID.match(pid):
+            raise ValueError("moves: bad player_id")
+        x, y = float(m["x"]), float(m["y"])
+        if not (math.isfinite(x) and math.isfinite(y) and abs(x) <= 60 and abs(y) <= 40):
+            raise ValueError("moves: x or y off the pitch")
+        out.append((pid, round(x, 2), round(y, 2)))
+    if len({p[0] for p in out}) != len(out) or len({p[0][0] for p in out}) != 1:
+        raise ValueError("moves: each player once, all from one team")
+    return tuple(out)
 
 
 class Cancelled(RuntimeError):
@@ -313,6 +369,8 @@ class Counterfactual:
     call: Call
     proposal: str
     team: str
+    accepted: bool = True
+    mine: bool = False  # the viewer's idea, spoken kept or not
 
 
 @dataclass
@@ -480,25 +538,29 @@ class AskCrew:
             box.on_call = on_call
             ctx = self._moment(box, req)
             moment["t"] = ctx["t"]
-            wants_cf = bool(WHAT_IF_INTENT.search(req.question))
+            wants_cf = bool(req.moves) or bool(WHAT_IF_INTENT.search(req.question))
             lng = "es" if req.lang.startswith("es") else "en"
+            plan = "explain_mine" if req.moves else "explain_cf" if wants_cf else "explain"
             emit.step(
                 "director",
                 step_text(req.lang, "moment", clock=ctx["clock"], team=TEAM[lng][ctx["attacking"]])
                 + " "
-                + step_text(req.lang, "explain_cf" if wants_cf else "explain"),
+                + step_text(req.lang, plan),
             )
             self._analyse(req, box, ctx, emit)
             # The Tactician's first proposal needs only the analysis, so it is drafted while the
             # Pundit writes (one Foundry round trip saved on "what should they have done").
             first = None
-            if wants_cf and "what_if" in box.available:
+            if wants_cf and not req.moves and "what_if" in box.available:
                 pool = ThreadPoolExecutor(1, thread_name_prefix="ask-tactician")
                 first = pool.submit(self._propose, req, ctx, "")
                 pool.shutdown(wait=False)
             ans = self._write(req, box, ctx, emit)
             box.max_calls = MAX_CALLS
-            cf = self._counterfactual(req, box, ctx, emit, first) if wants_cf else None
+            if req.moves:
+                cf = self._mine(req, box, ctx, emit)
+            else:
+                cf = self._counterfactual(req, box, ctx, emit, first) if wants_cf else None
             overlay, audio_url = self._overlay(req, box, ans, cf, ctx)
             emit.step(
                 "verifier",
@@ -779,6 +841,90 @@ class AskCrew:
             feedback = f"rejected: {worse}"[:200]
         return None
 
+    def _mine(
+        self, req: AskRequest, box: ToolBox, ctx: dict[str, Any], emit: Emitter
+    ) -> Counterfactual | None:
+        """'You be the tactician': the viewer dragged players; the Critic judges their idea with
+        the same re-run and the same rule as the Tactician's. No model proposes anything."""
+        if "what_if" not in box.available:
+            emit.step("critic", step_text(req.lang, "no_what_if"))
+            return None
+        lng = "es" if req.lang.startswith("es") else "en"
+        team = "home" if req.moves[0][0].startswith("H") else "away"
+        try:
+            moves, said = self._offsets(box.match_id, ctx["t"], team, req.moves)
+        except ValueError:
+            emit.step("critic", step_text(req.lang, "unusable"))
+            return None
+        fmt, joiner = WHO[lng]
+        proposal = step_text(
+            req.lang,
+            "mine",
+            moves=joiner.join(
+                step_text(
+                    req.lang,
+                    "mine_move",
+                    who=fmt.format(team=TEAM[lng][team], n=int(pid[1:])),
+                    dist=dist,
+                )
+                for pid, dist in said
+            ),
+        )[:200]
+        emit.step("tactician", proposal)
+        emit.step("critic", step_text(req.lang, "rerun"))
+        try:
+            call = box.call("what_if", {"t": ctx["t"], "team": team, "moves": moves})
+        except ToolCapReached:
+            emit.step("critic", step_text(req.lang, "out_of_calls"))
+            return None
+        details = call.out["details"]
+        accepted = bool(details["improved"]) and not details["worse"]
+        self.stats.proposals += 1
+        self.stats.accepted += int(accepted)
+        metrics = [
+            {"name": name, "before": m["before"], "after": m["after"], "tool_call": call.id}
+            for name, m in details["metrics"].items()
+        ]
+        emit(
+            "counterfactual",
+            agent="critic",
+            counterfactual={"proposal": proposal, "accepted": accepted, "metrics": metrics},
+        )
+        if not details["metrics"]:
+            return None
+        return Counterfactual(call, proposal, team, accepted=accepted, mine=True)
+
+    def _offsets(
+        self, match_id: str, t: int, team: str, targets: tuple[tuple[str, float, float], ...]
+    ) -> tuple[list[dict[str, Any]], list[tuple[str, float]]]:
+        """Target spots -> what_if's own terms. 'Back' runs along the pitch towards the team's own
+        goal and 'infield' across it towards the middle, so any drag splits exactly into the
+        two (capped at 10 m, as the tool caps it)."""
+        fr = self.tools.frame(match_id, t)["details"]["frame"]
+        at = {p["id"]: p for p in fr["players"]}
+        sign = attack_sign(team, int(fr["period"]))
+        moves, said = [], []
+        for pid, x, y in targets:
+            p = at.get(pid)
+            if p is None:
+                raise ValueError(f"{pid} is not on the pitch at this moment")
+            dx, dy = x - p["x"], y - p["y"]
+            dist = math.hypot(dx, dy)
+            if dist > MINE_SHIFT_M:
+                dx, dy = dx * MINE_SHIFT_M / dist, dy * MINE_SHIFT_M / dist
+                dist = MINE_SHIFT_M
+            side = math.copysign(1.0, p["y"]) if abs(p["y"]) > 0.5 else 0.0
+            moves.append(
+                {
+                    "player_id": pid,
+                    "back_m": round(-sign * dx, 2),
+                    "infield_m": round(-side * dy, 2),
+                    "to_ball_m": 0.0,
+                }
+            )
+            said.append((pid, dist))
+        return moves, said
+
     # --- the overlay -------------------------------------------------------------------------
 
     def _overlay(
@@ -911,8 +1057,10 @@ class AskCrew:
     def _cf_sentence(self, cf: Counterfactual, lang: str, add_claim: Callable[..., str]) -> str:
         lang = lang if lang in CF_INTRO else "en"
         details = cf.call.out["details"]
+        # Kept: the biggest gain. Not kept: the biggest loss, else the biggest change.
+        pool = details["improved"] if cf.accepted else details["worse"] or list(details["metrics"])
         name = max(
-            details["improved"],
+            pool,
             key=lambda n: abs(details["metrics"][n]["after"] - details["metrics"][n]["before"]),
         )
         m = details["metrics"][name]
@@ -924,7 +1072,8 @@ class AskCrew:
         )
         before = add_claim(cf.call, m["before"], unit, verify.say(m["before"], unit, lang))
         after = add_claim(cf.call, m["after"], unit, verify.say(m["after"], unit, lang))
-        return CF_INTRO[lang].format(
+        template = CF_MINE[lang][cf.accepted] if cf.mine else CF_INTRO[lang]
+        return template.format(
             who=who,
             verb=VERB[lang][len(details["moves"]) > 1],
             cue=cf.call.id,
