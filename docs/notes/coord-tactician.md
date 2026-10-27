@@ -24,3 +24,6 @@ After "Test my idea", a card under the pitch shows the viewer's result and a "Ca
 - EN, same moment, away #5 and #4 pushed up: viewer dropped, 0 net (pitch control 0.71 → 0.65, line gap 11.3 m → 9.2 m). Tactician dropped, −1 net. Card: "You beat the Tactician".
 
 The Tactician's proposal differs from run to run, so the winner can change.
+
+## Player names (Oct 27, crew `sha-8a0102b`)
+Player ids carry the shirt number, so the crew rewrites them for viewers: "A01 should press H09" becomes "Saltmere's number 1 should press Northbridge's number 9" (`named` in `crew.py`). This covers the Tactician's proposal, the viewer's idea and the spoken what-if line. Checked live in EN on moment 1.
