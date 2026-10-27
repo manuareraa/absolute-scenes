@@ -169,11 +169,13 @@ export interface StudioState {
   message: string | null;
   cached: boolean;
   traceId: string | null;
+  /** The stream has ended (done, refusal or error). */
+  finished: boolean;
   /** The tools' geometry so far, drawn at once while the crew thinks; the answer replaces it. */
   sketch: Overlay | null;
 }
 
-export const idleStudio: StudioState = { phase: "idle", question: "", source: "live", rows: [], active: null, overlay: null, counterfactual: null, message: null, cached: false, traceId: null, sketch: null };
+export const idleStudio: StudioState = { phase: "idle", question: "", source: "live", rows: [], active: null, overlay: null, counterfactual: null, message: null, cached: false, traceId: null, finished: false, sketch: null };
 
 export function startStudio(question: string, source: AskSource): StudioState {
   return { ...idleStudio, phase: "thinking", question, source };
@@ -209,11 +211,11 @@ export function studioReduce(st: StudioState, ev: AskEvent): StudioState {
       return { ...st, phase: "answering", active: "pundit", overlay };
     }
     case "refusal":
-      return { ...st, phase: "refused", active: null, message: ev.text ?? "" };
+      return { ...st, phase: "refused", active: null, finished: true, message: ev.text ?? "" };
     case "error":
-      return { ...st, phase: "error", active: null, message: ev.text ?? "" };
+      return { ...st, phase: "error", active: null, finished: true, message: ev.text ?? "" };
     case "done":
-      return { ...st, phase: st.phase === "thinking" ? (st.overlay ? "answering" : "error") : st.phase, active: st.overlay ? st.active : null, cached: ev.cached ?? false, traceId: ev.trace_id ?? null };
+      return { ...st, phase: st.phase === "thinking" ? (st.overlay ? "answering" : "error") : st.phase, active: st.overlay ? st.active : null, cached: ev.cached ?? false, traceId: ev.trace_id ?? null, finished: true };
   }
 }
 

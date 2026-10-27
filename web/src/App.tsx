@@ -22,9 +22,9 @@ import { Tour, tourSeen } from "./Tour";
 import { catchUpAt } from "./catchup";
 import { eventStats, ingest, involves, loadMyPlayer, playerLabel, rosterOf, saveMyPlayer, statsUpTo, type MatchEvent, type RosterPlayer, type Track, type TrackStats } from "./myplayer";
 import { keepConnected, matchWsUrl, type SourceMode } from "./ws";
-import { askMode, suggestionsFor, type SuggestionKey } from "./ask";
+import { askMode, suggestionsFor, type Counterfactual, type SuggestionKey } from "./ask";
 import { useAsk } from "./studio/useAsk";
-import { AskBar, ControlRoom, WhatIf } from "./studio/Studio";
+import { AskBar, ControlRoom, Duel, WhatIf } from "./studio/Studio";
 
 type Surface = Overlay["surface"];
 type Lens = Overlay["lens"];
@@ -117,6 +117,8 @@ export function App() {
   const [playing, setPlaying] = useState(true);
   // "Be the tactician": the paused moment and where the viewer dragged players.
   const [tactic, setTactic] = useState<{ t: number; moves: Record<string, Vec> } | null>(null);
+  // "You vs the Tactician": the viewer's tested idea, then the Tactician's on the same moment and team.
+  const [duel, setDuel] = useState<{ t: number; team: string; mine: Counterfactual | null; ai: Counterfactual | null; stage: "mine" | "ready" | "ai" | "done" } | null>(null);
   const [view, setView] = useState<View>(START_VIEW);
   const [landing, setLanding] = useState(LANDING);
   // A "Show me" link from the front page, applied once the show has loaded.
@@ -471,6 +473,7 @@ export function App() {
     if (asking) studio.stop();
     studio.pauseShow();
     setPlaying(false);
+    setDuel(null);
     setTactic({ t: Math.round(matchT), moves: {} });
   };
   const testTactic = () => {
@@ -478,12 +481,31 @@ export function App() {
     const moves = Object.entries(tactic.moves).map(([player_id, [x, y]]) => ({ player_id, x, y }));
     if (!moves.length) return;
     setTactic(null);
+    const team = frame?.players.find((p) => p.id === moves[0].player_id)?.team;
+    setDuel(team === "home" || team === "away" ? { t: tactic.t, team, mine: null, ai: null, stage: "mine" } : null);
     studio.ask({ question: s.ask.tactic.question, match_id: shownMatch, match_tc: tactic.t, lang, lens, side, moves });
   };
+  const challenge = () => {
+    if (!duel || !shownMatch) return;
+    setDuel({ ...duel, stage: "ai" });
+    studio.ask({ question: s.ask.duel.question(s.teams[duel.team]), match_id: shownMatch, match_tc: duel.t, lang, lens, side });
+  };
+  // Each side's result is the Critic's verdict once that answer's stream has ended.
+  useEffect(() => {
+    if (!duel || !studio.state.finished) return;
+    const asked = duel.stage === "mine" ? s.ask.tactic.question : duel.stage === "ai" ? s.ask.duel.question(s.teams[duel.team]) : null;
+    if (asked === null || studio.state.question !== asked) return;
+    const cf = studio.state.counterfactual;
+    setDuel(duel.stage === "mine" ? (cf ? { ...duel, mine: cf, stage: "ready" } : null) : { ...duel, ai: cf, stage: "done" });
+  }, [studio.state.finished, studio.state.question, duel?.stage]);
   // Playing on or seeking leaves the moment the idea was drawn on.
   useEffect(() => {
     if (playing) setTactic(null);
+    if (playing) setDuel(null);
   }, [playing]);
+  useEffect(() => {
+    if (studio.state.phase === "idle") setDuel(null);
+  }, [studio.state.phase]);
 
   // My player: totals from the frames on screen (recorded) or received (live), never estimated.
   const names = shownMatch === MATCH_ID ? roster : undefined;
@@ -660,6 +682,9 @@ export function App() {
                   <button onClick={() => setTactic(null)}>{s.ask.tactic.cancel}</button>
                 </div>
               </div>
+            )}
+            {duel && duel.stage !== "mine" && !replaying && !summing && (
+              <Duel mine={duel.mine} ai={duel.ai} stage={duel.stage} onChallenge={challenge} s={s} lang={lang} />
             )}
             {answer && studio.state.counterfactual && !replaying && !summing && (
               <WhatIf cf={studio.state.counterfactual} overlay={answer} audioMs={audioMs} s={s} lang={lang} />

@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import type { Overlay } from "@chalktalk/contracts";
 import type { Agent, Counterfactual, Metric, Row, StudioState, SuggestionKey } from "../ask";
+import { duelWinner } from "../duel";
 import { num, type Strings } from "../i18n";
 import { listen, canRecord, type Listening, type VoiceProblem } from "./voice";
 import "./studio.css";
@@ -313,6 +314,54 @@ export function WhatIf({ cf, overlay, audioMs, s, lang }: { cf: Counterfactual; 
         ))}
       </div>
       <p className="what-if-verdict">{cf.accepted ? s.ask.helps : s.ask.noHelp}</p>
+    </div>
+  );
+}
+
+/** "You vs the Tactician": the viewer's idea and the Tactician's, each judged by the same Critic. */
+export function Duel(props: { mine: Counterfactual | null; ai: Counterfactual | null; stage: "ready" | "ai" | "done"; onChallenge: () => void; s: Strings; lang: string }) {
+  const { mine, ai, stage, s, lang } = props;
+  const d = s.ask.duel;
+  const side = (who: string, cf: Counterfactual | null, pending: boolean) => (
+    <div className={`duel-side ${cf ? (cf.accepted ? "ok" : "rejected") : ""}`}>
+      <small>{who}</small>
+      {pending ? (
+        <p className="duel-wait">{d.thinking}</p>
+      ) : cf ? (
+        <>
+          <p>{cf.proposal}</p>
+          <div className="what-if-chips">
+            {cf.metrics.map((m) => (
+              <MetricChip key={m.name} m={m} s={s} lang={lang} />
+            ))}
+          </div>
+          <p className="duel-score">
+            {cf.accepted ? d.kept : d.dropped} · {d.net(cf.net ?? 0)}
+          </p>
+        </>
+      ) : (
+        <p>{d.none}</p>
+      )}
+    </div>
+  );
+  const winner = stage === "done" ? duelWinner(mine, ai) : null;
+  return (
+    <div className="duel-card" role="status" aria-label={d.title}>
+      <p className="duel-title">
+        <b>{d.title}</b>
+        {winner && <span className={`duel-verdict ${winner}`}>{winner === "you" ? d.you_win : winner === "ai" ? d.ai_wins : d.draw}</span>}
+      </p>
+      <div className="duel-cols">
+        {side(d.you, mine, false)}
+        {stage === "ready" ? (
+          <button className="primary duel-go" onClick={props.onChallenge}>
+            {d.challenge}
+          </button>
+        ) : (
+          side(d.ai, ai, stage === "ai")
+        )}
+      </div>
+      {winner && <p className="duel-rule">{d.rule}</p>}
     </div>
   );
 }

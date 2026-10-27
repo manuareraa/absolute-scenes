@@ -121,3 +121,21 @@
 .tactic-actions button { border: 1px solid var(--border); border-radius: 99px; padding: 3px 12px; background: transparent; color: var(--ink); }
 .tactic-actions button.primary { border-color: var(--signal); background: color-mix(in srgb, var(--signal) 30%, transparent); font-weight: 600; }
 .tactic-actions button:disabled { opacity: 0.5; }
+
+/* "You vs the Tactician": under the pitch, like the tactician card. */
+.duel-card { margin-top: 6px; background: #0d0c0be6; border-left: 4px solid var(--stroke-ghost); padding: 6px 10px; border-radius: 3px; animation: cr-in 0.3s ease-out; }
+.duel-title { margin: 0 0 4px; display: flex; flex-wrap: wrap; gap: 8px; align-items: baseline; }
+.duel-verdict { font: 700 12px var(--font-display); text-transform: uppercase; letter-spacing: 0.08em; }
+.duel-verdict.you { color: var(--ok-ink); }
+.duel-verdict.ai { color: #ff8a8d; }
+.duel-cols { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; align-items: start; }
+.duel-side { border-top: 2px solid #ffffff33; padding-top: 4px; }
+.duel-side.ok { border-top-color: var(--ok-ink); }
+.duel-side.rejected { border-top-color: #ff8a8d; }
+.duel-side small { color: var(--stroke-ghost); font: 700 11px var(--font-display); text-transform: uppercase; letter-spacing: 0.08em; }
+.duel-side p { margin: 2px 0; }
+.duel-score { font: 700 11px var(--font-display); text-transform: uppercase; letter-spacing: 0.08em; }
+.duel-wait { opacity: 0.75; font-style: italic; }
+.duel-go { align-self: center; justify-self: start; }
+.duel-rule { margin: 4px 0 0; font-size: 11px; opacity: 0.7; }
+@media (max-width: 560px) { .duel-cols { grid-template-columns: 1fr; } }
