@@ -136,6 +136,6 @@
 .duel-side p { margin: 2px 0; }
 .duel-score { font: 700 11px var(--font-display); text-transform: uppercase; letter-spacing: 0.08em; }
 .duel-wait { opacity: 0.75; font-style: italic; }
-.duel-go { align-self: center; justify-self: start; }
+.duel-go { align-self: center; justify-self: start; background: var(--signal); border-color: var(--signal); color: #17140c; font-weight: 600; }
 .duel-rule { margin: 4px 0 0; font-size: 11px; opacity: 0.7; }
 @media (max-width: 560px) { .duel-cols { grid-template-columns: 1fr; } }
