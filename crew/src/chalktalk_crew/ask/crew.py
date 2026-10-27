@@ -34,6 +34,7 @@ from typing import Any
 
 from chalktalk_contracts import validate
 from chalktalk_core.geometry import attack_sign
+from chalktalk_sim.teams import CLUBS
 
 from ..lang import get_lang, voice_for
 from ..script import render
@@ -108,7 +109,20 @@ MAX_MINE = 3  # what_if moves at most 3 players
 MINE_QUESTION = {"en": "What happened in this moment?", "es": "¿Qué pasó en esta jugada?"}
 MINE_SHIFT_M = 10.0  # and each by at most 10 m
 PLAYER_ID = re.compile(r"^[HA]\d{1,2}$")
-WHO = {"en": ("{team} number {n}", " and "), "es": ("el número {n} {team}", " y ")}
+WHO = {"en": ("{team}'s number {n}", " and "), "es": ("el número {n} de {team}", " y ")}
+CLUB = {key: club.name.split()[0] for key, club in CLUBS.items()}  # "Northbridge", "Saltmere"
+# A player id the Tactician wrote into its proposal ("A01"); ids carry the shirt number.
+ID_IN_TEXT = re.compile(r"\b([HA])(\d{1,2})\b")
+
+
+def named(text: str, lang: str) -> str:
+    """Player ids in text, as viewers see them: "A01" -> "Saltmere's number 1"."""
+    fmt = WHO["es" if lang.startswith("es") else "en"][0]
+    return ID_IN_TEXT.sub(
+        lambda m: fmt.format(team=CLUB["home" if m[1] == "H" else "away"], n=int(m[2])), text
+    )
+
+
 VERB = {"en": ("moves", "move"), "es": ("se mueve", "se mueven")}
 TEAM = {"en": {"home": "home", "away": "away"}, "es": {"home": "local", "away": "visitante"}}
 # The control room's step lines, in the viewer's language.
@@ -120,8 +134,8 @@ STEPS = {
         "explain": "Explain it.",
         "explain_cf": "Explain it, then test a better option.",
         "explain_mine": "Explain it, then test the viewer's idea.",
-        "mine": "The viewer's idea: {moves}.",
-        "mine_move": "{who} {dist:.0f} m",
+        "mine": "The viewer's idea: move {moves}.",
+        "mine_move": "{who} ({dist:.0f} m)",
         "choose": "Choosing which tools to run.",
         "analyst_down": "Agent unavailable ({err}); using the default tools.",
         "write": "Writing the answer.",
@@ -146,8 +160,8 @@ STEPS = {
         "explain": "Explicarla.",
         "explain_cf": "Explicarla y probar una opción mejor.",
         "explain_mine": "Explicarla y probar la idea del espectador.",
-        "mine": "La idea del espectador: {moves}.",
-        "mine_move": "{who} {dist:.0f} m",
+        "mine": "La idea del espectador: mover {moves}.",
+        "mine_move": "{who} ({dist:.0f} m)",
         "choose": "Eligiendo qué herramientas ejecutar.",
         "analyst_down": "Agente no disponible ({err}); se usan las herramientas por defecto.",
         "write": "Escribiendo la respuesta.",
@@ -800,6 +814,7 @@ class AskCrew:
                 plan = _json(drafted or self._propose(req, ctx, feedback))
                 team, moves = plan["team"], plan["moves"]
                 proposal = str(plan.get("proposal") or "a change of position")[:200]
+                proposal = named(proposal, req.lang)
                 emit.step("critic", step_text(req.lang, "rerun"))
                 call = box.call("what_if", {"t": ctx["t"], "team": team, "moves": moves})
             except Cancelled:
@@ -873,7 +888,7 @@ class AskCrew:
                 step_text(
                     req.lang,
                     "mine_move",
-                    who=fmt.format(team=TEAM[lng][team], n=int(pid[1:])),
+                    who=fmt.format(team=CLUB[team], n=int(pid[1:])),
                     dist=dist,
                 )
                 for pid, dist in said
@@ -1080,9 +1095,8 @@ class AskCrew:
         m = details["metrics"][name]
         unit = CF_UNITS[name]
         fmt, joiner = WHO[lang]
-        team = TEAM[lang][cf.team]
         who = joiner.join(
-            fmt.format(team=team, n=int(mv["player_id"][1:])) for mv in details["moves"]
+            fmt.format(team=CLUB[cf.team], n=int(mv["player_id"][1:])) for mv in details["moves"]
         )
         before = add_claim(cf.call, m["before"], unit, verify.say(m["before"], unit, lang))
         after = add_claim(cf.call, m["after"], unit, verify.say(m["after"], unit, lang))

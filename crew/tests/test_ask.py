@@ -492,7 +492,7 @@ def test_the_viewers_idea_is_judged_by_the_critic(tools):
     by = check_stream(crew.ask(req))
     cfs = [e["counterfactual"] for e in by["counterfactual"]]
     assert len(cfs) == 1 and cfs[0]["accepted"]
-    assert cfs[0]["proposal"].startswith("The viewer's idea: home number")
+    assert cfs[0]["proposal"].startswith("The viewer's idea: move Northbridge's number")
     assert cfs[0]["net"] > 0  # what the "You vs the Tactician" card ranks on
     call = next(e["tool"] for e in by["tool"] if e["tool"]["name"] == "what_if")
     move = call["args"]["moves"][0]
@@ -517,7 +517,7 @@ def test_a_rejected_idea_is_still_spoken_in_spanish(tools):
     by = check_stream(make_crew(tools, runner=NoTactician()).ask(req))
     cfs = [e["counterfactual"] for e in by["counterfactual"]]
     assert len(cfs) == 1 and not cfs[0]["accepted"]
-    assert cfs[0]["proposal"].startswith("La idea del espectador: el número")
+    assert cfs[0]["proposal"].startswith("La idea del espectador: mover el número")
     move = next(e["tool"] for e in by["tool"] if e["tool"]["name"] == "what_if")["args"]["moves"][0]
     assert abs(move["back_m"]) == 10.0
     text = by["overlay"][0]["overlay"]["script"]["text"]
@@ -545,3 +545,13 @@ class NoTactician(FakeAskRunner):
         # Only the Critic judges the idea; the Pundit explains the moment without guessing.
         assert "my idea" not in prompt and "mi idea" not in prompt
         return super().run(role, prompt, toolbox)
+
+
+def test_named_turns_player_ids_into_club_and_shirt():
+    from chalktalk_crew.ask.crew import named
+
+    assert named("A01 should press H09.", "en-GB") == (
+        "Saltmere's number 1 should press Northbridge's number 9."
+    )
+    assert named("A10 debería cerrar.", "es-ES") == "el número 10 de Saltmere debería cerrar."
+    assert named("Hold the line at 4 m.", "en-GB") == "Hold the line at 4 m."
