@@ -831,7 +831,12 @@ class AskCrew:
             emit(
                 "counterfactual",
                 agent="critic",
-                counterfactual={"proposal": proposal, "accepted": accepted, "metrics": metrics},
+                counterfactual={
+                    "proposal": proposal,
+                    "accepted": accepted,
+                    "metrics": metrics,
+                    "net": len(details["improved"]) - len(details["worse"]),
+                },
             )
             if accepted:
                 return Counterfactual(call, proposal, team)
@@ -892,7 +897,12 @@ class AskCrew:
         emit(
             "counterfactual",
             agent="critic",
-            counterfactual={"proposal": proposal, "accepted": accepted, "metrics": metrics},
+            counterfactual={
+                "proposal": proposal,
+                "accepted": accepted,
+                "metrics": metrics,
+                "net": len(details["improved"]) - len(details["worse"]),
+            },
         )
         if not details["metrics"]:
             return None

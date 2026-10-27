@@ -73,6 +73,7 @@
       "properties": {
         "proposal": { "type": "string", "maxLength": 200, "description": "The Tactician's change, e.g. 'left back holds 4 m deeper'." },
         "accepted": { "type": "boolean", "description": "The Critic accepts only if the tools show the change helps." },
+        "net": { "type": "integer", "description": "Metrics that got better minus those that got worse, from the moved team's view (what_if's value)." },
         "metrics": {
           "type": "array",
           "items": {

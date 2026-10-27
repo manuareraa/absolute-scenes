@@ -493,6 +493,7 @@ def test_the_viewers_idea_is_judged_by_the_critic(tools):
     cfs = [e["counterfactual"] for e in by["counterfactual"]]
     assert len(cfs) == 1 and cfs[0]["accepted"]
     assert cfs[0]["proposal"].startswith("The viewer's idea: home number")
+    assert cfs[0]["net"] > 0  # what the "You vs the Tactician" card ranks on
     call = next(e["tool"] for e in by["tool"] if e["tool"]["name"] == "what_if")
     move = call["args"]["moves"][0]
     assert move["player_id"] == p["id"] and move["back_m"] == 0.0 and move["infield_m"] == 4.0

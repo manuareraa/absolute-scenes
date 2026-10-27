@@ -110,6 +110,10 @@ export interface Counterfactual {
    * The Critic accepts only if the tools show the change helps.
    */
   accepted: boolean;
+  /**
+   * Metrics that got better minus those that got worse, from the moved team's view (what_if's value).
+   */
+  net?: number;
   metrics: {
     /**
      * e.g. pitch_control_box, line_gap_m, xg.

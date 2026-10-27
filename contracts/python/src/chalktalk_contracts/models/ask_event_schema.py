@@ -79,6 +79,10 @@ class Counterfactual(BaseModel):
     """
     The Critic accepts only if the tools show the change helps.
     """
+    net: int | None = None
+    """
+    Metrics that got better minus those that got worse, from the moved team's view (what_if's value).
+    """
     metrics: list[Metric]
 
 
