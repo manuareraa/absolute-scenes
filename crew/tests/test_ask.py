@@ -541,4 +541,6 @@ def test_bad_moves_are_refused(moves):
 class NoTactician(FakeAskRunner):
     def run(self, role, prompt, toolbox=None):  # noqa: ANN001, ANN201
         assert role != "ask-tactician", "the viewer's idea needs no Tactician"
+        # Only the Critic judges the idea; the Pundit explains the moment without guessing.
+        assert "my idea" not in prompt and "mi idea" not in prompt
         return super().run(role, prompt, toolbox)

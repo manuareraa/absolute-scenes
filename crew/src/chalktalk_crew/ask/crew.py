@@ -29,7 +29,7 @@ import uuid
 from collections import OrderedDict
 from collections.abc import Callable, Iterator
 from concurrent.futures import Future, ThreadPoolExecutor
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from typing import Any
 
 from chalktalk_contracts import validate
@@ -103,6 +103,9 @@ CF_MINE = {
     },
 }
 MAX_MINE = 3  # what_if moves at most 3 players
+# With the viewer's idea, the Analyst and Pundit explain the moment; only the Critic, after its
+# re-run, may say whether the idea helps.
+MINE_QUESTION = {"en": "What happened in this moment?", "es": "¿Qué pasó en esta jugada?"}
 MINE_SHIFT_M = 10.0  # and each by at most 10 m
 PLAYER_ID = re.compile(r"^[HA]\d{1,2}$")
 WHO = {"en": ("{team} number {n}", " and "), "es": ("el número {n} {team}", " y ")}
@@ -547,7 +550,8 @@ class AskCrew:
                 + " "
                 + step_text(req.lang, plan),
             )
-            self._analyse(req, box, ctx, emit)
+            told = replace(req, question=MINE_QUESTION[lng]) if req.moves else req
+            self._analyse(told, box, ctx, emit)
             # The Tactician's first proposal needs only the analysis, so it is drafted while the
             # Pundit writes (one Foundry round trip saved on "what should they have done").
             first = None
@@ -555,7 +559,7 @@ class AskCrew:
                 pool = ThreadPoolExecutor(1, thread_name_prefix="ask-tactician")
                 first = pool.submit(self._propose, req, ctx, "")
                 pool.shutdown(wait=False)
-            ans = self._write(req, box, ctx, emit)
+            ans = self._write(told, box, ctx, emit)
             box.max_calls = MAX_CALLS
             if req.moves:
                 cf = self._mine(req, box, ctx, emit)
