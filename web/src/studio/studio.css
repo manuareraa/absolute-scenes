@@ -113,11 +113,11 @@
 .tactic-reach { fill: color-mix(in srgb, #fff 6%, transparent); stroke: #fff9; stroke-width: 0.2; stroke-dasharray: 0.8 0.8; }
 .tactic-ghost { fill: none; stroke: #fffa; stroke-width: 0.3; stroke-dasharray: 0.5 0.4; }
 .tactic-path { stroke: #fff; stroke-width: 0.35; stroke-dasharray: 1 0.7; }
-.tactic-card { position: absolute; top: 10px; left: 50%; transform: translateX(-50%); width: min(92%, 520px); background: color-mix(in srgb, var(--bg, #111) 88%, transparent); border: 1px solid var(--signal); border-radius: 8px; padding: 8px 12px; font-size: 13px; z-index: 5; }
+/* Under the pitch, never over it: a player near the touchline must stay draggable. */
+.tactic-card { margin-top: 6px; background: color-mix(in srgb, var(--bg, #111) 88%, transparent); border: 1px solid var(--signal); border-radius: 8px; padding: 8px 12px; font-size: 13px; z-index: 5; }
 .tactic-card p { margin: 0 0 4px; }
 .tactic-hint { color: var(--muted); }
 .tactic-actions { display: flex; gap: 6px; flex-wrap: wrap; }
 .tactic-actions button { border: 1px solid var(--border); border-radius: 99px; padding: 3px 12px; background: transparent; color: var(--ink); }
 .tactic-actions button.primary { border-color: var(--signal); background: color-mix(in srgb, var(--signal) 30%, transparent); font-weight: 600; }
 .tactic-actions button:disabled { opacity: 0.5; }
-@media (max-width: 700px) { .tactic-card { position: static; transform: none; width: auto; margin-top: 6px; } }

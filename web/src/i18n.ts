@@ -295,7 +295,7 @@ const EN = {
       off: "Live questions are switched off right now.",
       default: "The answer didn't come through. Try again.",
     } as Record<string, string>,
-    metrics: { gap_m: "gap to slot", pc_pts: "pitch control", line_gap_m: "line gap", xg: "chance (xG)", pitch_control_box: "box control" } as Record<string, string>,
+    metrics: { gap_m: "gap to slot", pc_pts: "pitch control", line_gap_m: "line gap", xg: "chance (xG)", pitch_control_box: "box control", pitch_control: "pitch control", pressure: "pressure", obso: "scoring threat" } as Record<string, string>,
   },
 };
 
@@ -600,7 +600,7 @@ const ES: Strings = {
       off: "Las preguntas en directo están desactivadas ahora mismo.",
       default: "La respuesta no ha llegado. Inténtalo de nuevo.",
     },
-    metrics: { gap_m: "distancia a su sitio", pc_pts: "control del campo", line_gap_m: "hueco entre líneas", xg: "ocasión (xG)", pitch_control_box: "control del área" },
+    metrics: { gap_m: "distancia a su sitio", pc_pts: "control del campo", line_gap_m: "hueco entre líneas", xg: "ocasión (xG)", pitch_control_box: "control del área", pitch_control: "control del espacio", pressure: "presión", obso: "peligro de gol" },
   },
 };
 
