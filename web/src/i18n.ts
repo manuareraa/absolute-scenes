@@ -232,6 +232,15 @@ const EN = {
     placeholder: "Ask about this moment…",
     send: "Ask",
     pauses: "Asking pauses the show",
+    tactic: {
+      start: "Be the tactician",
+      hint: "Drag up to 3 players of one team, up to 10 m each. The Critic re-runs the moment and keeps your idea only if the numbers improve.",
+      test: "Test my idea",
+      reset: "Reset",
+      cancel: "Cancel",
+      question: "Would my change have been better?",
+      moved: (n: number) => `${n} of 3 moved`,
+    },
     suggestions: {
       counterfactual: "What should they have done?",
       space: "Why was there so much space?",
@@ -528,6 +537,15 @@ const ES: Strings = {
     placeholder: "Pregunta sobre esta jugada…",
     send: "Preguntar",
     pauses: "Preguntar pausa el programa",
+    tactic: {
+      start: "Sé el táctico",
+      hint: "Arrastra hasta 3 jugadores de un equipo, 10 m como máximo cada uno. El Crítico vuelve a jugar la jugada y solo acepta tu idea si los números mejoran.",
+      test: "Probar mi idea",
+      reset: "Reiniciar",
+      cancel: "Cancelar",
+      question: "¿Habría sido mejor mi cambio?",
+      moved: (n: number) => `${n} de 3 movidos`,
+    },
     suggestions: {
       counterfactual: "¿Qué debieron hacer?",
       space: "¿Por qué había tanto espacio?",

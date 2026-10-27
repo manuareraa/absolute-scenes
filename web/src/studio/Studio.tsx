@@ -22,6 +22,9 @@ export function AskBar(props: {
   onBargeIn(): void;
   onAsk(question: string, key?: SuggestionKey): void;
   onStop(): void;
+  /** "Be the tactician": drag players, then the Critic tests the idea. */
+  onTactic?(): void;
+  tactic?: boolean;
 }) {
   const { s, lang } = props;
   const t = s.ask;
@@ -102,6 +105,11 @@ export function AskBar(props: {
             {t.suggestions[k]}
           </button>
         ))}
+        {props.onTactic && (
+          <button type="button" className={`ask-tactic${props.tactic ? " on" : ""}`} onClick={props.onTactic} aria-pressed={!!props.tactic}>
+            {t.tactic.start}
+          </button>
+        )}
       </div>
     </form>
   );

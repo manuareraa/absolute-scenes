@@ -25,6 +25,8 @@ export interface AskRequest {
   lang: string;
   lens: Overlay["lens"];
   side: Overlay["side"];
+  /** "Be the tactician": where the viewer dragged each player (pitch metres). */
+  moves?: { player_id: string; x: number; y: number }[];
 }
 
 export type AskSource = "live" | "rehearsal";

@@ -6,6 +6,7 @@ import { ScoreBug } from "./components/ScoreBug";
 import { airStatus, demoOverlays, withDemo } from "./demo";
 import { claimWords, slotLabel, evidenceFor, evidenceOverlay, eventsSoFar, geometryOverlay, frameBetween, replayMatchT, type EvidenceEntry } from "./evidence";
 import { PitchView } from "./components/PitchView";
+import type { Vec } from "./pitch";
 import { LENSES, SIDES, SURFACES, type Fixture } from "./fixture/synthetic";
 import { chapterTitles, momentHeadline, num, slotWords, tr, unitWord, type Strings } from "./i18n";
 import { applyHubMessage, liveFrame, LiveDirector, liveMatchT, newLiveState } from "./live";
@@ -114,6 +115,8 @@ export function App() {
   const [mode, setMode] = useState<{ mode: SourceMode; detail?: string }>({ mode: "connecting" });
   const [live, setLive] = useState<Overlay[]>([]);
   const [playing, setPlaying] = useState(true);
+  // "Be the tactician": the paused moment and where the viewer dragged players.
+  const [tactic, setTactic] = useState<{ t: number; moves: Record<string, Vec> } | null>(null);
   const [view, setView] = useState<View>(START_VIEW);
   const [landing, setLanding] = useState(LANDING);
   // A "Show me" link from the front page, applied once the show has loaded.
@@ -460,8 +463,27 @@ export function App() {
   const askPundit = (question: string, suggestion?: SuggestionKey) => {
     setAskHint(null);
     if (!shownMatch) return;
+    setTactic(null);
     studio.ask({ question, suggestion, match_id: shownMatch, moment_id: state.overlay?.id, match_tc: Math.round(matchT), lang, lens, side });
   };
+  const startTactic = () => {
+    setAskHint(null);
+    if (asking) studio.stop();
+    studio.pauseShow();
+    setPlaying(false);
+    setTactic({ t: Math.round(matchT), moves: {} });
+  };
+  const testTactic = () => {
+    if (!tactic || !shownMatch) return;
+    const moves = Object.entries(tactic.moves).map(([player_id, [x, y]]) => ({ player_id, x, y }));
+    if (!moves.length) return;
+    setTactic(null);
+    studio.ask({ question: s.ask.tactic.question, match_id: shownMatch, match_tc: tactic.t, lang, lens, side, moves });
+  };
+  // Playing on or seeking leaves the moment the idea was drawn on.
+  useEffect(() => {
+    if (playing) setTactic(null);
+  }, [playing]);
 
   // My player: totals from the frames on screen (recorded) or received (live), never estimated.
   const names = shownMatch === MATCH_ID ? roster : undefined;
@@ -596,7 +618,7 @@ export function App() {
         )}
         <div className="main-col">
           <div className="screen">
-            {view === "3d" && (
+            {view === "3d" && !tactic && (
               <Suspense fallback={show3d ? <PitchView frame={frame} label={s.pitch} /> : null}>
                 <div className="view3d" hidden={!show3d}>
                   <Broadcast3D
@@ -613,10 +635,31 @@ export function App() {
                 </div>
               </Suspense>
             )}
-            {!show3d && (
-              <PitchView frame={frame} label={s.pitch} mine={myId} mineLabel={myId ? playerLabel(myId, names) : undefined} onPick={(id) => setMyId(id === myId ? null : id)}>
-                <OverlayLayer overlay={drawn} frame={frame} audioMs={replaying || summing ? Infinity : audioMs} />
+            {(!show3d || tactic) && (
+              <PitchView
+                frame={frame}
+                label={s.pitch}
+                mine={myId}
+                mineLabel={myId ? playerLabel(myId, names) : undefined}
+                onPick={(id) => setMyId(id === myId ? null : id)}
+                tactic={tactic && { moves: tactic.moves, max: 10, limit: 3, onMove: (id, to) => setTactic((tc) => tc && { ...tc, moves: { ...tc.moves, [id]: to } }) }}>
+                {!tactic && <OverlayLayer overlay={drawn} frame={frame} audioMs={replaying || summing ? Infinity : audioMs} />}
               </PitchView>
+            )}
+            {tactic && (
+              <div className="tactic-card" role="dialog" aria-label={s.ask.tactic.start}>
+                <p>
+                  <b>{s.ask.tactic.start}</b> · {s.ask.tactic.moved(Object.keys(tactic.moves).length)}
+                </p>
+                <p className="tactic-hint">{s.ask.tactic.hint}</p>
+                <div className="tactic-actions">
+                  <button className="primary" onClick={testTactic} disabled={!Object.keys(tactic.moves).length}>
+                    {s.ask.tactic.test}
+                  </button>
+                  <button onClick={() => setTactic((tc) => tc && { ...tc, moves: {} })}>{s.ask.tactic.reset}</button>
+                  <button onClick={() => setTactic(null)}>{s.ask.tactic.cancel}</button>
+                </div>
+              </div>
             )}
             {answer && studio.state.counterfactual && !replaying && !summing && (
               <WhatIf cf={studio.state.counterfactual} overlay={answer} audioMs={audioMs} s={s} lang={lang} />
@@ -667,6 +710,8 @@ export function App() {
               onBargeIn={() => asking && studio.stop()}
               onAsk={askPundit}
               onStop={studio.stop}
+              onTactic={!isLive || showMode ? startTactic : undefined}
+              tactic={!!tactic}
             />
           )}
           <div className="viewer-bar">
